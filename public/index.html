@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="theme-color" content="#eef3fb">
+<title>Teléfono Escacharrado MC</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✏️</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bagel+Fat+One&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar" id="topbar">
+    <div class="brand"><span class="brand-mark">✏️</span><span>Teléfono Escacharrado MC</span></div>
+    <div class="topbar-right">
+      <span class="room-chip" id="roomChip" hidden></span>
+      <button class="btn-ghost small" id="leaveBtn" hidden type="button">Salir</button>
+    </div>
+  </header>
+
+  <div class="banner" id="offline" hidden>Sin conexión. Reconectando…</div>
+
+  <!-- INICIO -->
+  <main class="screen fit-screen home-screen" id="s-home">
+    <div class="home-hero">
+      <span class="home-logo" aria-hidden="true">✏️</span>
+      <h1 class="home-title">Teléfono<br><span>Escacharrado</span> <em class="mc">MC</em></h1>
+    </div>
+    <div class="card form-card">
+      <label class="label" for="nameInput">Tu nombre</label>
+      <input id="nameInput" class="input" maxlength="16" autocomplete="nickname" placeholder="Ej.: Abuela Carmen">
+      <button class="emoji-pick" id="emojiBtn" type="button" aria-haspopup="dialog">
+        <span class="emoji-current" id="emojiCurrent"></span>
+        <span class="emoji-pick-text">Elige tu carita</span>
+        <span class="chev" aria-hidden="true">›</span>
+      </button>
+
+      <div class="join-box" id="joinInvite" hidden>
+        <p>Te han invitado a la sala <strong id="inviteCode"></strong></p>
+        <button class="btn primary big" id="joinInviteBtn" type="button">Entrar en la sala</button>
+      </div>
+
+      <div class="home-actions" id="homeActions">
+        <button class="btn primary big" id="createBtn" type="button">Crear una sala</button>
+        <div class="or"><span>o únete con un código</span></div>
+        <div class="join-row">
+          <input id="codeInput" class="input code-input" maxlength="5" autocapitalize="characters" autocomplete="off" placeholder="CÓDIGO" aria-label="Código de sala">
+          <button class="btn secondary" id="joinBtn" type="button">Unirme</button>
+        </div>
+      </div>
+      <p class="error" id="homeError" role="alert"></p>
+    </div>
+  </main>
+
+  <!-- SALA DE ESPERA -->
+  <main class="screen fit-screen" id="s-lobby" hidden>
+    <div class="card code-card">
+      <div class="code-row">
+        <div>
+          <span class="label">Código de la sala</span>
+          <div class="big-code" id="lobbyCode">-----</div>
+        </div>
+        <button class="btn secondary" id="copyBtn" type="button">Copiar enlace</button>
+      </div>
+      <input class="input share-input" id="shareLink" readonly aria-label="Enlace para invitar" hidden>
+    </div>
+
+    <div class="card players-card grow">
+      <div class="row-between">
+        <h2 class="h2">Jugadores</h2>
+        <span class="count" id="playerCount"></span>
+      </div>
+      <ul class="chips" id="lobbyPlayers"></ul>
+    </div>
+
+    <div class="card mode-card">
+      <h2 class="h3" id="modeTitle"></h2>
+      <p class="mode-text" id="modeText"></p>
+      <div class="setting">
+        <span class="label">Tiempo por turno</span>
+        <div class="seg" id="timeSeg">
+          <button type="button" data-v="rapido">Rápido</button>
+          <button type="button" data-v="normal">Normal</button>
+          <button type="button" data-v="relajado">Relajado</button>
+          <button type="button" data-v="libre">Sin límite</button>
+        </div>
+      </div>
+      <div class="setting" id="duoRoundsSetting">
+        <span class="label">Rondas</span>
+        <div class="seg" id="roundsSeg">
+          <button type="button" data-v="2">2</button>
+          <button type="button" data-v="3">3</button>
+          <button type="button" data-v="4">4</button>
+          <button type="button" data-v="5">5</button>
+          <button type="button" data-v="6">6</button>
+        </div>
+      </div>
+      <p class="hint" id="notHostHint"></p>
+    </div>
+
+    <button class="btn primary big" id="startBtn" type="button">Empezar partida</button>
+  </main>
+
+  <!-- TURNO: ESCRIBIR / ADIVINAR -->
+  <main class="screen fit-screen" id="s-text" hidden>
+    <div class="turn-head">
+      <span class="step-pill" id="textStep"></span>
+      <span class="timer" id="textTimer"></span>
+    </div>
+    <h2 class="turn-title" id="textTitle"></h2>
+    <figure class="prompt-figure grow" id="textPromptFig" hidden>
+      <img id="textPromptImg" alt="Dibujo que tienes que adivinar">
+      <figcaption id="textPromptBy"></figcaption>
+    </figure>
+    <p class="empty-drawing" id="textPromptEmpty" hidden>Aquí no dibujaron nada. Invéntate algo divertido.</p>
+    <div class="spacer grow" id="textSpacer"></div>
+    <form class="text-form" id="textForm" autocomplete="off">
+      <input class="input big-input" id="textInput" maxlength="120" enterkeyhint="send">
+      <div class="text-actions">
+        <button class="btn secondary" type="button" id="diceBtn" title="Dame una idea">🎲 Dame una idea</button>
+        <button class="btn primary" type="submit">¡Listo!</button>
+      </div>
+    </form>
+  </main>
+
+  <!-- TURNO: DIBUJAR -->
+  <main class="screen draw-screen" id="s-draw" hidden>
+    <div class="draw-head">
+      <div class="draw-prompt">
+        <span class="step-mini" id="drawStep"></span>
+        <span class="draw-what" id="drawWhat"></span>
+      </div>
+      <div class="draw-head-right">
+        <button class="btn-ghost small" id="rerollBtn" type="button" hidden>Otra frase</button>
+        <span class="timer" id="drawTimer"></span>
+        <button class="btn primary done-btn" id="drawDone" type="button">¡Listo!</button>
+      </div>
+    </div>
+    <div class="pad" id="pad"></div>
+    <div class="toolbar" id="toolbar">
+      <div class="pop size-pop" id="sizes" aria-label="Tamaño del pincel" hidden></div>
+      <div class="pop color-pop" id="colors" aria-label="Colores" hidden></div>
+      <div class="tool-row">
+        <button class="tool active" data-tool="pen" type="button" aria-label="Pincel" title="Pincel"></button>
+        <button class="tool" data-tool="eraser" type="button" aria-label="Goma" title="Goma"></button>
+        <button class="tool" data-tool="fill" type="button" aria-label="Rellenar zona" title="Rellenar zona"></button>
+        <button class="tool" data-tool="hand" type="button" aria-label="Mover lienzo" title="Mover lienzo"></button>
+        <button class="tool pop-toggle" id="sizeToggle" type="button" aria-label="Tamaño del pincel" aria-expanded="false" aria-controls="sizes" title="Tamaño"><span class="size-preview" id="sizePreview"></span></button>
+        <button class="tool pop-toggle" id="colorToggle" type="button" aria-label="Elegir color" aria-expanded="false" aria-controls="colors" title="Colores"><span class="swatch" id="colorSwatch"></span></button>
+        <button class="tool" id="undoBtn" type="button" aria-label="Deshacer" title="Deshacer"></button>
+        <button class="tool" id="redoBtn" type="button" aria-label="Rehacer" title="Rehacer"></button>
+        <button class="tool" id="zoomOutBtn" type="button" aria-label="Alejar" title="Alejar"></button>
+        <button class="tool" id="zoomInBtn" type="button" aria-label="Acercar" title="Acercar"></button>
+        <button class="tool danger" id="clearBtn" type="button" aria-label="Borrar todo" title="Borrar todo"></button>
+      </div>
+    </div>
+  </main>
+
+  <!-- ESPERANDO -->
+  <main class="screen fit-screen" id="s-wait" hidden>
+    <div class="wait-top">
+      <div class="wait-badge">✔</div>
+      <h2 class="turn-title">¡Hecho! Esperando a los demás…</h2>
+      <span class="timer" id="waitTimer"></span>
+    </div>
+    <ul class="chips grow" id="waitPlayers"></ul>
+    <div class="wait-actions">
+      <button class="btn secondary" id="unsubmitBtn" type="button">Cambiar lo mío</button>
+      <button class="btn-ghost" id="skipBtn" type="button" hidden>Seguir sin esperar</button>
+    </div>
+  </main>
+
+  <!-- RESULTADO DE RONDA (DÚO) -->
+  <main class="screen fit-screen" id="s-result" hidden>
+    <div class="row-between">
+      <h2 class="h2" id="resultTitle"></h2>
+      <span class="score-pill" id="resultScore"></span>
+    </div>
+    <div class="duo-cards grow" id="resultCards"></div>
+    <div class="bottom-controls">
+      <button class="btn secondary" id="duoPrevBtn" type="button" hidden>Anterior</button>
+      <button class="btn primary" id="duoNextBtn" type="button">Siguiente ronda</button>
+    </div>
+  </main>
+
+  <!-- REVELACIÓN (CADENA) -->
+  <main class="screen fit-screen" id="s-reveal" hidden>
+    <div class="reveal-head">
+      <span class="step-mini" id="revealCount"></span>
+      <h2 class="h2" id="revealTitle"></h2>
+      <div class="dots" id="revealDots" aria-hidden="true"></div>
+    </div>
+    <div class="reveal-prev" id="revealPrev" hidden></div>
+    <div class="reveal-stage grow" id="revealStage"></div>
+    <div class="bottom-controls" id="revealControls">
+      <button class="btn secondary" id="revPrev" type="button">Anterior</button>
+      <button class="btn primary" id="revNext" type="button">Siguiente</button>
+    </div>
+    <p class="hint center" id="revealHint"></p>
+  </main>
+
+  <!-- FINAL -->
+  <main class="screen fit-screen end-screen" id="s-end" hidden>
+    <div class="end-center grow">
+      <div class="end-badge" aria-hidden="true">🎉</div>
+      <h2 class="hero-title small" id="endTitle">¡Fin de la partida!</h2>
+      <p class="lead" id="endText"></p>
+      <button class="btn secondary big" id="reviewBtn" type="button">Volver a ver las historias</button>
+    </div>
+    <div class="end-actions">
+      <button class="btn primary big" id="againBtn" type="button">Volver a la sala y jugar otra</button>
+      <p class="hint center" id="againHint"></p>
+      <p class="hint center small-print">Al volver a la sala se borra todo lo de esta partida.</p>
+    </div>
+  </main>
+
+  <!-- Elegir emoticono -->
+  <div class="sheet-backdrop" id="emojiSheet" hidden>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="emojiTitle">
+      <h2 class="h2" id="emojiTitle">Elige tu carita</h2>
+      <div class="emoji-grid" id="emojiGrid" role="radiogroup" aria-label="Caritas"></div>
+    </div>
+  </div>
+
+  <!-- Confirmar salida -->
+  <div class="sheet-backdrop" id="leaveSheet" hidden>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="leaveTitle">
+      <h2 class="h2" id="leaveTitle">¿Salir de la sala?</h2>
+      <p>Si la partida está en marcha, tus turnos se saltarán.</p>
+      <div class="sheet-actions">
+        <button class="btn secondary" id="leaveNo" type="button">Seguir jugando</button>
+        <button class="btn danger-btn" id="leaveYes" type="button">Salir</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="frases.js"></script>
+<script src="avatars.js"></script>
+<script src="pad.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

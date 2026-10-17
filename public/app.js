@@ -1,0 +1,893 @@
+// Teléfono Escacharrado MC: lógica del navegador.
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const EMOJIS = AVATARS.ids;
+  const COLORS = [
+    "#1b1b1f", "#4a4d57", "#8a8e99", "#c7cad1", "#ffffff",
+    "#7a1018", "#c81d25", "#ff3b3b", "#ff8a80",
+    "#b34700", "#ff7a1a", "#ffb067",
+    "#c79a00", "#ffd21f", "#fff27a",
+    "#4d7a12", "#9be04a", "#1f8a3a", "#7ad19a",
+    "#0f6b63", "#2ec4b6",
+    "#0b4fa8", "#2563eb", "#3fc8ef", "#9fdcf7", "#1e2f7a",
+    "#5b21b6", "#9b5de5", "#d946ef", "#ff8fb8",
+    "#5c3a1e", "#8b5a2b", "#c68b59", "#f1c9a5"
+  ];
+  const SIZES = [2, 5, 9, 15, 24, 36, 56];
+
+  const store = {
+    get(k, d) {
+      try {
+        const v = localStorage.getItem(k);
+        return v == null ? d : v;
+      } catch (_) {
+        return d;
+      }
+    },
+    set(k, v) {
+      try {
+        localStorage.setItem(k, v);
+      } catch (_) {}
+    },
+  };
+  const session = {
+    get() {
+      try {
+        return JSON.parse(sessionStorage.getItem("tg-session") || "null");
+      } catch (_) {
+        return null;
+      }
+    },
+    set(v) {
+      try {
+        if (v) sessionStorage.setItem("tg-session", JSON.stringify(v));
+        else sessionStorage.removeItem("tg-session");
+      } catch (_) {}
+    },
+  };
+
+  // ---------- estado local ----------
+  let state = null;
+  let clockOffset = 0;
+  let me = { name: store.get("tg-name", ""), emoji: store.get("tg-emoji", "") };
+  if (!EMOJIS.includes(me.emoji)) me.emoji = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
+  let currentStepKey = null;
+  let autoSubmitted = null;
+  let gallery = null;
+  let pad = null;
+  let wakeLock = null;
+
+  const params = new URLSearchParams(location.search);
+  const inviteCode = (params.get("sala") || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 5);
+
+  // ---------- conexión ----------
+  const socket = io({ transports: ["websocket", "polling"] });
+
+  socket.on("connect", () => {
+    $("offline").hidden = true;
+    const s = session.get();
+    if (s && s.code && s.token) {
+      socket.emit("join", { code: s.code, token: s.token, rejoinOnly: true }, (res) => {
+        if (!res.ok) {
+          session.set(null);
+          state = null;
+          show("s-home");
+          renderChrome();
+        }
+      });
+    }
+  });
+  socket.on("disconnect", () => {
+    setTimeout(() => {
+      if (!socket.connected) $("offline").hidden = false;
+    }, 1500);
+  });
+  socket.on("state", (s) => {
+    clockOffset = s.now - Date.now();
+    state = s;
+    if (s.phase !== "end") {
+      gallery = null;
+      viewer = null;
+    }
+    render();
+  });
+  socket.on("gallery", (g) => {
+    gallery = g;
+    if (state && state.phase === "end") renderEnd();
+  });
+  socket.on("toast", (t) => toast(t));
+  socket.on("replaced", () => {
+    toast("Has abierto el juego en otra pestaña.");
+  });
+  socket.on("closed", () => {
+    session.set(null);
+    state = null;
+    toast("La sala se ha cerrado.");
+    show("s-home");
+    renderChrome();
+  });
+
+  // ---------- utilidades de interfaz ----------
+  const screens = ["s-home", "s-lobby", "s-text", "s-draw", "s-wait", "s-result", "s-reveal", "s-end"];
+  function show(id) {
+    for (const s of screens) $(s).hidden = s !== id;
+    document.body.dataset.screen = id;
+    if (id === "s-draw" && pad) requestAnimationFrame(() => pad.layout());
+  }
+  let toastTimer;
+  function toast(msg) {
+    const t = $("toast");
+    t.textContent = msg;
+    t.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => (t.hidden = true), 2800);
+  }
+  function el(tag, cls, text) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  const isHost = () => state && state.hostId === state.you;
+  const now = () => Date.now() + clockOffset;
+
+  async function keepAwake() {
+    try {
+      if ("wakeLock" in navigator && !wakeLock && document.visibilityState === "visible") {
+        wakeLock = await navigator.wakeLock.request("screen");
+        wakeLock.addEventListener("release", () => (wakeLock = null));
+      }
+    } catch (_) {}
+  }
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && state) keepAwake();
+  });
+
+  // ---------- inicio ----------
+  function buildEmojiGrid() {
+    const g = $("emojiGrid");
+    g.innerHTML = "";
+    for (const e of EMOJIS) {
+      const b = el("button", "emoji-btn");
+      b.type = "button";
+      b.dataset.id = e;
+      b.setAttribute("aria-label", "Carita " + AVATARS.label(e));
+      b.appendChild(AVATARS.avatarEl(e));
+      b.setAttribute("role", "radio");
+      b.setAttribute("aria-checked", String(e === me.emoji));
+      b.addEventListener("click", () => {
+        me.emoji = e;
+        store.set("tg-emoji", e);
+        for (const x of g.children) x.setAttribute("aria-checked", String(x.dataset.id === e));
+        paintCurrentAvatar();
+        $("emojiSheet").hidden = true;
+      });
+      g.appendChild(b);
+    }
+    paintCurrentAvatar();
+  }
+  function paintCurrentAvatar() {
+    const c = $("emojiCurrent");
+    c.innerHTML = "";
+    c.appendChild(AVATARS.avatarEl(me.emoji));
+  }
+  // Persona con su carita, para frases como "Abuela dibujó"
+  function who(p, suffix) {
+    const s = el("span", "who");
+    if (p) {
+      s.appendChild(AVATARS.avatarEl(p.emoji, "tiny"));
+      s.appendChild(document.createTextNode(p.name + (suffix ? " " + suffix : "")));
+    } else s.textContent = suffix || "";
+    return s;
+  }
+  function setWho(node, prefix, p, suffix) {
+    node.innerHTML = "";
+    if (prefix) node.appendChild(document.createTextNode(prefix + " "));
+    node.appendChild(who(p, suffix));
+  }
+  const nameOf = (p, fallback) => (p ? p.name : fallback);
+  $("emojiBtn").addEventListener("click", () => ($("emojiSheet").hidden = false));
+  $("emojiSheet").addEventListener("click", (e) => {
+    if (e.target === $("emojiSheet")) $("emojiSheet").hidden = true;
+  });
+  $("nameInput").value = me.name;
+  $("nameInput").addEventListener("input", (e) => {
+    me.name = e.target.value;
+    store.set("tg-name", me.name);
+  });
+  $("codeInput").addEventListener("input", (e) => {
+    e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  });
+
+  function needName() {
+    if (!me.name.trim()) {
+      $("homeError").textContent = "Escribe tu nombre para que los demás sepan quién eres.";
+      $("nameInput").focus();
+      return true;
+    }
+    $("homeError").textContent = "";
+    return false;
+  }
+  function entered(res) {
+    if (!res.ok) {
+      $("homeError").textContent = res.error || "No se pudo entrar.";
+      return;
+    }
+    session.set({ code: res.code, token: res.token });
+    history.replaceState(null, "", "/?sala=" + res.code);
+    keepAwake();
+  }
+  $("createBtn").addEventListener("click", () => {
+    if (needName()) return;
+    socket.emit("create", { name: me.name, emoji: me.emoji }, entered);
+  });
+  function joinCode(code) {
+    if (needName()) return;
+    if (!/^[A-Z0-9]{5}$/.test(code)) {
+      $("homeError").textContent = "El código tiene 5 letras o números.";
+      return;
+    }
+    const s = session.get();
+    socket.emit("join", { code, name: me.name, emoji: me.emoji, token: s && s.code === code ? s.token : null }, entered);
+  }
+  $("joinBtn").addEventListener("click", () => joinCode($("codeInput").value.trim()));
+  $("codeInput").addEventListener("keydown", (e) => e.key === "Enter" && joinCode($("codeInput").value.trim()));
+  $("joinInviteBtn").addEventListener("click", () => joinCode(inviteCode));
+  if (inviteCode) {
+    $("joinInvite").hidden = false;
+    $("inviteCode").textContent = inviteCode;
+    $("codeInput").value = inviteCode;
+    $("createBtn").classList.remove("primary");
+    $("createBtn").classList.add("secondary");
+    $("createBtn").textContent = "Crear otra sala";
+  }
+
+  // ---------- salir ----------
+  $("leaveBtn").addEventListener("click", () => ($("leaveSheet").hidden = false));
+  $("leaveNo").addEventListener("click", () => ($("leaveSheet").hidden = true));
+  $("leaveYes").addEventListener("click", () => {
+    $("leaveSheet").hidden = true;
+    socket.emit("leave");
+    session.set(null);
+    state = null;
+    gallery = null;
+    history.replaceState(null, "", "/");
+    $("joinInvite").hidden = true;
+    show("s-home");
+    renderChrome();
+  });
+
+  // ---------- render principal ----------
+  function renderChrome() {
+    const inRoom = !!state;
+    $("roomChip").hidden = !inRoom;
+    $("leaveBtn").hidden = !inRoom;
+    $("topbar").classList.toggle("in-room", inRoom);
+    if (inRoom) $("roomChip").textContent = state.code;
+  }
+
+  function render() {
+    renderChrome();
+    if (!state) return show("s-home");
+    if (state.phase === "lobby") return renderLobby();
+    if (state.phase === "playing") return renderPlaying();
+    if (state.phase === "reveal") return renderReveal();
+    if (state.phase === "end") return renderEnd();
+  }
+
+  function playerItem(p, opts = {}) {
+    const li = el("li", "player chip" + (p.connected ? "" : " off") + (p.left ? " left" : ""));
+    li.appendChild(AVATARS.avatarEl(p.emoji, "p-emoji"));
+    li.appendChild(el("span", "p-name", p.name));
+    const tags = el("span", "p-tags");
+    if (p.id === state.you) tags.appendChild(el("span", "tag you", "tú"));
+    if (p.id === state.hostId) tags.appendChild(el("span", "tag host", "anfitrión"));
+    if (p.left) tags.appendChild(el("span", "tag", "se fue"));
+    else if (!p.connected) tags.appendChild(el("span", "tag warn", "sin conexión"));
+    if (opts.status) tags.appendChild(el("span", "p-status " + (p.done ? "ok" : "pending"), p.done ? "✔" : "…"));
+    li.appendChild(tags);
+    return li;
+  }
+
+  // ---------- sala de espera ----------
+  function modeCopy(n) {
+    if (n < 2) return ["Esperando a más gente", "Comparte el enlace. Hacen falta al menos 2 jugadores."];
+    if (n === 2) return ["Modo Dúo", "Dibujáis a la vez una frase secreta y adivináis el dibujo del otro. Sumáis puntos en equipo."];
+    const steps = n === 3 ? 5 : n;
+    const seq = [];
+    for (let k = 0; k < steps; k++) seq.push(k === 0 ? "frase" : k % 2 ? "dibujo" : "adivina");
+    return [`Teléfono · ${steps} pasos por historia`, seq.join(" → ") + (n === 3 ? " (con 3, la historia da vuelta y media)" : "")];
+  }
+  function renderLobby() {
+    show("s-lobby");
+    currentStepKey = null;
+    const n = state.players.length;
+    $("lobbyCode").textContent = state.code;
+    $("shareLink").value = location.origin + "/?sala=" + state.code;
+    $("playerCount").textContent = `${n} de ${state.maxPlayers}`;
+    const ul = $("lobbyPlayers");
+    ul.innerHTML = "";
+    state.players.forEach((p) => ul.appendChild(playerItem(p)));
+    const [t, txt] = modeCopy(n);
+    $("modeTitle").textContent = t;
+    $("modeText").textContent = txt;
+    const host = isHost();
+    for (const b of $("timeSeg").children) {
+      b.setAttribute("aria-pressed", String(b.dataset.v === state.settings.time));
+      b.disabled = !host;
+    }
+    for (const b of $("roundsSeg").children) {
+      b.setAttribute("aria-pressed", String(Number(b.dataset.v) === state.settings.duoRounds));
+      b.disabled = !host;
+    }
+    $("duoRoundsSetting").hidden = n !== 2;
+    const hostP = state.players.find((p) => p.id === state.hostId);
+    $("notHostHint").textContent = host ? "" : `${nameOf(hostP, "El anfitrión")} elige las opciones y empieza la partida.`;
+    $("startBtn").hidden = !host;
+    $("startBtn").disabled = n < 2;
+    $("startBtn").textContent = n < 2 ? "Esperando jugadores…" : "Empezar partida";
+  }
+  $("timeSeg").addEventListener("click", (e) => {
+    const v = e.target.dataset && e.target.dataset.v;
+    if (v && isHost()) socket.emit("settings", { time: v });
+  });
+  $("roundsSeg").addEventListener("click", (e) => {
+    const v = e.target.dataset && e.target.dataset.v;
+    if (v && isHost()) socket.emit("settings", { duoRounds: Number(v) });
+  });
+  $("startBtn").addEventListener("click", () => {
+    keepAwake();
+    socket.emit("start");
+  });
+  $("copyBtn").addEventListener("click", async () => {
+    const v = $("shareLink").value;
+    try {
+      await navigator.clipboard.writeText(v);
+      toast("Enlace copiado");
+    } catch (_) {
+      $("shareLink").hidden = false;
+      $("shareLink").select();
+      toast("Selecciona el enlace y cópialo");
+    }
+  });
+
+  // ---------- turnos ----------
+  function stepLabel(task) {
+    if (state.mode === "duo") return `Ronda ${task.round} de ${task.rounds}`;
+    return `Paso ${task.stepNumber} de ${task.totalSteps}`;
+  }
+
+  function renderPlaying() {
+    if (state.result) return renderResult();
+    const task = state.task;
+    if (!task) return;
+    const isNew = task.stepKey !== currentStepKey;
+    if (isNew) {
+      currentStepKey = task.stepKey;
+      autoSubmitted = null;
+      prepareTask(task);
+    }
+    if (task.submitted) return renderWait(task);
+    if (task.type === "draw") {
+      show("s-draw");
+      $("drawWhat").textContent = task.secret != null ? task.secret : task.prompt ? (task.prompt.value || "(sin respuesta)") : "";
+      $("rerollBtn").hidden = !(task.secret != null && task.rerolls > 0);
+      $("rerollBtn").textContent = `Otra (${task.rerolls})`;
+    } else show("s-text");
+  }
+
+  function prepareTask(task) {
+    const prompt = task.prompt;
+    if (task.type === "draw") {
+      ensurePad();
+      pad.reset();
+      closePops();
+      updateToolbar();
+      $("drawStep").textContent = stepLabel(task);
+      if (task.secret != null) {
+        $("drawStep").textContent = stepLabel(task) + " · Dibuja en secreto";
+      } else {
+        $("drawStep").textContent = stepLabel(task) + (prompt && prompt.by ? ` · Frase de ${prompt.by.name}` : " · Dibuja esto");
+      }
+      return;
+    }
+    $("textStep").textContent = stepLabel(task);
+    $("textInput").value = "";
+    $("textPromptFig").hidden = true;
+    $("textPromptEmpty").hidden = true;
+    $("textSpacer").hidden = false;
+    if (task.type === "write") {
+      $("textTitle").textContent = "Escribe una frase para que alguien la dibuje";
+      $("textInput").placeholder = "Ej.: Un pulpo tocando la batería";
+      $("diceBtn").hidden = false;
+    } else {
+      $("textTitle").textContent = state.mode === "duo" ? "¿Qué ha dibujado tu pareja?" : "¿Qué crees que es este dibujo?";
+      $("textInput").placeholder = "Escribe lo que ves";
+      $("diceBtn").hidden = true;
+      if (prompt && prompt.value) {
+        $("textPromptImg").src = prompt.value;
+        if (prompt.by) setWho($("textPromptBy"), "Dibujo de", prompt.by);
+        else $("textPromptBy").textContent = "";
+        $("textPromptFig").hidden = false;
+        $("textSpacer").hidden = true;
+      } else {
+        $("textPromptEmpty").hidden = false;
+      }
+    }
+    setTimeout(() => {
+      if (!$("s-text").hidden && window.matchMedia("(pointer: fine)").matches) $("textInput").focus();
+    }, 50);
+  }
+
+  function sendText() {
+    const v = $("textInput").value.trim();
+    if (!v) {
+      toast(state.task.type === "write" ? "Escribe algo o pulsa «Dame una idea»." : "Escribe lo que crees que es.");
+      return false;
+    }
+    socket.emit("submit", { stepKey: currentStepKey, content: v });
+    return true;
+  }
+  $("textForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (sendText()) $("textInput").blur();
+  });
+  $("diceBtn").addEventListener("click", () => {
+    $("textInput").value = FRASES[Math.floor(Math.random() * FRASES.length)];
+  });
+
+  function sendDrawing() {
+    socket.emit("submit", { stepKey: currentStepKey, content: pad.toDataURL() });
+  }
+  $("drawDone").addEventListener("click", () => {
+    if (!pad.dirty) {
+      toast("Dibuja algo antes de terminar.");
+      return;
+    }
+    sendDrawing();
+  });
+  $("rerollBtn").addEventListener("click", () => socket.emit("reroll"));
+
+  function renderWait(task) {
+    show("s-wait");
+    const ul = $("waitPlayers");
+    ul.innerHTML = "";
+    state.players.forEach((p) => ul.appendChild(playerItem(p, { status: true })));
+    const pending = state.players.filter((p) => !p.done && !p.left);
+    const stuck = pending.some((p) => !p.connected) || !task.deadline;
+    $("skipBtn").hidden = !(isHost() && pending.length > 0 && stuck);
+  }
+  $("unsubmitBtn").addEventListener("click", () => socket.emit("unsubmit"));
+  $("skipBtn").addEventListener("click", () => socket.emit("skip"));
+
+  // Reloj: cuenta atrás y envío automático al acabarse el tiempo
+  function fmt(ms) {
+    const s = Math.max(0, Math.ceil(ms / 1000));
+    return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+  }
+  setInterval(() => {
+    const task = state && state.phase === "playing" && !state.result ? state.task : null;
+    const timers = [$("textTimer"), $("drawTimer"), $("waitTimer")];
+    if (!task || !task.deadline) {
+      timers.forEach((t) => {
+        t.textContent = task ? "∞" : "";
+        t.classList.remove("urgent");
+      });
+      return;
+    }
+    const left = task.deadline - now();
+    timers.forEach((t) => {
+      t.textContent = fmt(left);
+      t.classList.toggle("urgent", left < 10000);
+    });
+    if (left < 700 && !task.submitted && autoSubmitted !== currentStepKey) {
+      autoSubmitted = currentStepKey;
+      if (task.type === "draw") {
+        if (pad && pad.dirty) sendDrawing();
+      } else {
+        const v = $("textInput").value.trim();
+        if (v) socket.emit("submit", { stepKey: currentStepKey, content: v });
+      }
+    }
+  }, 250);
+
+  // ---------- lienzo y herramientas ----------
+  const ICONS = {
+    pen: '<path d="M4 20l4-1 11-11-3-3L5 16l-1 4z"/><path d="M14 6l3 3"/>',
+    eraser: '<path d="M8 20h12"/><path d="M5 15l8-9 6 6-7 8H9z"/><path d="M9 11l5 5"/>',
+    fill: '<path d="M5 11l7-7 7 7-7 7z"/><path d="M5 11h14"/><path d="M20 15s2 2.5 2 4a2 2 0 01-4 0c0-1.5 2-4 2-4z"/>',
+    hand: '<path d="M8 13V6a1.5 1.5 0 013 0v5"/><path d="M11 11V4.5a1.5 1.5 0 013 0V11"/><path d="M14 11V6a1.5 1.5 0 013 0v7c0 4-2.5 7-6 7-2.5 0-4-1-5.5-3L3 13.5a1.5 1.5 0 012.3-1.9L8 14"/>',
+    undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 010 10h-3"/>',
+    redo: '<path d="M15 14l5-5-5-5"/><path d="M20 9H9a5 5 0 000 10h3"/>',
+    zoomIn: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4M8 11h6M11 8v6"/>',
+    zoomOut: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4M8 11h6"/>',
+    clear: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>',
+  };
+  const svg = (p) => `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+  document.querySelectorAll("[data-tool]").forEach((b) => (b.innerHTML = svg(ICONS[b.dataset.tool])));
+  $("undoBtn").innerHTML = svg(ICONS.undo);
+  $("redoBtn").innerHTML = svg(ICONS.redo);
+  $("zoomInBtn").innerHTML = svg(ICONS.zoomIn);
+  $("zoomOutBtn").innerHTML = svg(ICONS.zoomOut);
+  $("clearBtn").innerHTML = svg(ICONS.clear);
+
+  const sizePx = (i) => Math.round(4 + (i * 22) / (SIZES.length - 1));
+  function ensurePad() {
+    if (pad) return;
+    pad = new Pad($("pad"), { onChange: updateToolbar });
+    const badge = el("span", "zoom-badge");
+    badge.id = "zoomBadge";
+    badge.hidden = true;
+    badge.textContent = "100%";
+    $("pad").appendChild(badge);
+    // tamaños (desplegable)
+    const sz = $("sizes");
+    SIZES.forEach((s, i) => {
+      const b = el("button", "size-btn");
+      b.type = "button";
+      b.dataset.size = s;
+      b.setAttribute("aria-label", `Pincel tamaño ${i + 1}`);
+      const dot = el("span", "size-dot");
+      dot.style.width = dot.style.height = sizePx(i) + "px";
+      b.appendChild(dot);
+      b.addEventListener("click", () => {
+        pad.size = s;
+        if (pad.tool === "fill" || pad.tool === "hand") pad.tool = "pen";
+        updateToolbar();
+        closePops();
+      });
+      sz.appendChild(b);
+    });
+    pad.size = SIZES[2];
+    // colores (desplegable)
+    const cs = $("colors");
+    COLORS.forEach((c) => {
+      const b = el("button", "color-btn");
+      b.type = "button";
+      b.style.setProperty("--c", c);
+      b.dataset.color = c;
+      b.setAttribute("aria-label", "Color " + c);
+      b.addEventListener("click", () => {
+        pad.color = c;
+        if (pad.tool === "eraser" || pad.tool === "hand") pad.tool = "pen";
+        updateToolbar();
+        closePops();
+      });
+      cs.appendChild(b);
+    });
+    const custom = el("label", "color-btn custom");
+    custom.title = "Otro color";
+    const input = document.createElement("input");
+    input.type = "color";
+    input.id = "customColor";
+    input.value = "#ff6b35";
+    input.setAttribute("aria-label", "Elegir otro color");
+    input.addEventListener("input", () => {
+      pad.color = input.value;
+      custom.style.setProperty("--c", input.value);
+      if (pad.tool === "eraser" || pad.tool === "hand") pad.tool = "pen";
+      updateToolbar();
+    });
+    input.addEventListener("change", () => closePops());
+    custom.appendChild(input);
+    cs.appendChild(custom);
+    // Tocar el lienzo cierra los desplegables
+    $("pad").addEventListener("pointerdown", () => closePops(), true);
+  }
+  const POPS = [["sizes", "sizeToggle"], ["colors", "colorToggle"]];
+  function togglePop(popId, open) {
+    for (const [pid, bid] of POPS) {
+      const pop = $(pid);
+      const next = pid === popId ? (open == null ? pop.hidden : open) : false;
+      pop.hidden = !next;
+      $(bid).setAttribute("aria-expanded", String(next));
+      $(bid).classList.toggle("active", next);
+    }
+  }
+  function closePops() {
+    togglePop(null, false);
+  }
+  function toggleColors(open) {
+    togglePop("colors", open);
+  }
+  $("colorToggle").addEventListener("click", () => togglePop("colors"));
+  $("sizeToggle").addEventListener("click", () => togglePop("sizes"));
+  let badgeTimer;
+  function updateToolbar() {
+    if (!pad) return;
+    const ink = pad.tool === "eraser" ? "#ffffff" : pad.color;
+    document.querySelectorAll("[data-tool]").forEach((b) => b.classList.toggle("active", b.dataset.tool === pad.tool));
+    document.querySelectorAll(".size-btn").forEach((b) => b.classList.toggle("active", Number(b.dataset.size) === pad.size));
+    document.querySelectorAll(".color-btn[data-color]").forEach((b) => b.classList.toggle("active", b.dataset.color === pad.color && pad.tool !== "eraser"));
+    const custom = document.querySelector(".color-btn.custom");
+    if (custom) custom.classList.toggle("active", !COLORS.includes(pad.color) && pad.tool !== "eraser");
+    $("undoBtn").disabled = !pad.canUndo();
+    $("redoBtn").disabled = !pad.canRedo();
+    $("zoomOutBtn").disabled = pad.zoom <= 1;
+    $("zoomInBtn").disabled = pad.zoom >= 5;
+    $("colorSwatch").style.background = pad.color;
+    const idx = Math.max(0, SIZES.indexOf(pad.size));
+    const prev = $("sizePreview");
+    prev.style.width = prev.style.height = Math.min(22, sizePx(idx)) + "px";
+    prev.style.background = ink;
+    document.querySelectorAll(".size-dot").forEach((d) => (d.style.background = ink));
+    $("pad").dataset.tool = pad.tool;
+    const badge = $("zoomBadge");
+    const label = Math.round(pad.zoom * 100) + "%";
+    if (badge && badge.textContent !== label) {
+      badge.textContent = label;
+      badge.hidden = false;
+      clearTimeout(badgeTimer);
+      badgeTimer = setTimeout(() => (badge.hidden = pad.zoom === 1), 1200);
+    }
+  }
+  document.querySelectorAll("[data-tool]").forEach((b) =>
+    b.addEventListener("click", () => {
+      pad.tool = b.dataset.tool;
+      updateToolbar();
+    })
+  );
+  $("undoBtn").addEventListener("click", () => pad.undo());
+  $("redoBtn").addEventListener("click", () => pad.redo());
+  $("zoomInBtn").addEventListener("click", () => pad.zoomIn());
+  $("zoomOutBtn").addEventListener("click", () => pad.zoomOut());
+  let clearArmed = null;
+  $("clearBtn").addEventListener("click", () => {
+    if (clearArmed) {
+      clearTimeout(clearArmed);
+      clearArmed = null;
+      $("clearBtn").classList.remove("armed");
+      pad.clear();
+      toast("Lienzo borrado. Puedes deshacerlo.");
+      return;
+    }
+    $("clearBtn").classList.add("armed");
+    toast("Pulsa otra vez la papelera para borrarlo todo");
+    clearArmed = setTimeout(() => {
+      clearArmed = null;
+      $("clearBtn").classList.remove("armed");
+    }, 3000);
+  });
+  document.addEventListener("keydown", (e) => {
+    if ($("s-draw").hidden || !pad) return;
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+      e.preventDefault();
+      e.shiftKey ? pad.redo() : pad.undo();
+    }
+  });
+
+  // ---------- resultado de ronda (dúo) ----------
+  let viewer = null; // repaso local al final: {kind: "chain"|"duo", book, entry}
+  function pointsText(p) {
+    return p === 3 ? "¡Acertado! +3" : p === 1 ? "Casi +1" : "Sin puntos";
+  }
+  function duoCardEl(c, allowApprove) {
+    const card = el("article", "duo-card");
+    const head = el("div", "duo-card-head");
+    head.appendChild(who(c.drawer, "dibujó"));
+    card.appendChild(head);
+    card.appendChild(el("p", "secret", c.phrase));
+    if (c.image) {
+      const img = el("img", "duo-img");
+      img.src = c.image;
+      img.alt = "Dibujo de " + c.drawer.name;
+      card.appendChild(img);
+    } else card.appendChild(el("p", "empty-drawing grow-img", "No dio tiempo a dibujar."));
+    const g = el("p", "guess-line");
+    const gw = who(c.guesser, "dijo:");
+    gw.classList.add("muted");
+    g.appendChild(gw);
+    g.appendChild(document.createTextNode(" "));
+    g.appendChild(el("strong", "", c.guess || "(nada)"));
+    card.appendChild(g);
+    card.appendChild(el("div", "pts pts-" + c.points, pointsText(c.points) + (c.approved ? " ✓" : "")));
+    if (allowApprove && c.drawerId === state.you && c.points < 3 && c.guess) {
+      const b = el("button", "btn-ghost small", "¡Eso vale!");
+      b.type = "button";
+      b.addEventListener("click", () => socket.emit("duoApprove", c.drawerId));
+      card.appendChild(b);
+    }
+    return card;
+  }
+  function paintDuo(title, score, cards, allowApprove) {
+    show("s-result");
+    $("resultTitle").textContent = title;
+    $("resultScore").textContent = score;
+    const box = $("resultCards");
+    box.innerHTML = "";
+    cards.forEach((c) => box.appendChild(duoCardEl(c, allowApprove)));
+  }
+  function renderResult() {
+    currentStepKey = "result";
+    const r = state.result;
+    paintDuo(`Ronda ${r.round} de ${r.rounds}`, `Equipo: ${r.teamScore} pts`, r.cards, true);
+    $("duoPrevBtn").hidden = true;
+    $("duoNextBtn").textContent = r.round >= r.rounds ? "Ver el resultado final" : "Siguiente ronda";
+  }
+  $("duoNextBtn").addEventListener("click", () => {
+    if (viewer) {
+      if (viewer.book < gallery.rounds.length - 1) viewer.book++;
+      else viewer = null;
+      return render();
+    }
+    socket.emit("duoNext");
+  });
+  $("duoPrevBtn").addEventListener("click", () => {
+    if (viewer && viewer.book > 0) {
+      viewer.book--;
+      render();
+    }
+  });
+
+  // ---------- revelación: un paso por pantalla ----------
+  const VERB = { write: "escribió", draw: "dibujó", guess: "dijo" };
+  function paintStory(o) {
+    show("s-reveal");
+    $("revealCount").textContent = o.count;
+    setWho($("revealTitle"), "La historia de", o.owner);
+    const dots = $("revealDots");
+    dots.innerHTML = "";
+    for (let i = 0; i < o.total; i++) dots.appendChild(el("span", "dot" + (i < o.entries.length ? " on" : "") + (i === o.entries.length - 1 ? " now" : "")));
+    const cur = o.entries[o.entries.length - 1];
+    const prev = o.entries.length > 1 ? o.entries[o.entries.length - 2] : null;
+    const guessOfDrawing = cur.type === "guess" && prev && prev.type === "draw" && prev.content;
+    // paso anterior, en pequeño, para comparar (salvo cuando el dibujo va en grande)
+    const pv = $("revealPrev");
+    pv.innerHTML = "";
+    pv.hidden = !prev || guessOfDrawing;
+    if (prev && !guessOfDrawing) {
+      pv.appendChild(el("span", "prev-label", "Antes:"));
+      if (prev.type === "draw") {
+        if (prev.content) {
+          const im = el("img", "prev-img");
+          im.src = prev.content;
+          im.alt = "Dibujo anterior";
+          pv.appendChild(im);
+        } else pv.appendChild(el("span", "prev-text", "(sin dibujo)"));
+      } else pv.appendChild(el("span", "prev-text", "«" + prev.content + "»"));
+    }
+    const st = $("revealStage");
+    st.innerHTML = "";
+    st.classList.toggle("is-guess-view", !!guessOfDrawing);
+    if (guessOfDrawing) {
+      const im = el("img", "stage-img");
+      im.src = prev.content;
+      im.alt = "Dibujo de " + (prev.by ? prev.by.name : "alguien");
+      st.appendChild(im);
+      const by = el("div", "stage-by");
+      by.appendChild(who(cur.by, "dijo que es…"));
+      st.appendChild(by);
+      st.appendChild(el("p", "stage-bubble is-guess compact", cur.content));
+    } else {
+      const by = el("div", "stage-by");
+      by.appendChild(who(cur.by, VERB[cur.type]));
+      st.appendChild(by);
+      if (cur.type === "draw") {
+        if (cur.content) {
+          const im = el("img", "stage-img");
+          im.src = cur.content;
+          im.alt = "Dibujo de " + (cur.by ? cur.by.name : "alguien");
+          st.appendChild(im);
+        } else st.appendChild(el("p", "empty-drawing", "(no dibujó nada)"));
+      } else {
+        st.appendChild(el("p", "stage-bubble " + (cur.type === "write" ? "is-write" : "is-guess"), cur.content));
+      }
+    }
+    if (o.animate) {
+      st.classList.remove("pop-in");
+      void st.offsetWidth;
+      st.classList.add("pop-in");
+    }
+    $("revealControls").hidden = !o.controls;
+    $("revPrev").disabled = !!o.prevDisabled;
+    $("revNext").textContent = o.nextLabel;
+    $("revPrev").textContent = o.prevLabel || "Anterior";
+    $("revealHint").textContent = o.hint || "";
+  }
+  let lastRevealKey = null;
+  function renderReveal() {
+    currentStepKey = null;
+    const r = state.reveal;
+    const key = r.book + ":" + r.entry;
+    const host = isHost();
+    const atEnd = r.entry >= r.totalEntries - 1;
+    const lastBook = r.book >= r.totalBooks - 1;
+    const hostP = state.players.find((p) => p.id === state.hostId);
+    paintStory({
+      count: `Historia ${r.book + 1} de ${r.totalBooks}`,
+      owner: r.owner,
+      entries: r.entries,
+      total: r.totalEntries,
+      animate: key !== lastRevealKey,
+      controls: host,
+      prevDisabled: r.book === 0 && r.entry === 0,
+      nextLabel: !atEnd ? "Siguiente" : lastBook ? "Terminar" : "Siguiente historia",
+      hint: host ? "" : `${nameOf(hostP, "El anfitrión")} va pasando las páginas.`,
+    });
+    lastRevealKey = key;
+  }
+  function renderViewer() {
+    if (!gallery) return renderEndScreen();
+    if (viewer.kind === "duo") {
+      const cards = gallery.rounds[viewer.book];
+      paintDuo(`Ronda ${viewer.book + 1} de ${gallery.rounds.length}`, `Equipo: ${gallery.teamScore} pts`, cards, false);
+      $("duoPrevBtn").hidden = false;
+      $("duoPrevBtn").disabled = viewer.book === 0;
+      $("duoNextBtn").textContent = viewer.book < gallery.rounds.length - 1 ? "Siguiente ronda" : "Volver";
+      return;
+    }
+    const b = gallery.books[viewer.book];
+    const atEnd = viewer.entry >= b.entries.length - 1;
+    const lastBook = viewer.book >= gallery.books.length - 1;
+    paintStory({
+      count: `Historia ${viewer.book + 1} de ${gallery.books.length}`,
+      owner: b.owner,
+      entries: b.entries.slice(0, viewer.entry + 1),
+      total: b.entries.length,
+      animate: true,
+      controls: true,
+      prevDisabled: false,
+      prevLabel: viewer.book === 0 && viewer.entry === 0 ? "Volver" : "Anterior",
+      nextLabel: !atEnd ? "Siguiente" : lastBook ? "Volver" : "Siguiente historia",
+      hint: "Mantén el dedo sobre un dibujo para guardarlo.",
+    });
+  }
+  $("revNext").addEventListener("click", () => {
+    if (!viewer) return socket.emit("reveal", 1);
+    const b = gallery.books[viewer.book];
+    if (viewer.entry < b.entries.length - 1) viewer.entry++;
+    else if (viewer.book < gallery.books.length - 1) {
+      viewer.book++;
+      viewer.entry = 0;
+    } else viewer = null;
+    render();
+  });
+  $("revPrev").addEventListener("click", () => {
+    if (!viewer) return socket.emit("reveal", -1);
+    if (viewer.entry > 0) viewer.entry--;
+    else if (viewer.book > 0) {
+      viewer.book--;
+      viewer.entry = gallery.books[viewer.book].entries.length - 1;
+    } else viewer = null;
+    render();
+  });
+
+  // ---------- final ----------
+  function duoVerdict(score, max) {
+    const r = score / max;
+    if (r >= 0.85) return "¡Telepatía total! Os leéis la mente.";
+    if (r >= 0.5) return "¡Muy buen equipo!";
+    if (r > 0) return "Algo habéis pillado. ¡La revancha!";
+    return "Cero patatero. Los dibujos eran arte abstracto.";
+  }
+  function renderEnd() {
+    currentStepKey = null;
+    if (viewer) return renderViewer();
+    renderEndScreen();
+  }
+  function renderEndScreen() {
+    show("s-end");
+    if (state.mode === "duo") {
+      $("endTitle").textContent = `${state.teamScore ?? 0} de ${state.maxScore ?? 0} puntos`;
+      $("endText").textContent = duoVerdict(state.teamScore || 0, state.maxScore || 1);
+      $("reviewBtn").textContent = "Volver a ver las rondas";
+    } else {
+      $("endTitle").textContent = "¡Fin de la partida!";
+      $("endText").textContent = "¿Otra? Las historias siguen aquí hasta que volváis a la sala.";
+      $("reviewBtn").textContent = "Volver a ver las historias";
+    }
+    $("reviewBtn").disabled = !gallery;
+    $("againBtn").hidden = !isHost();
+    const hostP = state.players.find((p) => p.id === state.hostId);
+    $("againHint").textContent = isHost() ? "" : `${nameOf(hostP, "El anfitrión")} puede llevaros a la sala para otra partida.`;
+  }
+  $("reviewBtn").addEventListener("click", () => {
+    if (!gallery) return;
+    viewer = { kind: gallery.mode === "duo" ? "duo" : "chain", book: 0, entry: 0 };
+    render();
+  });
+  $("againBtn").addEventListener("click", () => socket.emit("lobby"));
+
+  buildEmojiGrid();
+  show("s-home");
+})();

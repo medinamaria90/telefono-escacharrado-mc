@@ -1,0 +1,16 @@
+{
+  "name": "telefono-escacharrado-mc",
+  "version": "1.0.0",
+  "description": "Juego de teléfono escacharrado con dibujos, para jugar en familia desde el móvil. Sin registros ni publicidad.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "socket.io": "^4.8.1"
+  }
+}
