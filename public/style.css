@@ -20,13 +20,6 @@
   --r: 16px;
   color-scheme: light;
 }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #121829; --grid: #1b2338; --card: #1b2238; --ink: #eef2fb; --muted: #a3acc6;
-    --line: #2d3753; --accent: #ff6b4f; --accent-2: #ffcd57; --ok: #3ccf94; --warn: #ffb35c;
-    --shadow: 0 2px 0 #00000055, 0 10px 30px -18px #000000aa; color-scheme: dark;
-  }
-}
 :root[data-theme="dark"] {
   --bg: #121829; --grid: #1b2338; --card: #1b2238; --ink: #eef2fb; --muted: #a3acc6;
   --line: #2d3753; --accent: #ff6b4f; --accent-2: #ffcd57; --ok: #3ccf94; --warn: #ffb35c;
@@ -506,3 +499,5 @@ body.solo .draw-prompt { order: 2; flex-basis: 100%; }
 .pad-inner { position: relative; }
 .pad-over { position: absolute; left: 0; top: 0; pointer-events: none; opacity: .5; mix-blend-mode: multiply; border-radius: 4px; }
 .pad[data-tool="marker"] .pad-stage { cursor: crosshair; }
+.home-screen { position: relative; }
+.theme-fab { position: absolute; top: calc(10px + env(safe-area-inset-top, 0px)); right: max(12px, env(safe-area-inset-right, 0px)); background: var(--card); z-index: 5; }

@@ -130,6 +130,27 @@
       } else if (next.task && !prev.task && prev.result) SFX.play("turn");
     }
   }
+  // Tema claro u oscuro: claro por defecto, cada móvil recuerda su elección
+  function applyTheme(t) {
+    const dark = t === "dark";
+    document.documentElement.dataset.theme = dark ? "dark" : "light";
+    document.querySelectorAll(".theme-btn").forEach((b) => {
+      b.textContent = dark ? "☀️" : "🌙";
+      b.setAttribute("aria-label", dark ? "Cambiar a modo claro" : "Cambiar a modo oscuro");
+    });
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", dark ? "#121829" : "#ff5a3c");
+  }
+  applyTheme(store.get("tg-theme", "light"));
+  document.querySelectorAll(".theme-btn").forEach((b) =>
+    b.addEventListener("click", () => {
+      const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+      store.set("tg-theme", next);
+      applyTheme(next);
+      SFX.play("click");
+    })
+  );
+
   function paintMute() {
     $("muteBtn").textContent = SFX.muted ? "🔇" : "🔊";
     $("muteBtn").setAttribute("aria-label", SFX.muted ? "Activar sonidos" : "Silenciar sonidos");
@@ -675,6 +696,7 @@
     pad = new Pad($("pad"), {
       onChange: updateToolbar,
       onStroke: (kind, v) => {
+        if (kind === "fill") return SFX.play("splash");
         if (kind === "start") SFX.strokeStart(v);
         else if (kind === "move") SFX.strokeMove(v);
         else SFX.strokeStop();
@@ -791,10 +813,7 @@
     hueKnob.style.left = "0%";
     shadeKnob.style.left = "50%";
     // Tocar el lienzo cierra los desplegables; el cubo de pintura chapotea
-    $("pad").addEventListener("pointerdown", () => {
-      closePops();
-      if (pad.tool === "fill") setTimeout(() => SFX.play("splash"), 0);
-    }, true);
+    $("pad").addEventListener("pointerdown", () => closePops(), true);
   }
   const POPS = [["sizes", "sizeToggle"], ["colors", "colorToggle"]];
   function togglePop(popId, open) {

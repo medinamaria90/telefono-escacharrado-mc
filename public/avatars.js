@@ -328,34 +328,38 @@
         `<path d="M32 68 q18 12 36 0 z" fill="#fff" ${S}/><path d="M38 68 l3 4 l3 -4 l3 4 l3 -4 l3 4 l3 -4 l3 4 l3 -4" fill="none" stroke="${O}" stroke-width="2"/>` + `<circle cx="44" cy="62" r="1.4" fill="${O}"/><circle cx="56" cy="62" r="1.4" fill="${O}"/>`,
     },
     sombrero: {
-      label: "Señor con sombrero",
-      svg: bg("#a8dcc8") +
-        // jersey naranja con camisa azul clara y gafas de sol colgadas
-        `<path d="M10 100 q4 -24 40 -26 q36 2 40 26z" fill="#d9732a" ${S}/>` +
-        `<path d="M37 75 l13 15 l13 -15 l-5 -2 l-8 9 l-8 -9z" fill="#a9cdf0" ${S}/>` +
-        `<rect x="43" y="67" width="14" height="10" fill="#dca07a" ${S}/>` +
-        `<ellipse cx="43.5" cy="92" rx="4.6" ry="3.6" fill="#2b2b33" stroke="${O}" stroke-width="2"/><ellipse cx="56.5" cy="92" rx="4.6" ry="3.6" fill="#2b2b33" stroke="${O}" stroke-width="2"/><path d="M48 91.5 h4" stroke="${O}" stroke-width="2"/><path d="M41.5 90.8 l2 -1" stroke="#ffffff99" stroke-width="1.4" stroke-linecap="round"/>` +
-        // cara morena
-        `<circle cx="24" cy="54" r="5.5" fill="#dca07a" ${S}/><circle cx="76" cy="54" r="5.5" fill="#dca07a" ${S}/>` +
-        `<ellipse cx="50" cy="52" rx="25" ry="24" fill="#dca07a" ${S}/>` +
-        // barba de pocos días, canosa
-        `<path d="M30 57 q20 23 40 0 q-4 15 -20 16 q-16 -1 -20 -16z" fill="#cbc7c4" opacity=".8"/>` +
-        `<circle cx="37" cy="64" r=".9" fill="#8a8e99"/><circle cx="43" cy="68" r=".9" fill="#8a8e99"/><circle cx="57" cy="68" r=".9" fill="#8a8e99"/><circle cx="63" cy="64" r=".9" fill="#8a8e99"/><circle cx="50" cy="70.5" r=".9" fill="#8a8e99"/><circle cx="47" cy="66" r=".8" fill="#8a8e99"/><circle cx="53" cy="66" r=".8" fill="#8a8e99"/>` +
-        // pelo canoso asomando bajo el sombrero
-        `<path d="M27 37 q-6 10 -3 22 q3 3 6 1 q-3 -7 0 -14 q-2 7 3 10 q-1 -10 2 -17z" fill="#e3e4e9" ${S}/>` +
-        `<path d="M73 37 q6 10 3 22 q-3 3 -6 1 q3 -7 0 -14 q2 7 -3 10 q1 -10 -2 -17z" fill="#e3e4e9" ${S}/>` +
-        // cejas canosas, ojos con arruguitas y media sonrisa serena
-        `<path d="M35 46.5 q4 -2 8 0 M57 46.5 q4 -2 8 0" fill="none" stroke="#a9adb8" stroke-width="2.6" stroke-linecap="round"/>` +
-        `<circle cx="39" cy="51.5" r="2.7" fill="${O}"/><circle cx="61" cy="51.5" r="2.7" fill="${O}"/>` +
-        `<path d="M32 51 l-3 -1.5 M32.5 54 l-3 0.5 M68 51 l3 -1.5 M67.5 54 l3 0.5" stroke="#b97b58" stroke-width="1.5" stroke-linecap="round"/>` +
-        `<path d="M50 52.5 q-2 5 1 7" fill="none" stroke="#b97b58" stroke-width="2" stroke-linecap="round"/>` +
-        `<path d="M43 63 q7 4 15 -0.5" fill="none" stroke="${O}" stroke-width="2.6" stroke-linecap="round"/>` +
-        // sombrero de ala caída, color camel con cinta oscura
-        `<g transform="translate(0 -6)">` +
-        `<path d="M15 42 q35 -10 70 0 l-3 6 q-32 7 -64 0z" fill="#c99a5b" ${S}/>` +
-        `<path d="M29 41 q-1 -25 21 -25 q22 0 21 25 q-21 5 -42 0z" fill="#d4a768" ${S}/>` +
-        `<path d="M29.4 34 q20.6 5 41.2 0 v5.2 q-20.6 5 -41.2 0z" fill="#5c4630"/>` +
-        `</g>`,
+      label: "Señor sonriente",
+      svg: bg("#7fbf6a") +
+        // jardín: flores rosas detrás
+        [[14,22,"#ff6b9a"],[24,12,"#ff9ab8"],[84,18,"#ff6b9a"],[90,32,"#ffb36b"],[10,40,"#ff9ab8"],[78,8,"#ff9ab8"],[92,48,"#ff6b9a"]].map(([x,y,c]) => `<circle cx="${x}" cy="${y}" r="4.2" fill="${c}"/><circle cx="${x}" cy="${y}" r="1.3" fill="#ffe27a"/>`).join("") +
+        // polo crema con cuello abierto y gafas de pasta colgadas
+        `<path d="M8 100 q4 -24 42 -27 q38 3 42 27z" fill="#f4e4b2" ${S}/>` +
+        `<path d="M43 73 l7 15 l7 -15z" fill="#dc9e7a" stroke="${O}" stroke-width="2.4" stroke-linejoin="round"/>` +
+        `<path d="M34 74 l9 -2 l7 16 l-12 -4z M66 74 l-9 -2 l-7 16 l12 -4z" fill="#fbf0cc" ${S}/>` +
+        `<g transform="rotate(-12 60 92)"><rect x="56" y="84" width="7" height="8" rx="2" fill="#ffffff44" stroke="#7a4a24" stroke-width="2.4"/><rect x="56" y="93.5" width="7" height="8" rx="2" fill="#ffffff44" stroke="#7a4a24" stroke-width="2.4"/></g>` +
+        `<rect x="43" y="64" width="14" height="10" fill="#dc9e7a" ${S}/>` +
+        // pelo ondulado, castaño canoso, por detrás (pegado a la cabeza)
+        `<path d="M25 61 q-6 -6 -5 -16 q-3 -12 6 -20 q8 -8 22 -9 q15 -1 23 8 q8 8 6 20 q2 8 -4 16 q-1 -9 -4 -14 q-22 -9 -42 1 q-1 7 -2 14z" fill="#9b8f7c" ${S}/>` +
+        `<path d="M76 56 q5 1 6 -4 M23 56 q-4 0 -5 -4" fill="none" stroke="#9b8f7c" stroke-width="3.5" stroke-linecap="round"/>` +
+        // cara morena y sonrosada
+        `<circle cx="25" cy="55" r="5.5" fill="#dc9e7a" ${S}/><circle cx="75" cy="55" r="5.5" fill="#dc9e7a" ${S}/>` +
+        `<ellipse cx="50" cy="52" rx="23.5" ry="26.5" fill="#dc9e7a" ${S}/>` +
+        // flequillo despeinado barrido hacia un lado, con canas
+        `<path d="M27 44 q-1 -15 13 -19 q14 -4 26 3 q8 5 7 14 q-4 -5 -9 -5 q2 4 1 8 q-5 -7 -12 -8 q-7 -1 -12 3 q-1 -3 1 -5 q-7 2 -15 9z" fill="#9b8f7c" ${S}/>` +
+        `<path d="M64 36 q7 1 9 8 q-4 -2 -6 -1z" fill="#9b8f7c" ${S}/>` +
+        `<path d="M55 37 q4 4 2 9" fill="none" stroke="#9b8f7c" stroke-width="3.2" stroke-linecap="round"/><path d="M55 37 q4 4 2 9" fill="none" stroke="#e0d8ca" stroke-width="1.2" stroke-linecap="round"/>` +
+        `<path d="M35 31 q8 -5 18 -3 M48 28 q9 0 15 5 M33 37 q5 -3 9 -4" fill="none" stroke="#e0d8ca" stroke-width="2.3" stroke-linecap="round"/>` +
+        `<path d="M24 49 q-3 -6 1 -11 M76 49 q3 -6 -1 -11" fill="none" stroke="#e0d8ca" stroke-width="2" stroke-linecap="round"/>` +
+        // cejas, ojos achinados de sonreír y arruguitas
+        `<path d="M34 44 q5 -3 10 -1 M56 43 q5 -2 10 1" fill="none" stroke="#5c4a3a" stroke-width="2.6" stroke-linecap="round"/>` +
+        `<circle cx="39" cy="51" r="2.7" fill="${O}"/><circle cx="61" cy="51" r="2.7" fill="${O}"/><circle cx="39.8" cy="50.2" r=".8" fill="#fff"/><circle cx="61.8" cy="50.2" r=".8" fill="#fff"/>` +
+        `<path d="M35 54.5 q4 2.2 8 0 M57 54.5 q4 2.2 8 0" fill="none" stroke="#b5735a" stroke-width="1.6" stroke-linecap="round"/>` +
+        `<path d="M31 50 l-3 -1.5 M31 53 l-3 0.8 M69 50 l3 -1.5 M69 53 l3 0.8" stroke="#b5735a" stroke-width="1.5" stroke-linecap="round"/>` +
+        // nariz, mofletes y sonrisa grande cerrada con sus líneas
+        `<path d="M50 50 q-3 7 0 9 q2 1 4 -1" fill="none" stroke="#b5735a" stroke-width="2.2" stroke-linecap="round"/>` +
+        `<ellipse cx="33" cy="60" rx="5" ry="3.2" fill="#f08a8a" opacity=".55"/><ellipse cx="67" cy="60" rx="5" ry="3.2" fill="#f08a8a" opacity=".55"/>` +
+        `<path d="M38 61 q12 11 24 0" fill="none" stroke="${O}" stroke-width="2.8" stroke-linecap="round"/>` +
+        `<path d="M36 58 q-1 3 1 5 M64 58 q1 3 -1 5" fill="none" stroke="#b5735a" stroke-width="1.6" stroke-linecap="round"/>`,
     },
   };
 

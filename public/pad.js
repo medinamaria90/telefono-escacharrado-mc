@@ -212,6 +212,7 @@
       this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
       if (this.pointers.size === 2) {
+        this.pendingFill = null;
         // Dos dedos: cancelar el trazo y pasar a mover/ampliar
         if (this.stroke) {
           clearInterval(this.sprayTimer);
@@ -244,11 +245,9 @@
         } else return;
       }
       if (this.tool === "fill") {
+        // El cubo pinta al soltar, y solo si ha sido un toque (no un pellizco)
         if (p.x < 0 || p.y < 0 || p.x >= W || p.y >= H) return;
-        this._snapshot();
-        this.floodFill(Math.floor(p.x), Math.floor(p.y), this.color);
-        this.dirty = true;
-        this.onChange();
+        this.pendingFill = { id: e.pointerId, p, cx: e.clientX, cy: e.clientY };
         return;
       }
       this._snapshot();
@@ -275,6 +274,9 @@
         this.stage.scrollTop -= mid.y - this.gesture.mid.y;
         this.gesture.mid = mid;
         return;
+      }
+      if (this.pendingFill && this.pendingFill.id === e.pointerId && Math.hypot(e.clientX - this.pendingFill.cx, e.clientY - this.pendingFill.cy) > 12) {
+        this.pendingFill = null;
       }
       if (this.pan) {
         this.stage.scrollLeft -= e.clientX - this.pan.x;
@@ -314,8 +316,19 @@
       this.onStroke("move", dist / Math.max(4, now - this.stroke.t));
       this.stroke.t = now;
     }
-    _up(e) {
+    _up(e, cancelled) {
       this.pointers.delete(e.pointerId);
+      const pf = this.pendingFill;
+      if (pf && pf.id === e.pointerId) {
+        this.pendingFill = null;
+        if (!cancelled && this.pointers.size === 0 && !this.gesture) {
+          this._snapshot();
+          this.floodFill(Math.floor(pf.p.x), Math.floor(pf.p.y), this.color);
+          this.dirty = true;
+          this.onStroke("fill");
+          this.onChange();
+        }
+      }
       if (this.stroke && this.tool === "spray") {
         clearInterval(this.sprayTimer);
         this.stroke = null;
