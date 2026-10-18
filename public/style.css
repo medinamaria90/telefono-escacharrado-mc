@@ -443,3 +443,14 @@ body.hurry::after {
 .tagline { margin: 6px 0 0; font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
 @media (max-height: 700px) { .home-logo { width: 56px; height: 56px; } .wordmark { font-size: clamp(2rem, 9vw, 2.6rem); } }
 button.brand { background: none; border: 0; padding: 0; cursor: pointer; color: inherit; }
+
+/* pausa y lienzo en blanco */
+.pause-bar { display: flex; align-items: center; gap: 10px; margin: 6px max(8px, env(safe-area-inset-right, 0px)) 0 max(8px, env(safe-area-inset-left, 0px)); padding: 8px 10px 8px 12px; border-radius: 14px; background: var(--accent-2); color: #3b2a00; font-weight: 700; font-size: .9rem; line-height: 1.25; box-shadow: var(--shadow); }
+.pause-text { flex: 1; min-width: 0; }
+.pause-bar .btn-ghost { border-color: #3b2a0055; color: #3b2a00; background: #ffffff66; flex-shrink: 0; }
+.pause-icon { font-size: 1.2rem; }
+body.is-paused .pad, body.is-paused #textForm { opacity: .55; }
+.blank-canvas { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-align: center; padding: 18px; border-radius: 14px; background: #fff; color: #5e6888; border: 2px dashed #cfd8ea; min-height: 120px; }
+.blank-canvas strong { font-family: var(--font-display); font-weight: 400; font-size: 1.3rem; color: #1d2747; }
+.blank-emoji { font-size: 2.2rem; line-height: 1; }
+.reveal-stage .blank-canvas { flex: 1 1 auto; }

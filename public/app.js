@@ -112,6 +112,7 @@
       const last = next.reveal.entry === next.reveal.totalEntries - 1 && next.reveal.entry > prev.reveal.entry;
       return SFX.play(last ? "drum" : "page");
     }
+    if (next.phase === "playing" && !!next.paused !== !!prev.paused) SFX.play(next.paused ? "leave" : "join");
     if (next.phase === "playing") {
       if (next.result && !prev.result) return SFX.play(next.result.cards.some((c) => c.points > 0) ? "point" : "page");
       if (next.result && prev.result && next.result.teamScore > prev.result.teamScore) return SFX.play("point");
@@ -353,8 +354,31 @@
     if (inRoom) $("roomChip").textContent = state.code;
   }
 
+  function renderPause() {
+    const p = state && state.phase === "playing" ? state.paused : null;
+    $("pauseBar").hidden = !p;
+    document.body.classList.toggle("is-paused", !!p);
+    if (!p) return;
+    const names = p.away.map((a) => a.name).join(", ");
+    const left = p.away.length && p.away.every((a) => a.left);
+    $("pauseText").textContent = names
+      ? `Partida en pausa: ${names} ${p.away.length > 1 ? (left ? "se han ido" : "no están conectados") : left ? "se ha ido" : "se ha desconectado"}. Esperando a que vuelva…`
+      : "Partida en pausa. Esperando a que vuelva alguien…";
+    $("endGameBtn").hidden = !isHost();
+  }
+  $("endGameBtn").addEventListener("click", () => {
+    SFX.play("click");
+    $("endSheet").hidden = false;
+  });
+  $("endNo").addEventListener("click", () => ($("endSheet").hidden = true));
+  $("endYes").addEventListener("click", () => {
+    $("endSheet").hidden = true;
+    socket.emit("endGame");
+  });
+
   function render() {
     renderChrome();
+    renderPause();
     if (!state) return show("s-home");
     if (state.phase === "lobby") return renderLobby();
     if (state.phase === "playing") return renderPlaying();
@@ -506,6 +530,7 @@
         $("textSpacer").hidden = true;
       } else {
         $("textPromptEmpty").hidden = false;
+        $("textSpacer").hidden = true;
       }
     }
     setTimeout(() => {
@@ -559,7 +584,15 @@
     return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
   }
   setInterval(() => {
-    const task = state && state.phase === "playing" && !state.result ? state.task : null;
+    const task = state && state.phase === "playing" && !state.result && !state.paused ? state.task : null;
+    if (state && state.paused) {
+      [$("textTimer"), $("drawTimer"), $("waitTimer")].forEach((t) => {
+        t.textContent = "⏸";
+        t.classList.remove("urgent");
+      });
+      document.body.classList.remove("hurry");
+      return;
+    }
     const timers = [$("textTimer"), $("drawTimer"), $("waitTimer")];
     if (!task || !task.deadline || task.submitted) document.body.classList.remove("hurry");
     if (!task || !task.deadline) {
@@ -803,7 +836,7 @@
       img.src = c.image;
       img.alt = "Dibujo de " + c.drawer.name;
       card.appendChild(img);
-    } else card.appendChild(el("p", "empty-drawing grow-img", "No dio tiempo a dibujar."));
+    } else card.appendChild(blankEl("grow-img"));
     const g = el("p", "guess-line");
     const gw = who(c.guesser, "dijo:");
     gw.classList.add("muted");
@@ -852,6 +885,13 @@
 
   // ---------- revelación: un paso por pantalla ----------
   const VERB = { write: "escribió", draw: "dibujó", guess: "dijo" };
+  function blankEl(extra) {
+    const d = el("div", "blank-canvas " + (extra || ""));
+    d.appendChild(el("span", "blank-emoji", "🎨"));
+    d.appendChild(el("strong", "", "Lienzo en blanco"));
+    d.appendChild(el("span", "", "Arte minimalista"));
+    return d;
+  }
   function paintStory(o) {
     show("s-reveal");
     $("revealCount").textContent = o.count;
@@ -874,7 +914,7 @@
           im.src = prev.content;
           im.alt = "Dibujo anterior";
           pv.appendChild(im);
-        } else pv.appendChild(el("span", "prev-text", "(sin dibujo)"));
+        } else pv.appendChild(el("span", "prev-text", "🎨 lienzo en blanco"));
       } else pv.appendChild(el("span", "prev-text", "«" + prev.content + "»"));
     }
     const st = $("revealStage");
@@ -899,7 +939,7 @@
           im.src = cur.content;
           im.alt = "Dibujo de " + (cur.by ? cur.by.name : "alguien");
           st.appendChild(im);
-        } else st.appendChild(el("p", "empty-drawing", "(no dibujó nada)"));
+        } else st.appendChild(blankEl());
       } else {
         st.appendChild(el("p", "stage-bubble " + (cur.type === "write" ? "is-write" : "is-guess"), cur.content));
       }

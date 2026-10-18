@@ -200,14 +200,48 @@ function beginStep(room) {
   game.deadline = t ? Date.now() + t[game.stepType] * 1000 : null;
   game.stepStartedAt = Date.now();
   if (game.deadline) {
-    room.stepTimer = setTimeout(() => finishStep(room), game.deadline - Date.now() + GRACE_MS);
+    armTimer(room);
   }
-  // Quien abandonó la partida no hace esperar a nadie
   for (const id of game.order) {
     const p = room.players.get(id);
     if (p && p.left) game.submissions.set(id, { content: null, done: true });
   }
+  checkPause(room);
   maybeFinish(room);
+}
+
+function armTimer(room) {
+  const game = room.game;
+  clearTimeout(room.stepTimer);
+  if (!game || !game.deadline || game.paused) return;
+  room.stepTimer = setTimeout(() => {
+    if (room.game === game && !game.paused) finishStep(room);
+  }, Math.max(0, game.deadline - Date.now()) + GRACE_MS);
+}
+
+/** Jugadores que siguen en la partida y conectados */
+function activeCount(room) {
+  const g = room.game;
+  return g ? g.order.filter((id) => {
+    const p = room.players.get(id);
+    return p && p.connected && !p.left;
+  }).length : 0;
+}
+
+/** Con menos de 2 personas presentes no tiene sentido seguir: pausa */
+function checkPause(room) {
+  const g = room.game;
+  if (!g || room.phase !== "playing") return;
+  const shouldPause = activeCount(room) < 2;
+  if (shouldPause && !g.paused) {
+    g.paused = true;
+    g.remaining = g.deadline ? Math.max(0, g.deadline - Date.now()) : null;
+    clearTimeout(room.stepTimer);
+  } else if (!shouldPause && g.paused) {
+    g.paused = false;
+    if (g.remaining != null) g.deadline = Date.now() + Math.max(g.remaining, 20000);
+    armTimer(room);
+  }
 }
 
 /** Libro (historia) en el que trabaja el jugador en el paso actual del modo cadena */
@@ -293,7 +327,7 @@ function finishStep(room) {
       const book = game.books[chainBookIndex(game, idx)];
       let content = contentOf(id);
       if (game.stepType === "write" && !content) content = pick(FRASES);
-      if (game.stepType === "guess" && !content) content = "(sin respuesta)";
+      if (game.stepType === "guess" && !content) content = "🤐 Se quedó sin palabras";
       book.entries[game.step] = { type: game.stepType, content, by: id };
     });
     game.step++;
@@ -425,6 +459,27 @@ function sendGallery(room, onlySocket) {
   else io.to(room.code).emit("gallery", data);
 }
 
+/** Termina antes de tiempo: se enseña lo que esté completo */
+function endGameEarly(room) {
+  const game = room.game;
+  clearTimeout(room.stepTimer);
+  if (game.mode === "chain") {
+    const done = game.step; // pasos completos
+    if (done < 2) return backToLobby(room);
+    game.steps = done;
+    for (const b of game.books) b.entries = b.entries.slice(0, done);
+    return startReveal(room);
+  }
+  const done = game.duoStage === "result" ? game.round + 1 : game.round;
+  if (done < 1) return backToLobby(room);
+  game.rounds = done;
+  game.cards = game.cards.slice(0, done);
+  room.phase = "end";
+  game.phase = "end";
+  broadcast(room);
+  sendGallery(room);
+}
+
 function backToLobby(room) {
   clearTimeout(room.stepTimer);
   // Se borran todos los dibujos y frases de la partida
@@ -467,6 +522,14 @@ function stateFor(room, playerId) {
   st.mode = game.mode;
   if (room.phase === "playing") {
     st.task = taskFor(room, playerId);
+    if (game.paused) {
+      st.paused = {
+        away: game.order
+          .map((id) => room.players.get(id))
+          .filter((p) => p && (!p.connected || p.left))
+          .map((p) => ({ name: p.name, emoji: p.emoji, left: !!p.left })),
+      };
+    }
     if (game.mode === "duo" && game.duoStage === "result") {
       st.result = {
         round: game.round + 1,
@@ -520,6 +583,7 @@ io.on("connection", (socket) => {
     p.droppedAt = 0;
     socket.join(r.code);
     ensureHost(r);
+    checkPause(r);
   }
 
   socket.on("create", (data, ack) => {
@@ -631,9 +695,9 @@ io.on("connection", (socket) => {
     broadcast(room);
   });
 
-  socket.on("skip", () => {
+  socket.on("endGame", () => {
     if (!isHost() || room.phase !== "playing") return;
-    finishStep(room);
+    endGameEarly(room);
   });
 
   socket.on("reveal", (dir) => {
@@ -666,9 +730,10 @@ io.on("connection", (socket) => {
     if (r.phase === "lobby") r.players.delete(p.id);
     else {
       p.left = true;
-      if (r.game && r.phase === "playing" && r.game.stepType !== "result") {
-        if (!r.game.submissions.get(p.id)?.done) r.game.submissions.set(p.id, { content: null, done: true });
+      if (r.game && r.phase === "playing" && r.game.stepType !== "result" && !r.game.submissions.get(p.id)?.done) {
+        r.game.submissions.set(p.id, { content: null, done: true });
       }
+
     }
     room = null;
     player = null;
@@ -676,7 +741,10 @@ io.on("connection", (socket) => {
     if ([...r.players.values()].every((x) => x.left || !x.connected)) {
       if (r.players.size === 0 || [...r.players.values()].every((x) => x.left)) return deleteRoom(r.code);
     }
-    if (r.game && r.phase === "playing") maybeFinish(r);
+    if (r.game && r.phase === "playing") {
+      checkPause(r);
+      maybeFinish(r);
+    }
     broadcast(r);
   });
 
@@ -687,6 +755,7 @@ io.on("connection", (socket) => {
     p.connected = false;
     p.socketId = null;
     p.droppedAt = Date.now();
+    checkPause(r);
     if (r.phase === "lobby") {
       p.dropTimer = setTimeout(() => {
         if (!p.connected && r.phase === "lobby" && rooms.get(r.code) === r) {
@@ -708,19 +777,18 @@ io.on("connection", (socket) => {
   });
 });
 
-// Quien lleva más de un minuto desconectado no bloquea la partida: su turno se salta
+// Con 3 o más, quien lleva más de un minuto desconectado no frena a los demás
 const AUTO_SKIP_MS = 60 * 1000;
 setInterval(() => {
   const now = Date.now();
   for (const r of rooms.values()) {
     const g = r.game;
-    if (!g || r.phase !== "playing" || g.stepType === "result") continue;
+    if (!g || r.phase !== "playing" || g.stepType === "result" || g.paused) continue;
     let changed = false;
     for (const id of g.order) {
       const p = r.players.get(id);
       if (!p || p.connected || g.submissions.get(id)?.done) continue;
-      const since = Math.max(p.droppedAt || 0, g.stepStartedAt || 0);
-      if (now - since > AUTO_SKIP_MS) {
+      if (now - Math.max(p.droppedAt || 0, g.stepStartedAt || 0) > AUTO_SKIP_MS) {
         g.submissions.set(id, { content: null, done: true });
         changed = true;
       }

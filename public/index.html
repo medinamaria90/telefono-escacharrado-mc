@@ -27,6 +27,11 @@
   </header>
 
   <div class="banner" id="offline" hidden>Sin conexión. Reconectando…</div>
+  <div class="pause-bar" id="pauseBar" role="status" hidden>
+    <span class="pause-icon" aria-hidden="true">⏸</span>
+    <span class="pause-text" id="pauseText"></span>
+    <button class="btn-ghost small" id="endGameBtn" type="button" hidden>Terminar</button>
+  </div>
 
   <!-- INICIO -->
   <main class="screen fit-screen home-screen" id="s-home">
@@ -123,7 +128,7 @@
       <img id="textPromptImg" alt="Dibujo que tienes que adivinar">
       <figcaption id="textPromptBy"></figcaption>
     </figure>
-    <p class="empty-drawing" id="textPromptEmpty" hidden>Aquí no dibujaron nada. Invéntate algo divertido.</p>
+    <div class="blank-canvas grow" id="textPromptEmpty" hidden><span class="blank-emoji" aria-hidden="true">🎨</span><strong>¡Lienzo en blanco!</strong><span>¿Qué crees que quería dibujar? Echa a volar la imaginación.</span></div>
     <div class="spacer grow" id="textSpacer"></div>
     <form class="text-form" id="textForm" autocomplete="off">
       <input class="input big-input" id="textInput" maxlength="120" enterkeyhint="send">
@@ -229,6 +234,18 @@
     <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="emojiTitle">
       <h2 class="h2" id="emojiTitle">Elige tu carita</h2>
       <div class="emoji-grid" id="emojiGrid" role="radiogroup" aria-label="Caritas"></div>
+    </div>
+  </div>
+
+  <!-- Confirmar terminar partida -->
+  <div class="sheet-backdrop" id="endSheet" hidden>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="endSheetTitle">
+      <h2 class="h2" id="endSheetTitle">¿Terminar la partida?</h2>
+      <p>Veréis las historias hasta donde hayáis llegado.</p>
+      <div class="sheet-actions">
+        <button class="btn secondary" id="endNo" type="button">Seguir esperando</button>
+        <button class="btn danger-btn" id="endYes" type="button">Terminar</button>
+      </div>
     </div>
   </div>
 
