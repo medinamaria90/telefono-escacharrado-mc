@@ -330,27 +330,31 @@
     bodeguero: {
       label: "Perrito bodeguero",
       svg: bg("#ffe27a") +
-        // orejas de pico, negras con interior rosado
-        `<path d="M27 40 l-6 -24 l18 13z" fill="#1b1b1f" ${S}/><path d="M73 40 l6 -24 l-18 13z" fill="#1b1b1f" ${S}/>` +
-        `<path d="M27 33 l-3 -11 l9 7z M73 33 l3 -11 l-9 7z" fill="#f2a6a6"/>` +
-        // cabeza blanca
-        `<ellipse cx="50" cy="56" rx="27" ry="27" fill="#ffffff" ${S}/>` +
-        // manchas negras con fuego a los lados de la cara
-        `<path d="M24 52 q0 -20 18 -24 q4 10 2 22 q-6 10 -18 10 q-2 -4 -2 -8z" fill="#1b1b1f"/>` +
-        `<path d="M76 52 q0 -20 -18 -24 q-4 10 -2 22 q6 10 18 10 q2 -4 2 -8z" fill="#1b1b1f"/>` +
-        `<path d="M27 58 q6 6 14 2 q-1 6 -8 8 q-5 -2 -6 -10z M73 58 q-6 6 -14 2 q1 6 8 8 q5 -2 6 -10z" fill="#c98a4b"/>` +
+        // cuello y pecho blancos
+        `<path d="M27 100 q2 -24 23 -28 q21 4 23 28z" fill="#ffffff" ${S}/>` +
+        // orejas en triángulo, dobladas hacia delante (negras, interior canela)
+        `<path d="M30 40 l-8 -22 l20 8z" fill="#1b1b1f" ${S}/><path d="M22 18 l2 12 l9 -5z" fill="#1b1b1f" ${S}/>` +
+        `<path d="M70 40 l8 -22 l-20 8z" fill="#1b1b1f" ${S}/><path d="M78 18 l-2 12 l-9 -5z" fill="#1b1b1f" ${S}/>` +
+        `<path d="M29 33 l-3 -7 l7 3z M71 33 l3 -7 l-7 3z" fill="#c98a4b"/>` +
+        // cabeza negra
+        `<ellipse cx="50" cy="50" rx="24" ry="25" fill="#1b1b1f" ${S}/>` +
+        // hocico y mofletes color fuego
+        `<ellipse cx="50" cy="64" rx="17" ry="12" fill="#c98a4b" ${S}/>` +
+        `<ellipse cx="34" cy="59" rx="4.5" ry="5.5" fill="#c98a4b"/><ellipse cx="66" cy="59" rx="4.5" ry="5.5" fill="#c98a4b"/>` +
+        // raya blanca fina por la frente hasta la nariz
+        `<path d="M48.6 28 q1.4 -1.6 2.8 0 l2.2 28 q-3.6 2.4 -7.2 0z" fill="#ffffff"/>` +
         // cejas canela
-        `<ellipse cx="38" cy="43" rx="4" ry="2.4" fill="#c98a4b"/><ellipse cx="62" cy="43" rx="4" ry="2.4" fill="#c98a4b"/>` +
-        // ojos brillantes
-        `<circle cx="39" cy="50" r="4.2" fill="#1b1b1f" stroke="#fff" stroke-width="1.2"/><circle cx="61" cy="50" r="4.2" fill="#1b1b1f" stroke="#fff" stroke-width="1.2"/>` +
-        `<circle cx="40.4" cy="48.6" r="1.3" fill="#fff"/><circle cx="62.4" cy="48.6" r="1.3" fill="#fff"/>` +
-        // hocico blanco, nariz y boquita con lengua
-        `<ellipse cx="50" cy="66" rx="12" ry="9" fill="#ffffff" ${S}/>` +
-        `<ellipse cx="50" cy="61.5" rx="5" ry="3.6" fill="#1b1b1f"/><ellipse cx="48.6" cy="60.6" rx="1.4" ry=".8" fill="#ffffff99"/>` +
-        `<path d="M50 65 v3 M44 68 q6 4 12 0" fill="none" stroke="${O}" stroke-width="2.4" stroke-linecap="round"/>` +
-        `<path d="M47.5 70 q2.5 6 5 0" fill="#ff8fb8" stroke="${O}" stroke-width="1.8"/>` +
-        // collar rojo
-        `<path d="M30 80 q20 10 40 0" fill="none" stroke="#e5252a" stroke-width="5" stroke-linecap="round"/><circle cx="50" cy="87" r="3.4" fill="#ffd21f" stroke="${O}" stroke-width="1.6"/>`,
+        `<ellipse cx="39.5" cy="41" rx="3.8" ry="2.5" fill="#c98a4b"/><ellipse cx="60.5" cy="41" rx="3.8" ry="2.5" fill="#c98a4b"/>` +
+        // ojos marrones con brillo
+        `<circle cx="40" cy="48.5" r="4" fill="#6b4226" stroke="#fff" stroke-width="1.2"/><circle cx="60" cy="48.5" r="4" fill="#6b4226" stroke="#fff" stroke-width="1.2"/>` +
+        `<circle cx="40" cy="48.5" r="2" fill="#1b1b1f"/><circle cx="60" cy="48.5" r="2" fill="#1b1b1f"/>` +
+        `<circle cx="41.2" cy="47.3" r="1" fill="#fff"/><circle cx="61.2" cy="47.3" r="1" fill="#fff"/>` +
+        // nariz negra, boca y lengua
+        `<ellipse cx="50" cy="59" rx="6" ry="4.2" fill="#1b1b1f" stroke="${O}" stroke-width="1.5"/><ellipse cx="48.2" cy="57.9" rx="1.6" ry=".9" fill="#ffffff99"/>` +
+        `<path d="M50 63 v3 M43.5 66.5 q6.5 4.5 13 0" fill="none" stroke="${O}" stroke-width="2.2" stroke-linecap="round"/>` +
+        `<path d="M47.6 68.2 q2.4 5.5 4.8 0" fill="#ff8fb8" stroke="${O}" stroke-width="1.6"/>` +
+        // collar rojo con chapita
+        `<path d="M30 83 q20 9 40 0" fill="none" stroke="#e5252a" stroke-width="5" stroke-linecap="round"/><circle cx="50" cy="89.5" r="3.4" fill="#ffd21f" stroke="${O}" stroke-width="1.6"/>`,
     },
   };
 
