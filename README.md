@@ -168,7 +168,7 @@ del ordenador, por ejemplo http://192.168.1.20:3000.
 | `public/pad.js` | Lienzo de dibujo y herramientas. |
 | `public/avatars.js` | Las caritas, dibujadas en SVG. |
 | `public/sfx.js` | Sonidos generados con Web Audio (sin archivos de audio). |
-| `public/frases.js` | Unas 480 ideas para dibujar: paisajes, monumentos, objetos, personajes, comida, deportes, oficios, escenas y alguna graciosa. |
+| `public/frases.js` | Unas 400 ideas para dibujar, todas fáciles de reconocer en un dibujo: animales, paisajes, monumentos muy conocidos o genéricos (una catedral, un teatro…), objetos, personajes famosos, comida, deportes, oficios, escenas y alguna graciosa. |
 | `public/style.css` | Estilos (modo claro y oscuro, móvil y tableta). |
 | `public/sw.js` | Trabajador mínimo para poder instalar la app (sin caché). |
 | `public/manifest.webmanifest` | Nombre, icono y colores de la app instalada. |
