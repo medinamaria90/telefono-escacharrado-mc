@@ -99,7 +99,7 @@
       // ruido con "grano", como el papel
       const w = Math.random() * 2 - 1;
       last = kind === "eraser" ? last * 0.85 + w * 0.15 : w;
-      d[i] = last * (Math.random() < 0.02 ? 2.2 : 1);
+      d[i] = last * (Math.random() < 0.01 ? 1.5 : 1);
     }
     const src = a.createBufferSource();
     src.buffer = buf;
@@ -109,14 +109,14 @@
     hp.frequency.value = kind === "eraser" ? 300 : kind === "spray" ? 3500 : kind === "marker" ? 900 : 1800;
     const bp = a.createBiquadFilter();
     bp.type = "bandpass";
-    bp.frequency.value = kind === "eraser" ? 900 : kind === "spray" ? 6500 : kind === "marker" ? 2200 : 4200;
+    bp.frequency.value = kind === "eraser" ? 800 : kind === "spray" ? 5000 : kind === "marker" ? 1800 : 3000;
     bp.Q.value = kind === "eraser" ? 0.6 : kind === "spray" ? 0.4 : 0.9;
     const g = a.createGain();
     g.gain.value = 0;
     src.connect(hp).connect(bp).connect(g).connect(a.destination);
     src.start();
-    strokeNode = { src, g, bp, kind, max: kind === "eraser" ? 0.07 : kind === "spray" ? 0.045 : 0.055 };
-    if (kind === "spray") g.gain.setTargetAtTime(0.035, a.currentTime, 0.02);
+    strokeNode = { src, g, bp, kind, max: kind === "eraser" ? 0.03 : kind === "spray" ? 0.018 : 0.022 };
+    if (kind === "spray") g.gain.setTargetAtTime(0.014, a.currentTime, 0.02);
   }
   function strokeMove(speed) {
     if (!strokeNode || !ctx) return;
@@ -128,7 +128,7 @@
       return; // el spray sisea aunque el dedo esté quieto
     }
     strokeNode.g.gain.setTargetAtTime(strokeNode.max * (0.15 + 0.85 * v), t, 0.03);
-    strokeNode.bp.frequency.setTargetAtTime((strokeNode.kind === "eraser" ? 700 : 3400) + v * 1800, t, 0.05);
+    strokeNode.bp.frequency.setTargetAtTime((strokeNode.kind === "eraser" ? 650 : 2500) + v * 1000, t, 0.05);
     clearTimeout(strokeNode.idle);
     strokeNode.idle = setTimeout(() => strokeNode && strokeNode.g.gain.setTargetAtTime(0, ctx.currentTime, 0.04), 70);
   }
