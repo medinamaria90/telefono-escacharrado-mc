@@ -655,6 +655,7 @@
     pen: '<path d="M4 20l4-1 11-11-3-3L5 16l-1 4z"/><path d="M14 6l3 3"/>',
     eraser: '<path d="M8 20h12"/><path d="M5 15l8-9 6 6-7 8H9z"/><path d="M9 11l5 5"/>',
     fill: '<path d="M3.5 10.5l6.5-6.5 7 7-6.5 6.5a1.5 1.5 0 01-2.1 0L3.5 12.6a1.5 1.5 0 010-2.1z" fill="var(--paint)" fill-opacity=".9"/><path d="M8 5.5L6 3.5"/><path d="M19 13.5s2.5 3 2.5 4.8a2.5 2.5 0 01-5 0c0-1.8 2.5-4.8 2.5-4.8z" fill="var(--paint)"/>',
+    marker: '<path d="M14.5 4.5l5 5-8 8-5-5z" fill="var(--paint)" fill-opacity=".55"/><path d="M6.5 12.5l-2 6 1 1 6-2"/><path d="M4.5 18.5l-1.5 1.5"/>',
     spray: '<rect x="4" y="9" width="8" height="12" rx="2" fill="var(--paint)" fill-opacity=".9"/><path d="M6 9V6h4v3"/><path d="M8 6V4h3"/><circle cx="16" cy="4" r=".9" fill="currentColor" stroke="none"/><circle cx="19" cy="6" r=".9" fill="currentColor" stroke="none"/><circle cx="16.5" cy="8" r=".9" fill="currentColor" stroke="none"/><circle cx="20" cy="9.5" r=".9" fill="currentColor" stroke="none"/><circle cx="18" cy="11.5" r=".9" fill="currentColor" stroke="none"/>',
     undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 010 10h-3"/>',
     redo: '<path d="M15 14l5-5-5-5"/><path d="M20 9H9a5 5 0 000 10h3"/>',
@@ -666,8 +667,6 @@
   document.querySelectorAll("[data-tool]").forEach((b) => (b.innerHTML = svg(ICONS[b.dataset.tool])));
   $("undoBtn").innerHTML = svg(ICONS.undo);
   $("redoBtn").innerHTML = svg(ICONS.redo);
-  $("zoomInBtn").innerHTML = svg(ICONS.zoomIn);
-  $("zoomOutBtn").innerHTML = svg(ICONS.zoomOut);
   $("clearBtn").innerHTML = svg(ICONS.clear);
 
   const sizePx = (i) => Math.round(4 + (i * 22) / (SIZES.length - 1));
@@ -830,8 +829,6 @@
     document.querySelectorAll(".color-btn[data-color]").forEach((b) => b.classList.toggle("active", b.dataset.color === pad.color && pad.tool !== "eraser"));
     $("undoBtn").disabled = !pad.canUndo();
     $("redoBtn").disabled = !pad.canRedo();
-    $("zoomOutBtn").disabled = pad.zoom <= 1;
-    $("zoomInBtn").disabled = pad.zoom >= 5;
     $("colorSwatch").style.background = pad.color;
     $("toolbar").style.setProperty("--paint", pad.color);
     const idx = Math.max(0, SIZES.indexOf(pad.size));
@@ -864,14 +861,7 @@
     SFX.play("undo");
     pad.redo();
   });
-  $("zoomInBtn").addEventListener("click", () => {
-    SFX.play("click");
-    pad.zoomIn();
-  });
-  $("zoomOutBtn").addEventListener("click", () => {
-    SFX.play("click");
-    pad.zoomOut();
-  });
+
   let clearArmed = null;
   $("clearBtn").addEventListener("click", () => {
     if (clearArmed) {

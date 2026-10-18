@@ -502,3 +502,7 @@ body.solo .draw-prompt { order: 2; flex-basis: 100%; }
 .trash-btn { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; height: 32px; min-width: 32px; padding: 0 7px; border-radius: 10px; border: 1.5px solid var(--line); background: var(--bg); color: var(--muted); cursor: pointer; font-weight: 700; font-size: .8rem; }
 .trash-btn.armed { background: var(--accent); border-color: var(--accent); color: #fff; }
 .book-sheet .sheet-actions .btn { flex: 1 1 0; }
+.tool-row { grid-template-columns: repeat(10, minmax(0, 1fr)); }
+.pad-inner { position: relative; }
+.pad-over { position: absolute; left: 0; top: 0; pointer-events: none; opacity: .5; mix-blend-mode: multiply; border-radius: 4px; }
+.pad[data-tool="marker"] .pad-stage { cursor: crosshair; }

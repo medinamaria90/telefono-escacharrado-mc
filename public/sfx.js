@@ -106,10 +106,10 @@
     src.loop = true;
     const hp = a.createBiquadFilter();
     hp.type = "highpass";
-    hp.frequency.value = kind === "eraser" ? 300 : kind === "spray" ? 3500 : 1800;
+    hp.frequency.value = kind === "eraser" ? 300 : kind === "spray" ? 3500 : kind === "marker" ? 900 : 1800;
     const bp = a.createBiquadFilter();
     bp.type = "bandpass";
-    bp.frequency.value = kind === "eraser" ? 900 : kind === "spray" ? 6500 : 4200;
+    bp.frequency.value = kind === "eraser" ? 900 : kind === "spray" ? 6500 : kind === "marker" ? 2200 : 4200;
     bp.Q.value = kind === "eraser" ? 0.6 : kind === "spray" ? 0.4 : 0.9;
     const g = a.createGain();
     g.gain.value = 0;

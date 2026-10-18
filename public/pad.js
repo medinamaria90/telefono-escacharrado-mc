@@ -25,6 +25,13 @@
       this.canvas.height = H;
       this.canvas.className = "pad-canvas";
       this.inner.appendChild(this.canvas);
+      // Capa del rotulador: el trazo se ve aquí y al soltar se funde con el dibujo
+      this.over = document.createElement("canvas");
+      this.over.width = W;
+      this.over.height = H;
+      this.over.className = "pad-over";
+      this.inner.appendChild(this.over);
+      this.octx = this.over.getContext("2d");
       this.stage.appendChild(this.inner);
       host.appendChild(this.stage);
       this.ctx = this.canvas.getContext("2d", { willReadFrequently: true });
@@ -58,6 +65,8 @@
       const bw = this.baseWidth();
       this.canvas.style.width = bw * this.zoom + "px";
       this.canvas.style.height = (bw * this.zoom * H) / W + "px";
+      this.over.style.width = this.canvas.style.width;
+      this.over.style.height = this.canvas.style.height;
       this._restoreCenter(before);
     }
     _center() {
@@ -135,6 +144,7 @@
       this.onChange();
     }
     reset() {
+      if (this.octx) this.octx.clearRect(0, 0, W, H);
       this.undoStack = [];
       this.redoStack = [];
       this.clear(false);
@@ -205,6 +215,7 @@
         // Dos dedos: cancelar el trazo y pasar a mover/ampliar
         if (this.stroke) {
           clearInterval(this.sprayTimer);
+          this.octx.clearRect(0, 0, W, H);
           this.ctx.putImageData(this.undoStack.pop(), 0, 0);
           this.stroke = null;
           this.onStroke("end");
@@ -243,9 +254,9 @@
       this._snapshot();
       this.stroke = { last: p, lastMid: p, t: performance.now() };
       if (this.tool === "spray") {
-        this._spray(p, 2);
+        this._spray(p, 1);
         clearInterval(this.sprayTimer);
-        this.sprayTimer = setInterval(() => this.stroke && this._spray(this.stroke.last, 0.6), 45);
+        this.sprayTimer = setInterval(() => this.stroke && this._spray(this.stroke.last, 0.35), 45);
       } else this._dot(p);
       this.onStroke("start", this.tool);
       this.dirty = true;
@@ -281,16 +292,16 @@
           const d = Math.hypot(p.x - this.stroke.last.x, p.y - this.stroke.last.y);
           const step = Math.max(2, this.size * 0.25);
           for (let t = step; t <= d; t += step) {
-            this._spray({ x: this.stroke.last.x + ((p.x - this.stroke.last.x) * t) / d, y: this.stroke.last.y + ((p.y - this.stroke.last.y) * t) / d }, 1);
+            this._spray({ x: this.stroke.last.x + ((p.x - this.stroke.last.x) * t) / d, y: this.stroke.last.y + ((p.y - this.stroke.last.y) * t) / d }, 0.5);
           }
-          this._spray(p, 1);
+          this._spray(p, 0.5);
           this.stroke.last = p;
           this.stroke.lastMid = p;
           continue;
         }
         const mid = { x: (this.stroke.last.x + p.x) / 2, y: (this.stroke.last.y + p.y) / 2 };
-        const ctx = this.ctx;
-        this._style();
+        const ctx = this.tool === "marker" ? this.octx : this.ctx;
+        this._style(ctx);
         ctx.beginPath();
         ctx.moveTo(this.stroke.lastMid.x, this.stroke.lastMid.y);
         ctx.quadraticCurveTo(this.stroke.last.x, this.stroke.last.y, mid.x, mid.y);
@@ -313,11 +324,13 @@
       }
       if (this.stroke) {
         const s = this.stroke;
-        this._style();
-        this.ctx.beginPath();
-        this.ctx.moveTo(s.lastMid.x, s.lastMid.y);
-        this.ctx.lineTo(s.last.x, s.last.y);
-        this.ctx.stroke();
+        const c = this.tool === "marker" ? this.octx : this.ctx;
+        this._style(c);
+        c.beginPath();
+        c.moveTo(s.lastMid.x, s.lastMid.y);
+        c.lineTo(s.last.x, s.last.y);
+        c.stroke();
+        if (this.tool === "marker") this._commitMarker();
         this.stroke = null;
         this.onStroke("end");
         this.onChange();
@@ -325,18 +338,17 @@
       if (this.pointers.size < 2) this.gesture = null;
       if (this.pointers.size === 0) this.pan = null;
     }
-    _style() {
-      const ctx = this.ctx;
+    _style(ctx = this.ctx) {
       ctx.globalCompositeOperation = "source-over";
       ctx.strokeStyle = this.tool === "eraser" ? "#ffffff" : this.color;
-      ctx.lineWidth = this.size;
+      ctx.lineWidth = this.tool === "marker" ? Math.max(6, this.size * 1.6) : this.size;
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
     }
     _spray(p, amount) {
       const ctx = this.ctx;
       const r = Math.max(9, this.size * 1.2);
-      const n = Math.round((14 + this.size * 2.6) * amount);
+      const n = Math.round((5 + this.size * 0.9) * amount);
       const dot = Math.max(2, Math.round(this.size / 9));
       ctx.globalCompositeOperation = "source-over";
       ctx.fillStyle = this.color;
@@ -348,12 +360,23 @@
       }
     }
     _dot(p) {
-      const ctx = this.ctx;
+      const marker = this.tool === "marker";
+      const ctx = marker ? this.octx : this.ctx;
       ctx.globalCompositeOperation = "source-over";
       ctx.fillStyle = this.tool === "eraser" ? "#ffffff" : this.color;
       ctx.beginPath();
-      ctx.arc(p.x, p.y, this.size / 2, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, (marker ? Math.max(6, this.size * 1.6) : this.size) / 2, 0, Math.PI * 2);
       ctx.fill();
+    }
+    _commitMarker() {
+      // Semitransparente y en modo "multiplicar": deja ver las líneas de debajo
+      const ctx = this.ctx;
+      ctx.save();
+      ctx.globalAlpha = 0.5;
+      ctx.globalCompositeOperation = "multiply";
+      ctx.drawImage(this.over, 0, 0);
+      ctx.restore();
+      this.octx.clearRect(0, 0, W, H);
     }
 
     // ---- relleno por zonas (cubo de pintura) ----
