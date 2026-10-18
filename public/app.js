@@ -1,4 +1,4 @@
-// Teléfono Escacharrado MC: lógica del navegador.
+// Dibulíos: lógica del navegador.
 (function () {
   const $ = (id) => document.getElementById(id);
   const EMOJIS = AVATARS.ids;
@@ -84,6 +84,7 @@
   });
   socket.on("state", (s) => {
     clockOffset = s.now - Date.now();
+    playCues(state, s);
     state = s;
     if (s.phase !== "end") {
       gallery = null;
@@ -91,6 +92,41 @@
     }
     render();
   });
+  // Sonidos según lo que cambia entre un estado y el siguiente
+  function playCues(prev, next) {
+    if (!prev || prev.code !== next.code) return;
+    if (prev.phase !== next.phase) {
+      if (next.phase === "playing" && prev.phase === "lobby") return SFX.play("start");
+      if (next.phase === "end") return SFX.play("end");
+      if (next.phase === "reveal") return SFX.play("page");
+    }
+    if (next.phase === "lobby") {
+      const a = prev.players.filter((p) => !p.left).length;
+      const b = next.players.filter((p) => !p.left).length;
+      if (b > a) SFX.play("join");
+      else if (b < a) SFX.play("leave");
+      return;
+    }
+    if (next.phase === "reveal" && prev.reveal && next.reveal && (prev.reveal.book !== next.reveal.book || prev.reveal.entry !== next.reveal.entry)) return SFX.play("page");
+    if (next.phase === "playing") {
+      if (next.result && !prev.result) return SFX.play(next.result.cards.some((c) => c.points > 0) ? "point" : "page");
+      if (next.result && prev.result && next.result.teamScore > prev.result.teamScore) return SFX.play("point");
+      if (next.task && prev.task && next.task.stepKey !== prev.task.stepKey) {
+        SFX.play("turn");
+        SFX.vibrate(60);
+      } else if (next.task && !prev.task && prev.result) SFX.play("turn");
+    }
+  }
+  function paintMute() {
+    $("muteBtn").textContent = SFX.muted ? "🔇" : "🔊";
+    $("muteBtn").setAttribute("aria-label", SFX.muted ? "Activar sonidos" : "Silenciar sonidos");
+  }
+  $("muteBtn").addEventListener("click", () => {
+    SFX.toggle();
+    paintMute();
+  });
+  paintMute();
+
   socket.on("gallery", (g) => {
     gallery = g;
     if (state && state.phase === "end") renderEnd();
@@ -240,6 +276,7 @@
     $("createBtn").classList.remove("primary");
     $("createBtn").classList.add("secondary");
     $("createBtn").textContent = "Crear otra sala";
+    $("homeActions").classList.add("invited");
   }
 
   // ---------- salir ----------
@@ -426,6 +463,7 @@
       return false;
     }
     socket.emit("submit", { stepKey: currentStepKey, content: v });
+    SFX.play("send");
     return true;
   }
   $("textForm").addEventListener("submit", (e) => {
@@ -438,6 +476,7 @@
 
   function sendDrawing() {
     socket.emit("submit", { stepKey: currentStepKey, content: pad.toDataURL() });
+    SFX.play("send");
   }
   $("drawDone").addEventListener("click", () => {
     if (!pad.dirty) {
@@ -461,6 +500,7 @@
   $("skipBtn").addEventListener("click", () => socket.emit("skip"));
 
   // Reloj: cuenta atrás y envío automático al acabarse el tiempo
+  let lastSec = null;
   function fmt(ms) {
     const s = Math.max(0, Math.ceil(ms / 1000));
     return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
@@ -468,6 +508,7 @@
   setInterval(() => {
     const task = state && state.phase === "playing" && !state.result ? state.task : null;
     const timers = [$("textTimer"), $("drawTimer"), $("waitTimer")];
+    if (!task || !task.deadline || task.submitted) document.body.classList.remove("hurry");
     if (!task || !task.deadline) {
       timers.forEach((t) => {
         t.textContent = task ? "∞" : "";
@@ -480,6 +521,18 @@
       t.textContent = fmt(left);
       t.classList.toggle("urgent", left < 10000);
     });
+    const hurry = left < 10000 && left > 0 && !task.submitted;
+    document.body.classList.toggle("hurry", hurry);
+    const sec = Math.ceil(left / 1000);
+    if (!task.submitted && sec !== lastSec) {
+      if (sec === 10) SFX.vibrate([120, 80, 120]);
+      if (sec >= 1 && sec <= 5) SFX.play("tick");
+      if (sec === 0) {
+        SFX.play("timeup");
+        SFX.vibrate(300);
+      }
+    }
+    lastSec = sec;
     if (left < 700 && !task.submitted && autoSubmitted !== currentStepKey) {
       autoSubmitted = currentStepKey;
       if (task.type === "draw") {

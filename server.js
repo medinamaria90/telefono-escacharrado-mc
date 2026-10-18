@@ -1,4 +1,4 @@
-// Teléfono Escacharrado MC: servidor de salas.
+// Dibulíos: servidor de salas.
 // Todo vive en memoria: no hay base de datos ni ficheros. Cuando una partida
 // termina se borran sus dibujos, y la sala entera desaparece cuando ya no
 // queda nadie conectado.
@@ -708,6 +708,6 @@ setInterval(() => {
   }
 }, 10 * 60 * 1000).unref();
 
-server.listen(PORT, () => console.log(`Teléfono Escacharrado MC escuchando en el puerto ${PORT}`));
+server.listen(PORT, () => console.log(`Dibulíos escuchando en el puerto ${PORT}`));
 
 module.exports = { scoreGuess, chainLength };

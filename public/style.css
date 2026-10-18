@@ -1,4 +1,4 @@
-/* Teléfono Garabato
+/* Dibulíos
    Concepto: libreta de cuadros sobre la mesa familiar; tinta azul marino,
    rotulador tomate y subrayador mostaza. Pantallas de una columna para el móvil. */
 :root {
@@ -398,3 +398,47 @@ body[data-screen="s-home"] .topbar { display: none; }
 .stage-bubble.compact { margin: 0; font-size: clamp(1.3rem, 6.5vw, 2rem); padding: 12px 18px; }
 .is-guess-view .stage-by { text-align: center; }
 .prompt-figure figcaption:empty { display: none; }
+
+/* inicio: centrado que nunca corta por arriba en pantallas pequeñas o con letra grande */
+.home-screen { justify-content: flex-start; }
+.home-screen > :first-child { margin-top: auto; }
+.home-screen > :last-child { margin-bottom: auto; }
+.end-center { justify-content: flex-start; }
+.end-center > :first-child { margin-top: auto; }
+.end-center > :last-child { margin-bottom: auto; }
+.home-actions.invited .or, .home-actions.invited .join-row { display: none; }
+.home-actions.invited #createBtn { min-height: 40px; padding: 8px; font-size: 1rem; box-shadow: none; border-width: 1.5px; }
+@media (max-height: 700px) {
+  .home-logo { width: 48px; height: 48px; font-size: 1.5rem; border-radius: 14px; }
+  .home-title { font-size: clamp(1.6rem, 7vw, 2.1rem); }
+  .form-card { padding: 14px; gap: 8px; }
+  .emoji-current .avatar { width: 40px; height: 40px; }
+  .btn.big { padding: 12px; }
+  .join-box { padding: 10px; gap: 8px; }
+}
+
+/* aviso de que se acaba el tiempo */
+body.hurry::after {
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 40;
+  box-shadow: inset 0 0 0 6px var(--accent), inset 0 0 40px 10px color-mix(in srgb, var(--accent) 45%, transparent);
+  animation: hurry 1s ease-in-out infinite;
+}
+@keyframes hurry { 50% { opacity: .35; } }
+.icon-btn { padding: 4px 8px; font-size: 1.05rem; line-height: 1; min-height: 34px; }
+
+/* marca Dibulíos */
+.brand-logo { width: 36px; height: 36px; display: block; }
+.topbar.in-room .brand-name { display: none; }
+.home-logo { width: 72px; height: 72px; background: none; border: 0; box-shadow: none; transform: rotate(-6deg); border-radius: 0; filter: drop-shadow(0 3px 0 var(--ink)); }
+.wordmark { font-size: clamp(2.4rem, 11vw, 3.2rem); line-height: 1; letter-spacing: .01em; }
+.wordmark span { display: inline-block; }
+.wordmark span:nth-child(1) { color: #ff5a3c; transform: rotate(-6deg); }
+.wordmark span:nth-child(2) { color: var(--ink); transform: translateY(3px); }
+.wordmark span:nth-child(3) { color: #2563eb; transform: rotate(5deg); }
+.wordmark span:nth-child(4) { color: var(--ink); }
+.wordmark span:nth-child(5) { color: #2aa84a; transform: rotate(-5deg) translateY(2px); }
+.wordmark span:nth-child(6) { color: var(--ink); }
+.wordmark span:nth-child(7) { color: #d946ef; transform: rotate(6deg); }
+.wordmark span:nth-child(8) { color: #ffb000; transform: rotate(-4deg) translateY(3px); }
+.tagline { margin: 6px 0 0; font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
+@media (max-height: 700px) { .home-logo { width: 56px; height: 56px; } .wordmark { font-size: clamp(2rem, 9vw, 2.6rem); } }

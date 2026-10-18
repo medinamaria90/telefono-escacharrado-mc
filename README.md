@@ -1,4 +1,4 @@
-# Teléfono Escacharrado MC
+# Dibulíos
 
 Teléfono escacharrado con dibujos para jugar en familia, cada uno desde su móvil.
 Sin cuentas, sin anuncios y sin guardar nada: todo vive en la memoria del servidor
@@ -44,7 +44,7 @@ un minuto a que despierte. Durante la partida se mantiene despierto.
    - Start Command: `npm start`
    - Instance Type: **Free**
 5. Pulsa **Create Web Service**. En un par de minutos tendrás una dirección tipo
-   `https://telefono-escacharrado-mc.onrender.com`. Esa es la web que compartes.
+   `https://dibulios.onrender.com`. Esa es la web que compartes.
 
 Truco: abre la web unos minutos antes de jugar para que esté despierta.
 
