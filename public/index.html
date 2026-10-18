@@ -314,12 +314,41 @@
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 </div>
 
+<script>
+// Diagnóstico: si algo falla, se muestra un recuadro con el error (para poder arreglarlo)
+(function () {
+  var shown = 0;
+  function show(msg) {
+    if (shown++ > 4) return;
+    var box = document.getElementById("errbox");
+    if (!box) {
+      box = document.createElement("div");
+      box.id = "errbox";
+      box.style.cssText = "position:fixed;left:8px;right:8px;bottom:8px;z-index:99;background:#b00020;color:#fff;font:12px/1.35 monospace;padding:8px 10px;border-radius:10px;max-height:40vh;overflow:auto;white-space:pre-wrap";
+      (document.body || document.documentElement).appendChild(box);
+    }
+    box.textContent += (box.textContent ? "\n" : "") + msg;
+  }
+  window.addEventListener("error", function (e) {
+    show("Error: " + (e.message || e.type) + " (" + String(e.filename || (e.target && (e.target.src || e.target.href)) || "").split("/").pop() + ":" + (e.lineno || "") + ")");
+  }, true);
+  window.addEventListener("unhandledrejection", function (e) {
+    show("Error: " + ((e.reason && (e.reason.message || e.reason)) || "promesa"));
+  });
+  window.__diag = function () {
+    var standalone = (window.matchMedia && matchMedia("(display-mode: standalone)").matches) ? "app" : "web";
+    return standalone + " · v=" + (window.APP_V || "?") + " · " + navigator.userAgent.replace(/.*\) /, "").slice(0, 60);
+  };
+})();
+</script>
 <script src="/socket.io/socket.io.js"></script>
 <script src="frases.js?v=__V__"></script>
 <script src="sfx.js?v=__V__"></script>
 <script src="avatars.js?v=__V__"></script>
 <script src="pad.js?v=__V__"></script>
-<script>window.APP_V = "__V__";</script>
+<script>window.APP_V = "__V__";
+setTimeout(function () { if (!window.__appReady) window.dispatchEvent(new ErrorEvent("error", { message: "La app no terminó de arrancar · " + (window.__diag ? window.__diag() : "") })); }, 6000);
+</script>
 <script src="app.js?v=__V__"></script>
 </body>
 </html>

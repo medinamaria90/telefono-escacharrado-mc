@@ -397,6 +397,12 @@
   }
   const nameOf = (p, fallback) => (p ? p.name : fallback);
   $("emojiBtn").addEventListener("click", () => {
+    setTimeout(() => {
+      if ($("emojiSheet").hidden) {
+        const box = document.getElementById("errbox") || null;
+        window.dispatchEvent(new ErrorEvent("error", { message: "La hoja de caritas no se abrió · " + (window.__diag ? window.__diag() : "") }));
+      }
+    }, 300);
     SFX.play("click");
     $("emojiSheet").hidden = false;
   });
@@ -1499,4 +1505,5 @@
 
   buildEmojiGrid();
   show("s-home");
+  window.__appReady = true;
 })();
