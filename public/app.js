@@ -181,11 +181,25 @@
   // ---------- versión nueva ----------
   let outdated = false;
   socket.on("version", (v) => {
-    if (!window.APP_V || window.APP_V.indexOf("__") === 0 || v === window.APP_V) return;
-    outdated = true;
-    // Si no estás haciendo nada, se actualiza sola; si no, se ofrece el botón
-    if (!state && !soloMode && !bookOpen) return location.reload();
-    $("updateBar").hidden = false;
+    try {
+      const mine = window.APP_V;
+      if (!mine || mine.indexOf("__") === 0 || typeof v !== "string" || v === mine) return;
+      // Solo cuenta si el servidor es MÁS NUEVO (durante una publicación conviven dos versiones)
+      if (!(parseInt(v, 36) > parseInt(mine, 36))) return;
+      outdated = true;
+      // Como mucho una recarga automática por versión: nunca en bucle
+      let already = null;
+      try {
+        already = sessionStorage.getItem("tg-reloaded-for");
+      } catch (_) {}
+      if (!state && !soloMode && !bookOpen && already !== v) {
+        try {
+          sessionStorage.setItem("tg-reloaded-for", v);
+        } catch (_) {}
+        return location.reload();
+      }
+      $("updateBar").hidden = false;
+    } catch (_) {}
   });
   $("updateBtn").addEventListener("click", () => location.reload());
 
@@ -195,8 +209,12 @@
   }
 
   // ---------- invitación a instalar ----------
-  const installed = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  let installed = false;
+  let isIOS = false;
+  try {
+    installed = (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) || navigator.standalone === true;
+    isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  } catch (_) {}
   let installEvt = null;
   function showInstall(mode) {
     if (installed || store.get("tg-install-hidden", "") === "1") return;
@@ -536,7 +554,10 @@
   });
 
   function render() {
-    if (outdated && state && (state.phase === "lobby" || state.phase === "end") && !soloMode && !bookOpen) return location.reload();
+    if (outdated && state && (state.phase === "lobby" || state.phase === "end") && !soloMode && !bookOpen) {
+      outdated = false;
+      $("updateBar").hidden = false; // se ofrece, sin recargar por sorpresa
+    }
     if (soloMode || bookOpen) {
       if (state && state.phase !== "lobby") {
         exitSolo(true);
