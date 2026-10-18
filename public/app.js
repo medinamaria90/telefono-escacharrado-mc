@@ -94,7 +94,18 @@
     render();
   });
   // Sonidos según lo que cambia entre un estado y el siguiente
+  function trackGame(prev, next) {
+    if (!prev || prev.code !== next.code || next.hostId !== next.you) return;
+    const n = next.players.filter((p) => !p.left).length;
+    if (prev.phase === "lobby" && next.phase === "playing") {
+      track("partida_empezada", { jugadores: n, modo: next.mode === "duo" ? "duo" : "telefono", tiempo: next.settings.time });
+    }
+    if (prev.phase !== "end" && next.phase === "end") {
+      track("partida_terminada", { jugadores: n, modo: next.mode === "duo" ? "duo" : "telefono" });
+    }
+  }
   function playCues(prev, next) {
+    trackGame(prev, next);
     if (!prev || prev.code !== next.code) return;
     if (prev.phase !== next.phase) {
       if (next.phase === "playing" && prev.phase === "lobby") return SFX.play("start");
@@ -204,6 +215,7 @@
     showInstall("prompt");
   });
   window.addEventListener("appinstalled", () => {
+    track("app_instalada");
     $("installCard").hidden = true;
     toast("¡Dibulíos instalado! 🎉");
   });
@@ -221,6 +233,7 @@
     store.set("tg-install-hidden", "1");
     $("installCard").hidden = true;
   });
+  if (installed) track("abierta_como_app", { sistema: isIOS ? "ios" : "android" });
   if (!installed) {
     if (isIOS) showInstall("ios");
     // Navegadores sin botón de instalar: indicación manual tras unos segundos
@@ -237,11 +250,54 @@
     renderChrome();
   });
 
+  // ---------- estadísticas anónimas (Umami) ----------
+  // Cada pantalla cuenta como una "página" y las acciones clave como eventos.
+  const SCREEN_PATH = {
+    "s-home": ["/inicio", "Inicio"],
+    "s-lobby": ["/sala", "Sala de espera"],
+    "s-text": ["/escribir-adivinar", "Escribir o adivinar"],
+    "s-draw": ["/dibujar", "Dibujar"],
+    "s-wait": ["/esperando", "Esperando"],
+    "s-result": ["/resultado-duo", "Resultado dúo"],
+    "s-reveal": ["/revelacion", "Revelación"],
+    "s-end": ["/final", "Final"],
+    "s-book": ["/cuaderno", "Mi cuaderno"],
+  };
+  const pending = [];
+  function umamiCall(fn) {
+    if (window.umami && typeof window.umami.track === "function") {
+      try {
+        fn(window.umami);
+      } catch (_) {}
+    } else if (pending.length < 30) pending.push(fn);
+  }
+  // El script carga en diferido: lo que pase antes se envía al llegar
+  const flush = setInterval(() => {
+    if (window.umami && typeof window.umami.track === "function") {
+      clearInterval(flush);
+      pending.splice(0).forEach(umamiCall);
+    }
+  }, 500);
+  setTimeout(() => clearInterval(flush), 30000);
+  function track(name, data) {
+    umamiCall((u) => u.track(name, data));
+  }
+  let lastTracked = null;
+  function trackScreen(id) {
+    let key = id;
+    if (id === "s-draw" && soloMode) key = "solo";
+    if (key === lastTracked) return;
+    lastTracked = key;
+    const [url, title] = key === "solo" ? ["/dibujo-libre", "Dibujo libre"] : SCREEN_PATH[id] || ["/" + id, id];
+    umamiCall((u) => u.track((props) => ({ ...props, url, title: "Dibulíos · " + title })));
+  }
+
   // ---------- utilidades de interfaz ----------
   const screens = ["s-home", "s-lobby", "s-text", "s-draw", "s-wait", "s-result", "s-reveal", "s-end", "s-book"];
   function show(id) {
     for (const s of screens) $(s).hidden = s !== id;
     document.body.dataset.screen = id;
+    trackScreen(id);
     if (id === "s-draw" && pad) requestAnimationFrame(() => pad.layout());
   }
   let toastTimer;
@@ -365,7 +421,10 @@
   }
   $("createBtn").addEventListener("click", () => {
     if (needName()) return;
-    socket.emit("create", { name: me.name, emoji: me.emoji }, entered);
+    socket.emit("create", { name: me.name, emoji: me.emoji }, (res) => {
+      if (res && res.ok) track("sala_creada");
+      entered(res);
+    });
   });
   function joinCode(code) {
     if (needName()) return;
@@ -374,7 +433,10 @@
       return;
     }
     const s = session.get();
-    socket.emit("join", { code, name: me.name, emoji: me.emoji, token: s && s.code === code ? s.token : null }, entered);
+    socket.emit("join", { code, name: me.name, emoji: me.emoji, token: s && s.code === code ? s.token : null }, (res) => {
+      if (res && res.ok) track("sala_unido", { invitacion: code === inviteCode ? "enlace" : "codigo" });
+      entered(res);
+    });
   }
   $("joinBtn").addEventListener("click", () => joinCode($("codeInput").value.trim()));
   $("codeInput").addEventListener("keydown", (e) => e.key === "Enter" && joinCode($("codeInput").value.trim()));
@@ -1214,6 +1276,7 @@
   }
   function startSolo(edit) {
     SFX.play("pop");
+    track(edit ? "dibujo_editar" : "dibujo_libre", { desde: state ? "sala" : "inicio" });
     soloMode = true;
     bookOpen = false;
     editingId = edit ? edit.id : null;
@@ -1266,6 +1329,7 @@
         item.date = new Date().toISOString();
         if (!writeBook(list)) return toast("No queda espacio en este móvil para guardar los cambios.");
         SFX.play("point");
+        track("dibujo_editado");
         toast("Cambios guardados 📒");
       }
       editingId = null;
@@ -1279,6 +1343,7 @@
     if (list.length > BOOK_MAX) list.length = BOOK_MAX;
     if (!writeBook(list)) return toast("No queda espacio en este móvil para guardar más dibujos.");
     SFX.play("point");
+    track("dibujo_guardado", { total: list.length });
     toast("Guardado en tu cuaderno 📒");
     pad.reset();
     updateToolbar();

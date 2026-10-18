@@ -88,6 +88,11 @@ trazo, roce de goma, siseo de spray, chapoteo al rellenar…
 - Se borran al volver a la sala para otra partida, cuando la sala se queda vacía
   10 minutos o si el servidor se reinicia. Ninguna sala dura más de 8 horas.
 - Para conservar un dibujo de una partida: mantener el dedo encima → «Guardar imagen».
+- **Estadísticas anónimas** con [Umami](https://umami.is) (sin cookies ni datos
+  personales): visitas, tiempo de uso, pantallas vistas y acciones clave (salas
+  creadas, partidas empezadas y terminadas con nº de jugadores y modo, dibujo
+  libre, dibujos guardados, instalaciones). Solo cuenta en dibulios.onrender.com
+  y no registra los códigos de sala.
 
 ---
 
