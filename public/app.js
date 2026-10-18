@@ -94,7 +94,8 @@
   let state = null;
   let clockOffset = 0;
   let me = { name: store.get("tg-name", ""), emoji: store.get("tg-emoji", "") };
-  if (!EMOJIS.includes(me.emoji)) me.emoji = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
+  const isFace = (e) => String(e || "").indexOf("data:image/") === 0;
+  if (!EMOJIS.includes(me.emoji) && !isFace(me.emoji)) me.emoji = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
   let currentStepKey = null;
   let autoSubmitted = null;
   let gallery = null;
@@ -111,7 +112,7 @@
     $("offline").hidden = true;
     const s = session.get();
     if (s && s.code && s.token && (!inviteCode || inviteCode === s.code)) {
-      socket.emit("join", { code: s.code, token: s.token, rejoinOnly: true }, (res) => {
+      socket.emit("join", { code: s.code, token: s.token, rejoinOnly: true, name: me.name, emoji: me.emoji }, (res) => {
         if (res.ok && pendingDrawing) {
           const pd = pendingDrawing;
           socket.emit("submit", { stepKey: pd.key, content: pd.content }, (r) => {
@@ -120,16 +121,21 @@
           });
         }
         if (!res.ok) {
+          const wasIn = !!state;
           session.set(null);
           state = null;
           clearInvite(); // la sala ya no existe: inicio normal
+          if (wasIn) toast("Esa sala ya no existe (el juego se ha actualizado o se cerró). Crea una nueva.");
           show("s-home");
           renderChrome();
         }
       });
     }
   });
+  let downSince = 0;
+  socket.on("connect", () => (downSince = 0));
   socket.on("disconnect", () => {
+    downSince = Date.now();
     setTimeout(() => {
       if (!socket.connected) $("offline").hidden = false;
     }, 1500);
@@ -151,7 +157,7 @@
     if (!prev || prev.code !== next.code || next.hostId !== next.you) return;
     const n = next.players.filter((p) => !p.left).length;
     if (prev.phase === "lobby" && next.phase === "playing") {
-      track("partida_empezada", { jugadores: n, modo: modeName(next.mode), tiempo: next.settings.time, pruebas: !!next.practice });
+      track("partida_empezada", { jugadores: n, modo: modeName(next.mode), tiempo: String(next.settings.time), pruebas: !!next.practice });
     }
     if (prev.phase !== "end" && next.phase === "end") {
       track("partida_terminada", { jugadores: n, modo: modeName(next.mode) });
@@ -370,7 +376,15 @@
   function buildEmojiGrid() {
     const g = $("emojiGrid");
     g.innerHTML = "";
-    for (const e of EMOJIS) {
+    const own = el("button", "emoji-btn draw-own", "✏️");
+    own.type = "button";
+    own.setAttribute("aria-label", "Dibujar mi carita");
+    own.title = "Dibuja tu carita";
+    own.addEventListener("click", () => openFace());
+    g.appendChild(own);
+    const saved = store.get("tg-face", "");
+    const list = isFace(saved) ? [saved, ...EMOJIS] : EMOJIS;
+    for (const e of list) {
       const b = el("button", "emoji-btn");
       b.type = "button";
       b.dataset.id = e;
@@ -411,16 +425,151 @@
   }
   const nameOf = (p, fallback) => (p ? p.name : fallback);
   $("emojiBtn").addEventListener("click", () => {
-    setTimeout(() => {
-      if ($("emojiSheet").hidden) {
-        const box = document.getElementById("errbox") || null;
-        window.dispatchEvent(new ErrorEvent("error", { message: "La hoja de caritas no se abrió · " + (window.__diag ? window.__diag() : "") }));
-      }
-    }, 300);
     SFX.play("click");
     $("emojiSheet").hidden = false;
   });
   $("emojiClose").addEventListener("click", () => ($("emojiSheet").hidden = true));
+
+  // ---------- dibujar tu propia carita ----------
+  const FACE_COLORS = ["#1b1b1f", "#ffffff", "#f1c9a5", "#c68b59", "#8b5a2b", "#ffd21f", "#ff8a80", "#ff3b3b", "#ff7a1a", "#9be04a", "#1f8a3a", "#3fc8ef", "#2563eb", "#9b5de5", "#ff8fb8", "#8a8e99"];
+  const face = { ctx: null, color: "#1b1b1f", size: 9, fill: false, undo: [], drawing: null };
+  function faceInit() {
+    if (face.ctx) return;
+    const c = $("faceCanvas");
+    face.ctx = c.getContext("2d");
+    const box = $("faceColors");
+    FACE_COLORS.forEach((col) => {
+      const b = el("button");
+      b.type = "button";
+      b.style.setProperty("--c", col);
+      b.dataset.c = col;
+      b.setAttribute("aria-label", "Color " + col);
+      b.addEventListener("click", () => {
+        face.color = col;
+        SFX.play("color");
+        facePaintTools();
+      });
+      box.appendChild(b);
+    });
+    document.querySelectorAll(".face-size[data-s]").forEach((b) =>
+      b.addEventListener("click", () => {
+        face.size = Number(b.dataset.s);
+        face.fill = false;
+        SFX.play("click");
+        facePaintTools();
+      })
+    );
+    document.querySelector(".face-size[data-fill]").addEventListener("click", () => {
+      face.fill = !face.fill;
+      SFX.play("click");
+      facePaintTools();
+    });
+    const pt = (e) => {
+      const r = c.getBoundingClientRect();
+      return { x: ((e.clientX - r.left) * c.width) / r.width, y: ((e.clientY - r.top) * c.height) / r.height };
+    };
+    c.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      try {
+        c.setPointerCapture(e.pointerId);
+      } catch (_) {}
+      face.undo.push(face.ctx.getImageData(0, 0, c.width, c.height));
+      if (face.undo.length > 20) face.undo.shift();
+      if (face.fill) {
+        // Pintar el fondo de un toque
+        face.ctx.save();
+        face.ctx.globalCompositeOperation = "destination-over";
+        face.ctx.fillStyle = face.color;
+        face.ctx.fillRect(0, 0, c.width, c.height);
+        face.ctx.restore();
+        SFX.play("splash");
+        return;
+      }
+      const p = pt(e);
+      face.drawing = p;
+      face.ctx.fillStyle = face.color;
+      face.ctx.beginPath();
+      face.ctx.arc(p.x, p.y, face.size / 2, 0, Math.PI * 2);
+      face.ctx.fill();
+    });
+    c.addEventListener("pointermove", (e) => {
+      if (!face.drawing) return;
+      const p = pt(e);
+      face.ctx.strokeStyle = face.color;
+      face.ctx.lineWidth = face.size;
+      face.ctx.lineCap = face.ctx.lineJoin = "round";
+      face.ctx.beginPath();
+      face.ctx.moveTo(face.drawing.x, face.drawing.y);
+      face.ctx.lineTo(p.x, p.y);
+      face.ctx.stroke();
+      face.drawing = p;
+    });
+    const end = () => (face.drawing = null);
+    c.addEventListener("pointerup", end);
+    c.addEventListener("pointercancel", end);
+    $("faceUndo").addEventListener("click", () => {
+      const u = face.undo.pop();
+      if (u) face.ctx.putImageData(u, 0, 0);
+      SFX.play("undo");
+    });
+    $("faceClear").addEventListener("click", () => {
+      face.undo.push(face.ctx.getImageData(0, 0, c.width, c.height));
+      face.ctx.clearRect(0, 0, c.width, c.height);
+      SFX.play("crumple");
+    });
+    $("faceCancel").addEventListener("click", () => ($("faceSheet").hidden = true));
+    $("faceSave").addEventListener("click", saveFace);
+  }
+  function facePaintTools() {
+    document.querySelectorAll("#faceColors button").forEach((b) => b.classList.toggle("active", b.dataset.c === face.color));
+    document.querySelectorAll(".face-size[data-s]").forEach((b) => b.classList.toggle("active", !face.fill && Number(b.dataset.s) === face.size));
+    document.querySelector(".face-size[data-fill]").classList.toggle("active", face.fill);
+  }
+  function openFace() {
+    faceInit();
+    const c = $("faceCanvas");
+    face.ctx.clearRect(0, 0, c.width, c.height);
+    face.undo = [];
+    // Si ya tenías una carita dibujada, se parte de ella
+    const saved = store.get("tg-face", "");
+    if (isFace(saved)) {
+      const im = new Image();
+      im.onload = () => face.ctx.drawImage(im, 0, 0, c.width, c.height);
+      im.src = saved;
+    }
+    facePaintTools();
+    $("emojiSheet").hidden = true;
+    $("faceSheet").hidden = false;
+    SFX.play("pop");
+  }
+  function saveFace() {
+    const c = $("faceCanvas");
+    // Pequeña (para que viaje rápido a los demás) y con fondo blanco
+    const out = document.createElement("canvas");
+    out.width = out.height = 120;
+    const x = out.getContext("2d");
+    x.fillStyle = "#ffffff";
+    x.fillRect(0, 0, 120, 120);
+    x.drawImage(c, 0, 0, 120, 120);
+    let url = "";
+    for (const q of [0.82, 0.7, 0.55, 0.4]) {
+      try {
+        url = out.toDataURL("image/webp", q);
+        if (url.indexOf("data:image/webp") !== 0) url = out.toDataURL("image/jpeg", q);
+      } catch (_) {
+        url = out.toDataURL("image/jpeg", q);
+      }
+      if (url.length < 13000) break;
+    }
+    store.set("tg-face", url);
+    me.emoji = url;
+    store.set("tg-emoji", url);
+    track("carita_dibujada");
+    $("faceSheet").hidden = true;
+    buildEmojiGrid();
+    SFX.play("point");
+    if (state && state.phase === "lobby") socket.emit("profile", { name: me.name, emoji: me.emoji });
+  }
   $("howBtn").addEventListener("click", () => {
     SFX.play("pop");
     $("howSheet").hidden = false;
@@ -458,8 +607,13 @@
     $("homeError").textContent = "";
     return false;
   }
-  function entered(res) {
+  function entered(res, code) {
     if (!res.ok) {
+      // Si falla una invitación, vuelve el inicio normal para poder escribir otro código
+      if (!$("joinInvite").hidden || $("homeActions").classList.contains("invited")) {
+        clearInvite();
+        if (code) $("codeInput").value = code;
+      }
       $("homeError").textContent = res.error || "No se pudo entrar.";
       return;
     }
@@ -487,7 +641,7 @@
     const s = session.get();
     socket.emit("join", { code, name: me.name, emoji: me.emoji, token: s && s.code === code ? s.token : null }, (res) => {
       if (res && res.ok) track(code === "ZZZZZ" ? "sala_pruebas" : "sala_unido", { invitacion: code === inviteCode ? "enlace" : "codigo" });
-      entered(res);
+      entered(res, code);
     });
   }
   // Al salir de una sala, el inicio vuelve a ser el normal (crear o unirse con código)
@@ -503,6 +657,12 @@
     } catch (_) {}
   }
   $("joinBtn").addEventListener("click", () => joinCode($("codeInput").value.trim()));
+  $("otherCodeBtn").addEventListener("click", () => {
+    SFX.play("click");
+    clearInvite();
+    $("homeError").textContent = "";
+    $("codeInput").focus();
+  });
   $("codeInput").addEventListener("keydown", (e) => e.key === "Enter" && joinCode($("codeInput").value.trim()));
   $("joinInviteBtn").addEventListener("click", () => joinCode(inviteCode));
   if (inviteCode) {
@@ -656,10 +816,12 @@
     $("modeTitle").textContent = (state.practice ? "🧪 Pruebas · " : "") + t;
     $("modeText").textContent = state.practice ? "🤖 Los robots juegan solos. " + txt : txt;
     const host = isHost();
-    for (const b of $("timeSeg").children) {
-      b.setAttribute("aria-pressed", String(b.dataset.v === state.settings.time));
-      b.disabled = !host;
+    if (!timeDragging) {
+      const idx = Math.max(0, DRAW_TIMES.indexOf(Number(state.settings.time)));
+      $("timeRange").value = idx;
+      paintTime(idx);
     }
+    $("timeRange").disabled = !host;
     for (const b of $("modeSeg").children) {
       b.setAttribute("aria-pressed", String(b.dataset.v === state.settings.mode));
       b.disabled = !host;
@@ -678,12 +840,30 @@
     $("startBtn").disabled = n < need;
     $("startBtn").textContent = n < need ? "Esperando jugadores…" : "Empezar partida";
   }
-  $("timeSeg").addEventListener("click", (e) => {
-    const v = e.target.dataset && e.target.dataset.v;
-    if (v && isHost()) {
-      SFX.play("click");
-      socket.emit("settings", { time: v });
-    }
+  // Tiempo para dibujar: barra de 30 s a 5 min, y al final «sin límite»
+  const DRAW_TIMES = [30, 45, 60, 75, 90, 120, 150, 180, 240, 300, 0];
+  let timeDragging = false;
+  function timeLabel(sec) {
+    if (!sec) return "Sin límite";
+    const m = Math.floor(sec / 60);
+    const r = sec % 60;
+    if (!m) return `${r} s`;
+    return r ? `${m} min ${r} s` : `${m} min`;
+  }
+  function paintTime(idx) {
+    const r = $("timeRange");
+    $("timeValue").textContent = timeLabel(DRAW_TIMES[idx]);
+    r.style.setProperty("--fill", (idx / (DRAW_TIMES.length - 1)) * 100 + "%");
+  }
+  $("timeRange").addEventListener("input", (e) => {
+    timeDragging = true;
+    paintTime(Number(e.target.value));
+  });
+  $("timeRange").addEventListener("change", (e) => {
+    timeDragging = false;
+    if (!isHost()) return;
+    SFX.play("click");
+    socket.emit("settings", { time: DRAW_TIMES[Number(e.target.value)] });
   });
   $("modeSeg").addEventListener("click", (e) => {
     const v = e.target.closest("button")?.dataset.v;
@@ -744,6 +924,7 @@
     if (task.type === "draw") {
       show("s-draw");
       $("drawWhat").textContent = task.secret != null ? task.secret : task.prompt ? (task.prompt.value || "(sin respuesta)") : "";
+      $("drawWhat").classList.toggle("long", $("drawWhat").textContent.length > 26);
       $("rerollBtn").hidden = !(task.secret != null && task.rerolls > 0);
       $("rerollBtn").textContent = `🎲 ${task.rerolls}`;
     } else if (task.type === "vote") {
@@ -866,6 +1047,41 @@
     });
     SFX.play("send");
   }
+  // Latido: cada pocos segundos el móvil comprueba que el servidor le sigue teniendo dentro.
+  // Si no contesta (conexión «zombi» tras bloquear la pantalla o cambiar de app), se reconecta.
+  function checkAlive() {
+    if (!state || !socket.connected) return;
+    try {
+      socket.timeout(5000).emit("alive", {}, (err, res) => {
+        if (err || !res || !res.ok) {
+          track("latido_fallido", { motivo: err ? "sin_respuesta" : "fuera" });
+          reconnect();
+        }
+      });
+    } catch (_) {}
+  }
+  setInterval(checkAlive, 8000);
+  // Si un intento de reconexión se queda a medias, se vuelve a intentar
+  setInterval(() => {
+    if (socket.connected) return;
+    if (!downSince) downSince = Date.now();
+    if (Date.now() - downSince > 7000 && navigator.onLine !== false) {
+      downSince = Date.now();
+      try {
+        socket.disconnect();
+        socket.connect();
+      } catch (_) {}
+    }
+  }, 2500);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") checkAlive();
+  });
+  window.addEventListener("online", () => state && reconnect());
+  // El alojamiento gratuito se duerme si no recibe visitas: mientras hay partida, se le da un toque
+  setInterval(() => {
+    if (state) fetch("/salud", { cache: "no-store" }).catch(() => {});
+  }, 4 * 60 * 1000);
+
   // Fuerza una conexión nueva: al volver, el servidor manda cómo va la partida
   let lastReconnect = 0;
   function reconnect() {
@@ -1226,6 +1442,7 @@
       const img = el("img", "duo-img");
       img.src = c.image;
       img.alt = "Dibujo de " + c.drawer.name;
+      img.addEventListener("click", () => zoomDrawing({ image: c.image, by: c.drawer }, c.phrase));
       card.appendChild(img);
     } else card.appendChild(blankEl("grow-img"));
     const g = el("p", "guess-line");
@@ -1383,19 +1600,26 @@
         card.appendChild(img);
       } else card.appendChild(blankEl("grow-img"));
       card.appendChild(el("div", "pts vote-pts", `★ ${it.points}`));
-      if (it.image) card.addEventListener("click", () => zoomDrawing(it));
+      if (it.image) card.addEventListener("click", () => zoomDrawing(it, round.phrase));
       box.appendChild(card);
     });
   }
-  function zoomDrawing(it) {
+  let zooming = null;
+  function zoomDrawing(it, prompt) {
     SFX.play("page");
+    zooming = { img: it.image, prompt, by: it.by };
     $("zoomImg").src = it.image;
     const w = $("zoomWho");
     w.innerHTML = "";
     w.appendChild(who(it.by, "dibujó"));
+    $("zoomPts").hidden = it.points == null;
     $("zoomPts").textContent = `★ ${it.points}`;
+    const saved = readBook().some((x) => x.img === it.image);
+    $("zoomSave").disabled = saved;
+    $("zoomSave").textContent = saved ? "✔ En tu cuaderno" : "📒 Guardar en mi cuaderno";
     $("zoomSheet").hidden = false;
   }
+  $("zoomSave").addEventListener("click", () => zooming && saveSharedToBook(zooming.img, zooming.prompt, zooming.by, $("zoomSave")));
   $("zoomClose").addEventListener("click", () => ($("zoomSheet").hidden = true));
   $("zoomSheet").addEventListener("click", (e) => {
     if (e.target === $("zoomSheet") || e.target === $("zoomImg")) $("zoomSheet").hidden = true;
@@ -1450,11 +1674,16 @@
     const st = $("revealStage");
     st.innerHTML = "";
     st.classList.toggle("is-guess-view", !!guessOfDrawing);
+    const textBefore = (i) => {
+      const e = o.entries[i];
+      return e && e.type !== "draw" ? e.content : "";
+    };
     if (guessOfDrawing) {
       const im = el("img", "stage-img");
       im.src = prev.content;
       im.alt = "Dibujo de " + (prev.by ? prev.by.name : "alguien");
       st.appendChild(im);
+      st.appendChild(saveBtn(prev.content, textBefore(o.entries.length - 3), prev.by));
       const by = el("div", "stage-by");
       by.appendChild(who(cur.by, "dijo que es…"));
       st.appendChild(by);
@@ -1469,6 +1698,7 @@
           im.src = cur.content;
           im.alt = "Dibujo de " + (cur.by ? cur.by.name : "alguien");
           st.appendChild(im);
+          st.appendChild(saveBtn(cur.content, textBefore(o.entries.length - 2), cur.by));
         } else st.appendChild(blankEl());
       } else {
         st.appendChild(el("p", "stage-bubble " + (cur.type === "write" ? "is-write" : "is-guess"), cur.content));
@@ -1592,8 +1822,42 @@
     }
     return false;
   }
+  /** Guarda en el cuaderno un dibujo que se ha visto en la partida (tuyo o de otra persona) */
+  function saveSharedToBook(img, prompt, by, btn) {
+    if (!img) return;
+    const list = readBook();
+    if (list.some((x) => x.img === img)) {
+      toast("Ese dibujo ya está en tu cuaderno 📒");
+    } else {
+      const author = by && by.name ? by.name : "";
+      list.unshift({ id: Date.now(), prompt: prompt || "Dibujo de la partida", by: author, date: new Date().toISOString(), img });
+      if (list.length > BOOK_MAX) list.length = BOOK_MAX;
+      if (!writeBook(list)) return toast("No queda espacio en este móvil para guardar más dibujos.");
+      SFX.play("point");
+      track("dibujo_guardado_partida", { total: list.length });
+      toast("Guardado en tu cuaderno 📒");
+    }
+    if (btn) {
+      btn.textContent = "✔ En tu cuaderno";
+      btn.disabled = true;
+    }
+  }
+  function saveBtn(img, prompt, by) {
+    const b = el("button", "btn-ghost small save-book", "📒 Guardar en mi cuaderno");
+    b.type = "button";
+    if (readBook().some((x) => x.img === img)) {
+      b.textContent = "✔ En tu cuaderno";
+      b.disabled = true;
+    }
+    b.addEventListener("click", (e) => {
+      e.stopPropagation();
+      saveSharedToBook(img, prompt, by, b);
+    });
+    return b;
+  }
   function newIdea() {
     $("drawWhat").textContent = FRASES[Math.floor(Math.random() * FRASES.length)];
+    $("drawWhat").classList.toggle("long", $("drawWhat").textContent.length > 26);
   }
   function startSolo(edit) {
     SFX.play("pop");
@@ -1708,7 +1972,7 @@
     SFX.play("page");
     viewing = d;
     $("bookImg").src = d.img;
-    $("bookPrompt").textContent = d.prompt + " · " + new Date(d.date).toLocaleDateString("es-ES", { day: "numeric", month: "short" });
+    $("bookPrompt").textContent = d.prompt + (d.by ? " · de " + d.by : "") + " · " + new Date(d.date).toLocaleDateString("es-ES", { day: "numeric", month: "short" });
     $("bookDelText").textContent = "";
     $("bookDel").classList.remove("armed");
     $("bookView").hidden = false;
@@ -1844,6 +2108,7 @@
   });
   $("againBtn").addEventListener("click", () => socket.emit("lobby"));
 
+  ["gesturestart", "gesturechange"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   buildEmojiGrid();
   show("s-home");
   window.__appReady = true;

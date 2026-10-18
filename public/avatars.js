@@ -369,6 +369,15 @@
   function avatarEl(id, cls = "") {
     const span = document.createElement("span");
     span.className = "avatar " + cls;
+    // Carita dibujada por el propio jugador (imagen pequeña)
+    if (String(id || "").indexOf("data:image/") === 0) {
+      const img = document.createElement("img");
+      img.src = id;
+      img.alt = "";
+      img.className = "face-img";
+      span.appendChild(img);
+      return span;
+    }
     const key = String(id || "").replace(/^av:/, "");
     const svg = svgFor(key);
     if (svg) {
@@ -376,5 +385,5 @@
     } else span.textContent = id || "🙂";
     return span;
   }
-  window.AVATARS = { ids: IDS.map((k) => "av:" + k), label: (id) => (A[String(id).replace(/^av:/, "")] || {}).label || "", svgFor, avatarEl };
+  window.AVATARS = { ids: IDS.map((k) => "av:" + k), label: (id) => (String(id).indexOf("data:image/") === 0 ? "dibujada por ti" : (A[String(id).replace(/^av:/, "")] || {}).label || ""), svgFor, avatarEl };
 })();

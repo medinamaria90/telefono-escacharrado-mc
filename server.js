@@ -17,16 +17,18 @@ const MAX_IMAGE = 3_000_000; // caracteres del dataURL
 const ROOM_IDLE_MS = 10 * 60 * 1000; // sala vacía: se borra a los 10 min
 const ROOM_MAX_AGE_MS = 8 * 60 * 60 * 1000;
 const LOBBY_DROP_MS = 90 * 1000; // en la sala de espera, quien se va 90 s sale de la lista
-const HOST_HANDOVER_MS = 25 * 1000;
+const HOST_HANDOVER_MS = 10 * 1000;
 const GRACE_MS = 6000; // margen tras agotarse el tiempo (para conexiones lentas)
 const LATE_DRAWING_MS = 45000; // un dibujo que llega tarde aún se coloca en su sitio
 
-const TIMES = {
-  rapido: { write: 40, draw: 70, guess: 30, vote: 45 },
-  normal: { write: 60, draw: 110, guess: 45, vote: 70 },
-  relajado: { write: 90, draw: 180, guess: 70, vote: 100 },
-  libre: null,
-};
+// Tiempo para dibujar, en segundos (0 = sin límite). Escribir, adivinar y votar llevan menos.
+const DRAW_TIMES = [30, 45, 60, 75, 90, 120, 150, 180, 240, 300, 0];
+const clampN = (v, a, b) => Math.max(a, Math.min(b, Math.round(v)));
+function timesFor(settings) {
+  const d = Number(settings.time) || 0;
+  if (!d) return null;
+  return { draw: d, write: clampN(d * 0.6, 25, 90), guess: clampN(d * 0.5, 25, 75), vote: clampN(d * 0.7, 35, 100) };
+}
 
 const app = express();
 app.disable("x-powered-by");
@@ -84,8 +86,10 @@ function cleanText(s, max = MAX_TEXT) {
 function cleanName(s) {
   return cleanText(s, 16) || "Sin nombre";
 }
+const MAX_FACE = 14000; // carita dibujada: imagen pequeña
 function cleanEmoji(s) {
   const e = String(s ?? "").trim();
+  if (/^data:image\/(png|webp|jpeg);base64,[A-Za-z0-9+/=]+$/.test(e) && e.length <= MAX_FACE) return e;
   // Un solo emoji (puede ocupar varios puntos de código). Límite de seguridad.
   if (!e || e.length > 16 || /[<>&"'\s]/.test(e)) return "🙂";
   return e;
@@ -288,7 +292,7 @@ function beginStep(room) {
     game.secrets = new Map();
     for (const id of game.order) game.secrets.set(id, { phrase: freshPhrase(game), rerolls: 2 });
   }
-  const t = TIMES[room.settings.time];
+  const t = timesFor(room.settings);
   game.deadline = t ? Date.now() + t[game.stepType] * 1000 : null;
   game.stepStartedAt = Date.now();
   if (game.deadline) {
@@ -817,7 +821,7 @@ io.on("connection", (socket) => {
       players: new Map(),
       hostId: null,
       phase: "lobby",
-      settings: { time: "normal", duoRounds: 3, mode: "telefono" },
+      settings: { time: 60, duoRounds: 3, mode: "telefono" },
       game: null,
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -863,19 +867,22 @@ io.on("connection", (socket) => {
       if (r.phase === "end") sendGallery(r, socket);
       return;
     }
-    if (data?.rejoinOnly) return ack({ ok: false, error: "Ya no estás en esa sala." });
-    // Desde otro móvil o pestaña: si hay una plaza libre con el mismo nombre, es esa persona
+    // Vuelve alguien con el mismo nombre (otro móvil, o se salió sin querer): recupera su sitio
     const wanted = cleanName(data?.name).toLocaleLowerCase("es");
-    const sameName = [...r.players.values()].find((p) => !p.connected && !p.left && p.name.toLocaleLowerCase("es") === wanted);
+    const sameName = data?.name && [...r.players.values()].find((p) => !p.bot && (!p.connected || p.left) && p.name.toLocaleLowerCase("es") === wanted);
     if (sameName) {
-      sameName.emoji = cleanEmoji(data?.emoji) || sameName.emoji;
+      if (data?.emoji) sameName.emoji = cleanEmoji(data.emoji);
+      sameName.left = false;
       attach(r, sameName);
       ack({ ok: true, code: r.code, playerId: sameName.id, token: sameName.token });
       broadcast(r);
       if (r.phase === "end") sendGallery(r, socket);
       return;
     }
-    if (r.phase !== "lobby") return ack({ ok: false, error: "La partida ya ha empezado. Si estabas jugando, escribe exactamente el mismo nombre que usaste. Si no, espera a que acabe." });
+    if (r.phase !== "lobby") {
+      if (data?.rejoinOnly) return ack({ ok: false, error: "Ya no estás en esa sala." });
+      return ack({ ok: false, error: "La partida ya ha empezado. Si estabas jugando, escribe exactamente el mismo nombre que usaste. Si no, espera a que acabe." });
+    }
     const active = [...r.players.values()].filter((p) => !p.left);
     if (active.length >= MAX_PLAYERS) return ack({ ok: false, error: `La sala está llena (máximo ${MAX_PLAYERS}).` });
     const p = makePlayer(data?.name, data?.emoji);
@@ -887,6 +894,17 @@ io.on("connection", (socket) => {
 
   const isHost = () => room && player && room.hostId === player.id;
 
+  // Latido: el móvil pregunta «¿sigo dentro?». Si el servidor le había dado por perdido, vuelve a entrar.
+  socket.on("alive", (data, ack) => {
+    if (typeof ack !== "function") return;
+    if (!room || !player || !rooms.has(room.code)) return ack({ ok: false });
+    if (player.socketId !== socket.id || !player.connected) {
+      attach(room, player);
+      broadcast(room);
+    }
+    ack({ ok: true, phase: room.phase });
+  });
+
   socket.on("profile", (data) => {
     if (!room || !player || room.phase !== "lobby") return;
     player.name = cleanName(data?.name);
@@ -896,7 +914,7 @@ io.on("connection", (socket) => {
 
   socket.on("settings", (data) => {
     if (!isHost() || room.phase !== "lobby") return;
-    if (data && Object.hasOwn(TIMES, data.time)) room.settings.time = data.time;
+    if (data && DRAW_TIMES.includes(Number(data.time)) && data.time !== undefined && data.time !== null) room.settings.time = Number(data.time);
     if (data && ["telefono", "votacion"].includes(data.mode)) room.settings.mode = data.mode;
     const dr = Number(data?.duoRounds);
     if ([2, 3, 4, 5, 6].includes(dr)) room.settings.duoRounds = dr;

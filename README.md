@@ -10,9 +10,11 @@ familia, cada uno desde su móvil. Sin crear cuenta y sin anuncios.
 
 1. Una persona pulsa **Crear una sala** y comparte el enlace (o el código de 5
    letras, sin números) por WhatsApp.
-2. Cada uno escribe su nombre y elige su carita entre las 45 disponibles.
-3. El anfitrión elige el modo de juego (**Clásico** o **Votación**), el tiempo por turno
-   (rápido, normal, relajado o sin límite) y pulsa **Empezar partida**.
+2. Cada uno escribe su nombre y elige su carita entre las 45 disponibles, o
+   **dibuja la suya** (botón ✏️ al principio de la lista; se guarda en el móvil).
+3. El anfitrión elige el modo de juego (**Clásico** o **Votación**) y, con una barra,
+   el **tiempo para dibujar** (de 30 segundos a 5 minutos, o sin límite; por defecto
+   1 minuto). Para escribir, adivinar y votar hay algo menos. Y pulsa **Empezar partida**.
 
 En el inicio, el enlace **¿Cómo se juega?** lo explica en cinco pasos para quien
 no lo conozca.
@@ -57,8 +59,15 @@ partida de 4 sin tener a nadie más. Cada entrada crea una sala nueva.
   lleva más de un minuto desconectado, su turno se salta solo.
 - **Solo queda una persona** (por ejemplo, en el modo Dúo): la partida se pone en
   pausa hasta que vuelva. El anfitrión puede terminarla y ver lo que haya.
-- **Volver a entrar:** si te sales sin querer, al abrir el enlace otra vez vuelves
-  donde ibas. Desde otro móvil basta con escribir exactamente el mismo nombre.
+- **Volver a entrar:** si te sales sin querer (aunque hayas pulsado «Salir»), al abrir
+  el enlace otra vez con el mismo nombre vuelves donde ibas. Desde otro móvil, igual.
+- **Si el anfitrión se va** o pierde la conexión, a los pocos segundos otra persona
+  pasa a ser anfitriona y la partida sigue.
+- **Conexión:** cada móvil comprueba cada pocos segundos que sigue dentro; si se ha
+  quedado «colgado» (pantalla bloqueada, cambio de app, mala cobertura), se reconecta
+  solo. Si la sala ya no existe (por ejemplo, porque se ha actualizado el juego), avisa.
+- **Invitaciones:** si el enlace de una sala falla, vuelve el inicio normal para
+  escribir otro código, y siempre hay un «Usar otro código».
 - El botón **Atrás** del móvil pregunta antes de sacarte de la sala.
 - **Conexión lenta** (por ejemplo, jugando durante una videollamada): los dibujos se
   envían comprimidos para que suban rápido. Si un dibujo llega unos segundos tarde,
@@ -92,6 +101,8 @@ trazo, roce de goma, siseo de spray, chapoteo al rellenar…
   libre con ideas para inspirarse y el botón «Otra idea».
 - **Guardar** lleva el dibujo a **Mi cuaderno**, donde se pueden ver, **editar** y
   borrar (papelera pequeña con confirmación).
+- En la revelación y en los resultados, cada dibujo tiene **«📒 Guardar en mi
+  cuaderno»**, para quedarte con los que más te gusten, tuyos o de los demás.
 - Los dibujos del cuaderno se guardan **solo en ese móvil**, en el navegador. Se
   borran si se borra el historial o los datos del navegador. Caben unos 40; al
   llenarse se borra el más antiguo.

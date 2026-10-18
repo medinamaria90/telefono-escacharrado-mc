@@ -62,6 +62,7 @@
       <div class="join-box" id="joinInvite" hidden>
         <p>Te han invitado a la sala <strong id="inviteCode"></strong></p>
         <button class="btn primary big" id="joinInviteBtn" type="button">Entrar en la sala</button>
+        <button class="how-link other-code" id="otherCodeBtn" type="button">Usar otro código</button>
       </div>
 
       <div class="home-actions" id="homeActions">
@@ -122,13 +123,9 @@
       <h2 class="h3" id="modeTitle"></h2>
       <p class="mode-text" id="modeText"></p>
       <div class="setting">
-        <span class="label">Tiempo por turno</span>
-        <div class="seg" id="timeSeg">
-          <button type="button" data-v="rapido">Rápido</button>
-          <button type="button" data-v="normal">Normal</button>
-          <button type="button" data-v="relajado">Relajado</button>
-          <button type="button" data-v="libre">Sin límite</button>
-        </div>
+        <div class="row-between"><label class="label" for="timeRange">Tiempo para dibujar</label><strong class="time-value" id="timeValue">1 min</strong></div>
+        <input type="range" class="time-range" id="timeRange" min="0" max="10" step="1" value="2" aria-describedby="timeHint">
+        <span class="time-hint" id="timeHint">Para escribir, adivinar y votar hay algo menos.</span>
       </div>
       <div class="setting" id="duoRoundsSetting">
         <span class="label">Rondas</span>
@@ -323,6 +320,29 @@
     </div>
   </div>
 
+  <!-- Dibujar tu propia carita -->
+  <div class="sheet-backdrop" id="faceSheet" hidden>
+    <div class="sheet face-sheet" role="dialog" aria-modal="true" aria-labelledby="faceTitle">
+      <div class="sheet-head">
+        <h2 class="h2" id="faceTitle">Dibuja tu carita</h2>
+        <button class="btn-ghost small" id="faceClear" type="button">Borrar</button>
+      </div>
+      <div class="face-stage"><canvas id="faceCanvas" width="240" height="240" aria-label="Lienzo para tu carita"></canvas></div>
+      <div class="face-colors" id="faceColors"></div>
+      <div class="face-tools">
+        <button class="face-size" data-s="4" type="button" aria-label="Fino"><span style="width:6px;height:6px"></span></button>
+        <button class="face-size" data-s="9" type="button" aria-label="Medio"><span style="width:11px;height:11px"></span></button>
+        <button class="face-size" data-s="18" type="button" aria-label="Gordo"><span style="width:18px;height:18px"></span></button>
+        <button class="face-size" data-fill="1" type="button" aria-label="Rellenar fondo" title="Pintar el fondo">🪣</button>
+        <button class="face-size" id="faceUndo" type="button" aria-label="Deshacer">↩</button>
+      </div>
+      <div class="sheet-actions">
+        <button class="btn secondary" id="faceCancel" type="button">Cancelar</button>
+        <button class="btn primary" id="faceSave" type="button">Usar esta carita</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Cómo se juega -->
   <div class="sheet-backdrop" id="howSheet" hidden>
     <div class="sheet how-sheet" role="dialog" aria-modal="true" aria-labelledby="howTitle">
@@ -346,7 +366,7 @@
     <div class="sheet zoom-sheet" role="dialog" aria-modal="true" aria-label="Dibujo ampliado">
       <div class="zoom-cap"><span id="zoomWho"></span><span class="pts vote-pts" id="zoomPts"></span></div>
       <img id="zoomImg" alt="Dibujo ampliado">
-      <div class="sheet-actions"><button class="btn secondary" id="zoomClose" type="button">Cerrar</button></div>
+      <div class="sheet-actions"><button class="btn secondary" id="zoomClose" type="button">Cerrar</button><button class="btn primary" id="zoomSave" type="button">📒 Guardar en mi cuaderno</button></div>
     </div>
   </div>
 
