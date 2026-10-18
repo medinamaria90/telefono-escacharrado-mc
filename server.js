@@ -29,7 +29,15 @@ const TIMES = {
 
 const app = express();
 app.disable("x-powered-by");
-app.use(express.static(path.join(__dirname, "public"), { maxAge: "1h" }));
+// Cada arranque tiene su versión: así los móviles nunca mezclan archivos viejos y nuevos
+const fs = require("fs");
+const BOOT = Date.now().toString(36);
+const INDEX = fs.readFileSync(path.join(__dirname, "public", "index.html"), "utf8").replace(/__V__/g, BOOT);
+app.get(["/", "/index.html"], (_req, res) => {
+  res.set("Cache-Control", "no-cache");
+  res.type("html").send(INDEX);
+});
+app.use(express.static(path.join(__dirname, "public"), { maxAge: "7d", index: false }));
 app.get("/salud", (_req, res) => res.send("ok"));
 
 const server = http.createServer(app);

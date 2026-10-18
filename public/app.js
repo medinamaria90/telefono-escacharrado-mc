@@ -104,7 +104,10 @@
     if (next.phase === "lobby") {
       const a = prev.players.filter((p) => !p.left).length;
       const b = next.players.filter((p) => !p.left).length;
-      if (b > a) SFX.play("join");
+      if (b > a) {
+        SFX.play("join");
+        if (soloMode || bookOpen) toast(`${next.players[next.players.length - 1].name} ha entrado en la sala. Pulsa «Salir» para volver.`);
+      }
       else if (b < a) SFX.play("leave");
       return;
     }
@@ -154,7 +157,7 @@
   });
 
   // ---------- utilidades de interfaz ----------
-  const screens = ["s-home", "s-lobby", "s-text", "s-draw", "s-wait", "s-result", "s-reveal", "s-end"];
+  const screens = ["s-home", "s-lobby", "s-text", "s-draw", "s-wait", "s-result", "s-reveal", "s-end", "s-book"];
   function show(id) {
     for (const s of screens) $(s).hidden = s !== id;
     document.body.dataset.screen = id;
@@ -237,6 +240,7 @@
     SFX.play("click");
     $("emojiSheet").hidden = false;
   });
+  $("emojiClose").addEventListener("click", () => ($("emojiSheet").hidden = true));
   $("emojiSheet").addEventListener("click", (e) => {
     if (e.target === $("emojiSheet")) $("emojiSheet").hidden = true;
   });
@@ -377,6 +381,14 @@
   });
 
   function render() {
+    if (soloMode || bookOpen) {
+      if (state && state.phase !== "lobby") {
+        exitSolo(true);
+      } else {
+        renderChrome();
+        return;
+      }
+    }
     renderChrome();
     renderPause();
     if (!state) return show("s-home");
@@ -432,6 +444,7 @@
       b.disabled = !host;
     }
     $("duoRoundsSetting").hidden = n !== 2;
+    $("lobbySoloBtn").hidden = n !== 1;
     const hostP = state.players.find((p) => p.id === state.hostId);
     $("notHostHint").textContent = host ? "" : `${nameOf(hostP, "El anfitrión")} elige las opciones y empieza la partida.`;
     $("startBtn").hidden = !host;
@@ -561,13 +574,20 @@
     SFX.play("send");
   }
   $("drawDone").addEventListener("click", () => {
+    if (soloMode) return saveToBook();
     if (!pad.dirty) {
       toast("Dibuja algo antes de terminar.");
       return;
     }
     sendDrawing();
   });
-  $("rerollBtn").addEventListener("click", () => socket.emit("reroll"));
+  $("rerollBtn").addEventListener("click", () => {
+    if (soloMode) {
+      SFX.play("pop");
+      return newIdea();
+    }
+    socket.emit("reroll");
+  });
 
   function renderWait(task) {
     show("s-wait");
@@ -1028,6 +1048,161 @@
       viewer.entry = gallery.books[viewer.book].entries.length - 1;
     } else viewer = null;
     render();
+  });
+
+  // ---------- modo una persona y cuaderno ----------
+  let soloMode = false;
+  let bookOpen = false;
+  let bookReturn = null; // a dónde volver al salir del cuaderno
+  const BOOK_KEY = "tg-cuaderno";
+  const BOOK_MAX = 40;
+  function readBook() {
+    try {
+      return JSON.parse(localStorage.getItem(BOOK_KEY) || "[]");
+    } catch (_) {
+      return [];
+    }
+  }
+  function writeBook(list) {
+    if (!list.length) {
+      try {
+        localStorage.setItem(BOOK_KEY, "[]");
+      } catch (_) {}
+      return true;
+    }
+    while (list.length) {
+      try {
+        localStorage.setItem(BOOK_KEY, JSON.stringify(list));
+        return true;
+      } catch (_) {
+        list.pop(); // sin espacio: se quita el más antiguo
+      }
+    }
+    return false;
+  }
+  function newIdea() {
+    $("drawWhat").textContent = FRASES[Math.floor(Math.random() * FRASES.length)];
+  }
+  function startSolo() {
+    SFX.play("pop");
+    soloMode = true;
+    bookOpen = false;
+    document.body.classList.add("solo");
+    ensurePad();
+    pad.reset();
+    closePops();
+    updateToolbar();
+    newIdea();
+    $("drawStep").textContent = "Dibujo libre · una idea:";
+    $("rerollBtn").hidden = false;
+    $("rerollBtn").textContent = "Otra idea";
+    $("soloExitBtn").hidden = false;
+    $("soloBookBtn").hidden = false;
+    $("drawTimer").textContent = "";
+    $("drawDone").textContent = "Guardar";
+    $("pauseBar").hidden = true;
+    show("s-draw");
+  }
+  function exitSolo(silent) {
+    soloMode = false;
+    bookOpen = false;
+    document.body.classList.remove("solo");
+    $("soloExitBtn").hidden = true;
+    $("soloBookBtn").hidden = true;
+    $("drawDone").textContent = "¡Listo!";
+    currentStepKey = null;
+    if (!silent) SFX.play("click");
+    if (state) render();
+    else show("s-home");
+  }
+  function saveToBook() {
+    if (!pad.dirty) return toast("Dibuja algo antes de guardarlo.");
+    const list = readBook();
+    list.unshift({ id: Date.now(), prompt: $("drawWhat").textContent, date: new Date().toISOString(), img: pad.canvas.toDataURL("image/jpeg", 0.85) });
+    if (list.length > BOOK_MAX) list.length = BOOK_MAX;
+    if (!writeBook(list)) return toast("No queda espacio en este móvil para guardar más dibujos.");
+    SFX.play("point");
+    toast("Guardado en tu cuaderno 📒");
+    pad.reset();
+    updateToolbar();
+    newIdea();
+  }
+  function openBook(from) {
+    SFX.play("click");
+    bookOpen = true;
+    bookReturn = from;
+    renderBook();
+    show("s-book");
+  }
+  function renderBook() {
+    const grid = $("bookGrid");
+    grid.innerHTML = "";
+    const list = readBook();
+    if (!list.length) {
+      const empty = el("div", "blank-canvas book-empty");
+      empty.appendChild(el("span", "blank-emoji", "📒"));
+      empty.appendChild(el("strong", "", "Tu cuaderno está vacío"));
+      empty.appendChild(el("span", "", "Dibuja algo y pulsa «Guardar» para tenerlo aquí."));
+      grid.appendChild(empty);
+      return;
+    }
+    list.forEach((d) => {
+      const b = el("button", "book-item");
+      b.type = "button";
+      const im = el("img");
+      im.src = d.img;
+      im.alt = d.prompt;
+      im.loading = "lazy";
+      b.appendChild(im);
+      b.appendChild(el("span", "book-cap", d.prompt));
+      b.addEventListener("click", () => viewDrawing(d));
+      grid.appendChild(b);
+    });
+  }
+  let viewing = null;
+  let delArmed = null;
+  function viewDrawing(d) {
+    SFX.play("page");
+    viewing = d;
+    $("bookImg").src = d.img;
+    $("bookPrompt").textContent = d.prompt + " · " + new Date(d.date).toLocaleDateString("es-ES", { day: "numeric", month: "short" });
+    $("bookDel").textContent = "Borrar";
+    $("bookView").hidden = false;
+  }
+  $("bookClose").addEventListener("click", () => ($("bookView").hidden = true));
+  $("bookView").addEventListener("click", (e) => {
+    if (e.target === $("bookView")) $("bookView").hidden = true;
+  });
+  $("bookDel").addEventListener("click", () => {
+    if (!delArmed) {
+      $("bookDel").textContent = "¿Seguro? Pulsa otra vez";
+      delArmed = setTimeout(() => {
+        delArmed = null;
+        $("bookDel").textContent = "Borrar";
+      }, 3000);
+      return;
+    }
+    clearTimeout(delArmed);
+    delArmed = null;
+    writeBook(readBook().filter((x) => x.id !== viewing.id));
+    SFX.play("crumple");
+    $("bookView").hidden = true;
+    renderBook();
+  });
+  $("soloBtn").addEventListener("click", startSolo);
+  $("lobbySoloBtn").addEventListener("click", startSolo);
+  $("soloExitBtn").addEventListener("click", () => exitSolo());
+  $("bookBtn").addEventListener("click", () => openBook("home"));
+  $("soloBookBtn").addEventListener("click", () => openBook("solo"));
+  $("bookDraw").addEventListener("click", startSolo);
+  $("bookBack").addEventListener("click", () => {
+    SFX.play("click");
+    bookOpen = false;
+    if (bookReturn === "solo" && soloMode) return show("s-draw");
+    soloMode = false;
+    document.body.classList.remove("solo");
+    if (state) render();
+    else show("s-home");
   });
 
   // ---------- final ----------

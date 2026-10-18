@@ -181,6 +181,152 @@
         `<path d="M24 46 l52 14" stroke="${O}" stroke-width="2.5"/><ellipse cx="61" cy="55" rx="8" ry="7" fill="${O}"/>` +
         `<circle cx="39" cy="55" r="3.6" fill="${O}"/>` + `<path d="M36 66 q14 14 28 0 q-6 14 -14 14 q-8 0 -14 -14z" fill="#3b2410" ${S}/>` + `<path d="M43 70 q7 5 14 0" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>`,
     },
+    rubio: {
+      label: "Chico rubio rizado",
+      svg: bg("#cfe3ff") + ears("#f6d2b4") + head("#f6d2b4") +
+        [[26,44],[33,33],[43,27],[54,26],[64,30],[72,38],[77,48],[23,52]].map(([x,y]) => `<circle cx="${x}" cy="${y}" r="9" fill="#f5c542" ${S}/>`).join("") +
+        `<path d="M30 46 q20 -10 40 0" fill="#f5c542"/>` + eyes.dots + mouths.smile +
+        `<circle cx="33" cy="64" r="1.3" fill="#c68b59"/><circle cx="37" cy="66" r="1.3" fill="#c68b59"/><circle cx="63" cy="66" r="1.3" fill="#c68b59"/><circle cx="67" cy="64" r="1.3" fill="#c68b59"/>`,
+    },
+    rubia: {
+      label: "Chica rubia rizada",
+      svg: bg("#ffd6e7") +
+        [[22,60],[20,74],[26,86],[78,60],[80,74],[74,86],[24,44],[76,44]].map(([x,y]) => `<circle cx="${x}" cy="${y}" r="10" fill="#f5c542" ${S}/>`).join("") +
+        head("#f6d2b4", 29) +
+        [[30,36],[40,28],[51,26],[62,28],[71,36]].map(([x,y]) => `<circle cx="${x}" cy="${y}" r="9" fill="#f5c542" ${S}/>`).join("") +
+        `<path d="M32 44 q18 -9 36 0" fill="#f5c542"/>` + eyes.lashes + blush + mouths.lips,
+    },
+    pelirroja: {
+      label: "Pelirroja con coletas",
+      svg: bg("#c9f2a0") + `<ellipse cx="16" cy="66" rx="8" ry="15" fill="#e8641b" ${S}/><ellipse cx="84" cy="66" rx="8" ry="15" fill="#e8641b" ${S}/>` +
+        `<circle cx="22" cy="50" r="4" fill="#2ec4b6" ${S}/><circle cx="78" cy="50" r="4" fill="#2ec4b6" ${S}/>` + head("#f6d2b4") +
+        `<path d="M22 52 q0 -28 28 -28 q28 0 28 28 q-8 -4 -12 -12 q-6 6 -16 6 q-10 0 -16 -6 q-4 8 -12 12z" fill="#e8641b" ${S}/>` +
+        eyes.happy + mouths.smile + `<path d="M31 63 h0.1 M35 65 h0.1 M65 65 h0.1 M69 63 h0.1" stroke="#c0611c" stroke-width="3" stroke-linecap="round"/>`,
+    },
+    barbudo: {
+      label: "Barbudo",
+      svg: bg("#ffe27a") + ears("#e8b98f") + head("#e8b98f") +
+        `<path d="M22 48 q2 -24 28 -24 q26 0 28 24 q-10 -10 -28 -10 q-18 0 -28 10z" fill="#3b2410" ${S}/>` +
+        `<path d="M22 56 q2 34 28 34 q26 0 28 -34 q-6 8 -14 8 q-14 -6 -28 0 q-8 0 -14 -8z" fill="#3b2410" ${S}/>` +
+        `<path d="M32 48 l11 -1 M57 47 l11 1" ${S}/>` + eyes.dots + `<path d="M42 70 q8 6 16 0" fill="#fff" ${S}/>`,
+    },
+    gorra: {
+      label: "Chico con gorra",
+      svg: bg("#9fdcf7") + ears("#d9a27a") + head("#d9a27a") +
+        `<path d="M21 48 q0 -28 29 -28 q29 0 29 28z" fill="#e5252a" ${S}/><path d="M50 48 h40 q-2 8 -14 8 h-26z" fill="#c81d25" ${S}/><circle cx="50" cy="22" r="3" fill="#fff" ${S}/>` +
+        eyes.dots + mouths.grin,
+    },
+    afro: {
+      label: "Chica afro",
+      svg: bg("#ffb067") + `<circle cx="50" cy="44" r="38" fill="#2b1a10" ${S}/>` + head("#8b5a2b", 29) +
+        `<circle cx="39" cy="55" r="3.6" fill="${O}"/><circle cx="61" cy="55" r="3.6" fill="${O}"/><path d="M34 50 l-3 -3 M66 50 l3 -3" ${S}/>` +
+        `<path d="M40 68 q10 9 20 0" fill="none" ${S}/><circle cx="21" cy="66" r="4" fill="none" stroke="#ffd21f" stroke-width="3"/><circle cx="79" cy="66" r="4" fill="none" stroke="#ffd21f" stroke-width="3"/>` +
+        `<ellipse cx="31" cy="64" rx="5" ry="3" fill="#ff8fb8" opacity=".55"/><ellipse cx="69" cy="64" rx="5" ry="3" fill="#ff8fb8" opacity=".55"/>`,
+    },
+    gafas: {
+      label: "Con gafas de sol",
+      svg: bg("#3fc8ef") + ears("#e8b98f") + head("#e8b98f") +
+        `<path d="M22 50 q-2 -28 30 -28 q24 0 28 18 q-12 -6 -22 -2 q-14 -6 -26 6 q-6 2 -10 6z" fill="#5c3a1e" ${S}/>` +
+        `<path d="M27 50 h19 q0 12 -9 12 q-10 0 -10 -12z M54 50 h19 q0 12 -10 12 q-9 0 -9 -12z" fill="#1b1b1f" ${S}/><path d="M46 52 h8" ${S}/><path d="M31 52 l5 0" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>` +
+        mouths.smirk,
+    },
+    rulos: {
+      label: "Señora con rulos",
+      svg: bg("#f7d6ff") + head("#f1c9a5") +
+        `<path d="M21 54 q0 -30 29 -30 q29 0 29 30 q-6 -8 -12 -10 q-17 -6 -34 0 q-6 2 -12 10z" fill="#a9adb8" ${S}/>` +
+        [[30,30],[44,24],[58,24],[71,31]].map(([x,y]) => `<rect x="${x-6}" y="${y-5}" width="12" height="10" rx="4" fill="#ff8fb8" ${S}/>`).join("") +
+        eyes.happy + blush + mouths.lips,
+    },
+    boina: {
+      label: "Abuelo con boina",
+      svg: bg("#d8f3dc") + ears("#e8bf9a") + head("#e8bf9a") +
+        `<ellipse cx="48" cy="32" rx="32" ry="12" fill="#1e2f7a" ${S} transform="rotate(-8 48 32)"/><path d="M50 20 v-6" ${S}/>` +
+        eyes.happy + `<path d="M32 68 q9 -9 18 -2 q9 -7 18 2 q-9 6 -18 0 q-9 6 -18 0z" fill="#e4e6ec" ${S}/>` + `<path d="M28 60 q3 2 5 0 M67 60 q3 2 5 0" fill="none" stroke="${O}" stroke-width="1.6"/>`,
+    },
+    coletas: {
+      label: "Niña con coletas",
+      svg: bg("#fff27a") + `<ellipse cx="18" cy="38" rx="9" ry="12" fill="#5c3a1e" ${S} transform="rotate(-25 18 38)"/><ellipse cx="82" cy="38" rx="9" ry="12" fill="#5c3a1e" ${S} transform="rotate(25 82 38)"/>` +
+        ears("#ffd9bd") + head("#ffd9bd") + `<path d="M22 50 q2 -26 28 -26 q26 0 28 26 q-14 -10 -28 -10 q-14 0 -28 10z" fill="#5c3a1e" ${S}/>` +
+        eyes.big + blush + mouths.smile,
+    },
+    mellado: {
+      label: "Niño mellado",
+      svg: bg("#bff0e6") + ears("#f1c9a5") + head("#f1c9a5") +
+        `<path d="M24 46 l4 -14 l6 8 l6 -12 l6 10 l6 -11 l6 10 l6 -8 l4 14 q-24 -6 -44 3z" fill="#8b5a2b" ${S}/>` + eyes.dots +
+        `<path d="M37 66 q13 14 26 0 z" fill="#7a2230" ${S}/><rect x="42" y="66" width="6" height="5" fill="#fff"/><rect x="52" y="66" width="6" height="5" fill="#fff"/>` +
+        `<circle cx="33" cy="64" r="1.3" fill="#c68b59"/><circle cx="67" cy="64" r="1.3" fill="#c68b59"/>`,
+    },
+    heroe: {
+      label: "Superhéroe",
+      svg: bg("#2563eb") + `<path d="M24 90 l-6 -22 l14 6z M76 90 l6 -22 l-14 6z" fill="#e5252a" ${S}/>` + ears("#f1c9a5") + head("#f1c9a5") +
+        `<path d="M22 46 q2 -24 28 -24 q26 0 28 24 q-8 -8 -16 -8 l-4 -6 l-4 6 q-14 0 -32 8z" fill="#1b1b1f" ${S}/>` +
+        `<path d="M24 50 q26 -6 52 0 v10 q-26 6 -52 0z" fill="#e5252a" ${S}/><ellipse cx="39" cy="55" rx="5" ry="4" fill="#fff"/><ellipse cx="61" cy="55" rx="5" ry="4" fill="#fff"/>` +
+        `<circle cx="39" cy="55" r="2.2" fill="${O}"/><circle cx="61" cy="55" r="2.2" fill="${O}"/>` + mouths.grin,
+    },
+    astronauta: {
+      label: "Astronauta",
+      svg: bg("#1e2f7a") + `<circle cx="18" cy="20" r="1.8" fill="#fff"/><circle cx="84" cy="16" r="1.4" fill="#fff"/><circle cx="88" cy="40" r="1.8" fill="#fff"/><circle cx="12" cy="44" r="1.2" fill="#fff"/>` +
+        `<circle cx="50" cy="54" r="34" fill="#f2f4f8" ${S}/><rect x="40" y="84" width="20" height="10" rx="3" fill="#c7cad1" ${S}/>` +
+        `<ellipse cx="50" cy="54" rx="24" ry="21" fill="#f1c9a5" ${S}/><path d="M28 50 q22 -20 44 0" fill="#3b3b44"/>` + `<circle cx="42" cy="56" r="3" fill="${O}"/><circle cx="58" cy="56" r="3" fill="${O}"/><path d="M43 64 q7 6 14 0" fill="none" ${S}/>` +
+        `<path d="M30 40 q8 -10 18 -12" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".8"/>`,
+    },
+    chef: {
+      label: "Chef",
+      svg: bg("#ffe9d6") + `<path d="M28 36 q-12 -4 -8 -16 q4 -10 16 -6 q4 -10 14 -10 q10 0 14 10 q12 -4 16 6 q4 12 -8 16z" fill="#fff" ${S}/><rect x="28" y="32" width="44" height="10" fill="#fff" ${S}/>` +
+        ears("#f1c9a5") + `<ellipse cx="50" cy="62" rx="29" ry="26" fill="#f1c9a5" ${S}/>` + eyes.happy.replace(/56/g, "60") +
+        `<path d="M34 70 q8 -8 16 -2 q8 -6 16 2 q-8 5 -16 0 q-8 5 -16 0z" fill="#3b2410" ${S}/><path d="M44 78 q6 4 12 0" fill="none" ${S}/>` + `<ellipse cx="31" cy="68" rx="4" ry="2.4" fill="#ff8fb8" opacity=".75"/><ellipse cx="69" cy="68" rx="4" ry="2.4" fill="#ff8fb8" opacity=".75"/>`,
+    },
+    bruja: {
+      label: "Bruja",
+      svg: bg("#7b3fe4") + `<path d="M20 92 q-6 -40 8 -50 h44 q14 10 8 50z" fill="#2aa84a" ${S}/>` + head("#c8e6a0", 29) +
+        `<path d="M14 40 h72 q-6 6 -36 6 q-30 0 -36 -6z" fill="#1b1b1f" ${S}/><path d="M30 40 l14 -34 q4 -4 8 2 l18 32z" fill="#1b1b1f" ${S}/><path d="M33 34 h34" stroke="#ffd21f" stroke-width="5"/>` +
+        eyes.dots + `<path d="M50 56 l6 10 h-8" fill="none" ${S}/>` + mouths.smirk + `<circle cx="64" cy="66" r="2.5" fill="#4d7a12"/>`,
+    },
+    perro: {
+      label: "Perro",
+      svg: bg("#ffd0a8") + `<path d="M24 34 q-14 4 -12 30 q2 10 12 6z M76 34 q14 4 12 30 q-2 10 -12 6z" fill="#8b5a2b" ${S}/>` +
+        `<ellipse cx="50" cy="56" rx="28" ry="30" fill="#e8c9a0" ${S}/><ellipse cx="62" cy="44" rx="9" ry="8" fill="#c68b59"/>` +
+        `<circle cx="40" cy="50" r="3.6" fill="${O}"/><circle cx="60" cy="50" r="3.6" fill="${O}"/>` +
+        `<ellipse cx="50" cy="68" rx="13" ry="10" fill="#fff" ${S}/><ellipse cx="50" cy="63" rx="5" ry="3.6" fill="${O}"/><path d="M50 66 v4 M44 72 q6 4 12 0" fill="none" ${S}/><path d="M47 74 q3 8 6 0" fill="#ff8fb8" ${S}/>`,
+    },
+    panda: {
+      label: "Panda",
+      svg: bg("#c9f2a0") + `<circle cx="25" cy="30" r="10" fill="#1b1b1f" ${S}/><circle cx="75" cy="30" r="10" fill="#1b1b1f" ${S}/>` +
+        `<ellipse cx="50" cy="56" rx="31" ry="29" fill="#fff" ${S}/>` +
+        `<ellipse cx="38" cy="53" rx="8" ry="10" fill="#1b1b1f" transform="rotate(25 38 53)"/><ellipse cx="62" cy="53" rx="8" ry="10" fill="#1b1b1f" transform="rotate(-25 62 53)"/>` +
+        `<circle cx="39" cy="52" r="2.6" fill="#fff"/><circle cx="61" cy="52" r="2.6" fill="#fff"/><ellipse cx="50" cy="66" rx="4.5" ry="3" fill="#1b1b1f"/><path d="M44 72 q6 5 12 0" fill="none" ${S}/>` + blush,
+    },
+    rana: {
+      label: "Rana",
+      svg: bg("#9fdcf7") + `<circle cx="33" cy="34" r="12" fill="#7ad19a" ${S}/><circle cx="67" cy="34" r="12" fill="#7ad19a" ${S}/>` +
+        `<ellipse cx="50" cy="60" rx="34" ry="26" fill="#7ad19a" ${S}/>` +
+        `<circle cx="33" cy="33" r="7" fill="#fff" ${S}/><circle cx="67" cy="33" r="7" fill="#fff" ${S}/><circle cx="34" cy="34" r="3.4" fill="${O}"/><circle cx="68" cy="34" r="3.4" fill="${O}"/>` +
+        `<path d="M28 62 q22 18 44 0" fill="none" ${S}/><ellipse cx="26" cy="58" rx="5" ry="3" fill="#ff8fb8" opacity=".75"/><ellipse cx="74" cy="58" rx="5" ry="3" fill="#ff8fb8" opacity=".75"/>`,
+    },
+    unicornio: {
+      label: "Unicornio",
+      svg: bg("#ffd6e7") + `<path d="M24 60 q-6 -30 16 -38 q-14 16 -6 40z" fill="#9b5de5" ${S}/><path d="M26 46 q2 -20 20 -26 q-8 14 -10 30z" fill="#3fc8ef" ${S}/>` +
+        `<path d="M44 26 l6 -22 l6 22z" fill="#ffd21f" ${S}/>` + `<ellipse cx="54" cy="58" rx="27" ry="29" fill="#fff" ${S}/>` +
+        `<path d="M70 32 l6 -12 l2 14" fill="#fff" ${S}/>` + eyes.sleepy.replace(/33/g, "41").replace(/55 56/g, "61 56").replace("M55", "M61") +
+        `<path d="M44 52 l-3 -3 M70 52 l3 -3" ${S}/>` + `<ellipse cx="42" cy="64" rx="5" ry="3" fill="#ff8fb8" opacity=".75"/><ellipse cx="70" cy="64" rx="5" ry="3" fill="#ff8fb8" opacity=".75"/>` + `<path d="M50 72 q6 5 12 0" fill="none" ${S}/>`,
+    },
+    fantasma: {
+      label: "Fantasma",
+      svg: bg("#1e2f7a") + `<path d="M22 90 v-40 q0 -30 28 -30 q28 0 28 30 v40 l-7 -6 l-7 6 l-7 -6 l-7 6 l-7 -6 l-7 6 l-7 -6z" fill="#fff" ${S}/>` +
+        `<ellipse cx="40" cy="48" rx="5" ry="7" fill="${O}"/><ellipse cx="60" cy="48" rx="5" ry="7" fill="${O}"/><ellipse cx="50" cy="64" rx="5" ry="6" fill="${O}"/>` + `<ellipse cx="32" cy="58" rx="4" ry="2.4" fill="#ff8fb8" opacity=".75"/><ellipse cx="68" cy="58" rx="4" ry="2.4" fill="#ff8fb8" opacity=".75"/>`,
+    },
+    sandia: {
+      label: "Sandía",
+      svg: bg("#fff27a") + `<circle cx="50" cy="54" r="34" fill="#2aa84a" ${S}/><circle cx="50" cy="54" r="28" fill="#ff5a6e"/>` +
+        [[36,36],[62,34],[30,62],[70,64],[50,82]].map(([x,y]) => `<ellipse cx="${x}" cy="${y}" rx="2" ry="3.2" fill="#1b1b1f"/>`).join("") +
+        eyes.big + `<path d="M40 66 q10 10 20 0" fill="#fff" ${S}/>`,
+    },
+    dino: {
+      label: "Dinosaurio",
+      svg: bg("#ffe9d6") + [[30,30],[42,22],[56,20],[69,26]].map(([x,y]) => `<path d="M${x-7} ${y+8} l7 -14 l7 14z" fill="#ff8a3d" ${S}/>`).join("") +
+        `<ellipse cx="50" cy="58" rx="32" ry="30" fill="#7ad19a" ${S}/>` + `<circle cx="38" cy="50" r="7" fill="#fff" ${S}/><circle cx="62" cy="50" r="7" fill="#fff" ${S}/><circle cx="39" cy="51" r="3.4" fill="${O}"/><circle cx="63" cy="51" r="3.4" fill="${O}"/>` +
+        `<path d="M32 68 q18 12 36 0 z" fill="#fff" ${S}/><path d="M38 68 l3 4 l3 -4 l3 4 l3 -4 l3 4 l3 -4 l3 4 l3 -4" fill="none" stroke="${O}" stroke-width="2"/>` + `<circle cx="44" cy="62" r="1.4" fill="${O}"/><circle cx="56" cy="62" r="1.4" fill="${O}"/>`,
+    },
   };
 
   const IDS = Object.keys(A);

@@ -454,3 +454,29 @@ body.is-paused .pad, body.is-paused #textForm { opacity: .55; }
 .blank-canvas strong { font-family: var(--font-display); font-weight: 400; font-size: 1.3rem; color: #1d2747; }
 .blank-emoji { font-size: 2.2rem; line-height: 1; }
 .reveal-stage .blank-canvas { flex: 1 1 auto; }
+
+/* hojas emergentes: nunca más altas que la pantalla */
+.sheet-backdrop { place-items: center; }
+.sheet { max-height: calc(100vh - 32px); max-height: calc(100dvh - 32px); }
+.emoji-sheet { display: flex; flex-direction: column; min-height: 0; }
+.sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-shrink: 0; }
+.emoji-sheet .emoji-grid { flex: 1 1 auto; min-height: 0; max-height: none; overflow-y: auto; grid-template-columns: repeat(auto-fill, minmax(56px, 1fr)); }
+.topbar:not(.in-room) { display: none; }
+
+/* modo una persona y cuaderno */
+.home-solo { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.home-solo .btn-ghost { background: var(--card); }
+body.solo .step-mini { white-space: normal; }
+.book-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; overflow-y: auto; align-content: start; }
+.book-item { display: flex; flex-direction: column; gap: 6px; padding: 6px; border-radius: 14px; border: 1.5px solid var(--line); background: var(--card); cursor: pointer; text-align: left; color: var(--ink); }
+.book-item img { width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 9px; background: #fff; }
+.book-cap { font-size: .8rem; font-weight: 700; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.book-empty { grid-column: 1 / -1; min-height: 220px; }
+.book-sheet { display: flex; flex-direction: column; gap: 10px; }
+.book-sheet img { width: 100%; flex: 1 1 auto; min-height: 0; object-fit: contain; background: #fff; border-radius: 12px; border: 2px solid var(--ink); }
+.book-prompt { margin: 0; font-weight: 700; color: var(--ink); }
+body.solo .draw-head { flex-wrap: wrap; row-gap: 4px; }
+body.solo .draw-head-right { width: 100%; justify-content: flex-end; }
+body.solo .draw-head-right #soloExitBtn { margin-right: auto; }
+body.solo .draw-prompt { order: 2; flex-basis: 100%; }
+.draw-head-right .btn-ghost { white-space: nowrap; }

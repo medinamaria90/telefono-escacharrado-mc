@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bagel+Fat+One&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=__V__">
 </head>
 <body>
 <div class="app">
@@ -66,6 +66,10 @@
       </div>
       <p class="error" id="homeError" role="alert"></p>
     </div>
+    <div class="home-solo">
+      <button class="btn-ghost" id="soloBtn" type="button">✏️ Dibujar yo solo</button>
+      <button class="btn-ghost" id="bookBtn" type="button">📒 Mi cuaderno</button>
+    </div>
   </main>
 
   <!-- SALA DE ESPERA -->
@@ -112,6 +116,7 @@
         </div>
       </div>
       <p class="hint" id="notHostHint"></p>
+      <button class="btn-ghost" id="lobbySoloBtn" type="button" hidden>✏️ Mientras esperas, dibuja tú solo</button>
     </div>
 
     <button class="btn primary big" id="startBtn" type="button">Empezar partida</button>
@@ -147,6 +152,8 @@
         <span class="draw-what" id="drawWhat"></span>
       </div>
       <div class="draw-head-right">
+        <button class="btn-ghost small" id="soloExitBtn" type="button" hidden>Salir</button>
+        <button class="btn-ghost small" id="soloBookBtn" type="button" hidden aria-label="Mi cuaderno">📒</button>
         <button class="btn-ghost small" id="rerollBtn" type="button" hidden>Otra frase</button>
         <span class="timer" id="drawTimer"></span>
         <button class="btn primary done-btn" id="drawDone" type="button">¡Listo!</button>
@@ -229,10 +236,34 @@
     </div>
   </main>
 
+  <!-- CUADERNO (modo una persona) -->
+  <main class="screen fit-screen" id="s-book" hidden>
+    <div class="row-between">
+      <h2 class="h2">📒 Mi cuaderno</h2>
+      <button class="btn-ghost small" id="bookBack" type="button">Volver</button>
+    </div>
+    <p class="hint">Tus dibujos se guardan solo en este móvil.</p>
+    <div class="book-grid grow" id="bookGrid"></div>
+    <button class="btn primary big" id="bookDraw" type="button">Dibujar algo nuevo</button>
+  </main>
+  <div class="sheet-backdrop" id="bookView" hidden>
+    <div class="sheet book-sheet" role="dialog" aria-modal="true" aria-labelledby="bookPrompt">
+      <img id="bookImg" alt="Tu dibujo">
+      <p class="book-prompt" id="bookPrompt"></p>
+      <div class="sheet-actions">
+        <button class="btn secondary" id="bookDel" type="button">Borrar</button>
+        <button class="btn primary" id="bookClose" type="button">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Elegir emoticono -->
   <div class="sheet-backdrop" id="emojiSheet" hidden>
-    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="emojiTitle">
-      <h2 class="h2" id="emojiTitle">Elige tu carita</h2>
+    <div class="sheet emoji-sheet" role="dialog" aria-modal="true" aria-labelledby="emojiTitle">
+      <div class="sheet-head">
+        <h2 class="h2" id="emojiTitle">Elige tu carita</h2>
+        <button class="btn-ghost small" id="emojiClose" type="button">Cerrar</button>
+      </div>
       <div class="emoji-grid" id="emojiGrid" role="radiogroup" aria-label="Caritas"></div>
     </div>
   </div>
@@ -265,10 +296,10 @@
 </div>
 
 <script src="/socket.io/socket.io.js"></script>
-<script src="frases.js"></script>
-<script src="sfx.js"></script>
-<script src="avatars.js"></script>
-<script src="pad.js"></script>
-<script src="app.js"></script>
+<script src="frases.js?v=__V__"></script>
+<script src="sfx.js?v=__V__"></script>
+<script src="avatars.js?v=__V__"></script>
+<script src="pad.js?v=__V__"></script>
+<script src="app.js?v=__V__"></script>
 </body>
 </html>
