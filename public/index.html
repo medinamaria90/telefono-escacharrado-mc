@@ -47,6 +47,7 @@
       <div>
         <h1 class="home-title wordmark" aria-label="Dibulíos"><span>D</span><span>i</span><span>b</span><span>u</span><span>l</span><span>í</span><span>o</span><span>s</span></h1>
         <p class="tagline">Dibuja · adivina · pásalo</p>
+        <button class="how-link" id="howBtn" type="button">¿Cómo se juega?</button>
       </div>
     </div>
     <div class="card form-card">
@@ -284,6 +285,24 @@
         <button class="btn-ghost small" id="emojiClose" type="button">Cerrar</button>
       </div>
       <div class="emoji-grid" id="emojiGrid" role="radiogroup" aria-label="Caritas"></div>
+    </div>
+  </div>
+
+  <!-- Cómo se juega -->
+  <div class="sheet-backdrop" id="howSheet" hidden>
+    <div class="sheet how-sheet" role="dialog" aria-modal="true" aria-labelledby="howTitle">
+      <h2 class="h2" id="howTitle">¿Cómo se juega?</h2>
+      <p class="how-intro">Se juega en grupo, <b>cada uno desde su móvil</b>, estéis juntos o cada uno en su casa.</p>
+      <ol class="how-steps">
+        <li><span>🔗</span><div>Uno <b>crea una sala</b> y manda el <b>enlace</b> por WhatsApp a los demás.</div></li>
+        <li><span>✏️</span><div>Cada uno escribe una <b>frase</b>.</div></li>
+        <li><span>🎨</span><div>La frase pasa al siguiente, que la <b>dibuja</b>.</div></li>
+        <li><span>🤔</span><div>El siguiente ve solo el dibujo y <b>adivina</b> qué es… y así sigue.</div></li>
+        <li><span>😂</span><div>Al final se ve cómo ha cambiado cada historia por el camino.</div></li>
+      </ol>
+      <div class="sheet-actions">
+        <button class="btn primary" id="howClose" type="button">¡Entendido!</button>
+      </div>
     </div>
   </div>
 

@@ -408,6 +408,15 @@
     $("emojiSheet").hidden = false;
   });
   $("emojiClose").addEventListener("click", () => ($("emojiSheet").hidden = true));
+  $("howBtn").addEventListener("click", () => {
+    SFX.play("pop");
+    $("howSheet").hidden = false;
+    track("como_se_juega");
+  });
+  $("howClose").addEventListener("click", () => ($("howSheet").hidden = true));
+  $("howSheet").addEventListener("click", (e) => {
+    if (e.target === $("howSheet")) $("howSheet").hidden = true;
+  });
   $("emojiSheet").addEventListener("click", (e) => {
     if (e.target === $("emojiSheet")) $("emojiSheet").hidden = true;
   });

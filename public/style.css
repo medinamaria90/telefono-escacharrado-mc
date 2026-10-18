@@ -543,3 +543,11 @@ body.solo .draw-head-right #soloExitBtn { margin-right: 0; }
   .size-pop { flex-wrap: wrap; justify-content: center; }
 }
 .book-note { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ¿Cómo se juega? */
+.how-link { margin: 4px 0 0; padding: 2px 0; background: none; border: 0; color: var(--accent, #6c4cf1); font: inherit; font-size: .85rem; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.how-intro { margin: 0; }
+.how-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.how-steps li { display: flex; gap: 10px; align-items: flex-start; line-height: 1.35; }
+.how-steps li span { font-size: 1.3rem; line-height: 1; width: 1.6rem; text-align: center; flex: none; }
+.how-sheet .sheet-actions .btn { flex: 1; }

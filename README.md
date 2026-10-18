@@ -14,6 +14,9 @@ familia, cada uno desde su móvil. Sin crear cuenta y sin anuncios.
 3. El anfitrión elige el tiempo por turno (rápido, normal, relajado o sin límite)
    y pulsa **Empezar partida**.
 
+En el inicio, el enlace **¿Cómo se juega?** lo explica en cinco pasos para quien
+no lo conozca.
+
 La mecánica se adapta al número de jugadores:
 
 | Jugadores | Modo | Cómo funciona |
@@ -92,7 +95,7 @@ trazo, roce de goma, siseo de spray, chapoteo al rellenar…
 - **Estadísticas anónimas** con [Umami](https://umami.is) (sin cookies ni datos
   personales): visitas, tiempo de uso, pantallas vistas y acciones clave (salas
   creadas, partidas empezadas y terminadas con nº de jugadores y modo, dibujo
-  libre, dibujos guardados, instalaciones). Solo cuenta en dibulios.onrender.com
+  libre, dibujos guardados, instalaciones, aperturas de «¿Cómo se juega?»). Solo cuenta en dibulios.onrender.com
   y no registra los códigos de sala.
 
 ---
