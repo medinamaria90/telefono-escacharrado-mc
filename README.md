@@ -11,7 +11,9 @@ familia, cada uno desde su móvil. Sin crear cuenta y sin anuncios.
 1. Una persona pulsa **Crear una sala** y comparte el enlace (o el código de 5
    letras, sin números) por WhatsApp.
 2. Cada uno escribe su nombre y elige su carita entre las 45 disponibles, o
-   **dibuja la suya** (botón ✏️ al principio de la lista; se guarda en el móvil).
+   **dibuja la suya** (botón ✏️ al principio de la lista): se dibuja en el lienzo
+   grande, con todas las herramientas, dentro de un círculo guía. Se guarda en el
+   móvil y se puede editar o borrar (papelera 🗑️, con confirmación).
 3. El anfitrión elige el modo de juego (**Clásico**, **Votación** o **Retratos**) y, con una barra,
    el **tiempo para dibujar** (de 30 segundos a 5 minutos, o sin límite; por defecto
    1 minuto). Y pulsa **Empezar partida**.

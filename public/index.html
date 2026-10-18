@@ -203,6 +203,7 @@
       <div class="draw-head-right">
         <button class="btn-ghost small" id="soloExitBtn" type="button" hidden>Salir</button>
         <button class="btn-ghost small" id="soloBookBtn" type="button" hidden aria-label="Mi cuaderno">📒</button>
+        <button class="btn-ghost small" id="faceDelBtn" type="button" hidden aria-label="Borrar mi carita">🗑️</button>
         <button class="btn-ghost small" id="rerollBtn" type="button" hidden>Otra frase</button>
         <span class="timer" id="drawTimer"></span>
         <button class="btn primary done-btn" id="drawDone" type="button">¡Listo!</button>
@@ -318,29 +319,6 @@
         <button class="btn-ghost small" id="emojiClose" type="button">Cerrar</button>
       </div>
       <div class="emoji-grid" id="emojiGrid" role="radiogroup" aria-label="Caritas"></div>
-    </div>
-  </div>
-
-  <!-- Dibujar tu propia carita -->
-  <div class="sheet-backdrop" id="faceSheet" hidden>
-    <div class="sheet face-sheet" role="dialog" aria-modal="true" aria-labelledby="faceTitle">
-      <div class="sheet-head">
-        <h2 class="h2" id="faceTitle">Dibuja tu carita</h2>
-        <button class="btn-ghost small" id="faceClear" type="button">Borrar</button>
-      </div>
-      <div class="face-stage"><canvas id="faceCanvas" width="240" height="240" aria-label="Lienzo para tu carita"></canvas></div>
-      <div class="face-colors" id="faceColors"></div>
-      <div class="face-tools">
-        <button class="face-size" data-s="4" type="button" aria-label="Fino"><span style="width:6px;height:6px"></span></button>
-        <button class="face-size" data-s="9" type="button" aria-label="Medio"><span style="width:11px;height:11px"></span></button>
-        <button class="face-size" data-s="18" type="button" aria-label="Gordo"><span style="width:18px;height:18px"></span></button>
-        <button class="face-size" data-fill="1" type="button" aria-label="Rellenar fondo" title="Pintar el fondo">🪣</button>
-        <button class="face-size" id="faceUndo" type="button" aria-label="Deshacer">↩</button>
-      </div>
-      <div class="sheet-actions">
-        <button class="btn secondary" id="faceCancel" type="button">Cancelar</button>
-        <button class="btn primary" id="faceSave" type="button">Usar esta carita</button>
-      </div>
     </div>
   </div>
 

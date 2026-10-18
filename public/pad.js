@@ -19,6 +19,7 @@
       this.onOrient = opts.onOrient || (() => {});
       this.blank = true; // lienzo sin tocar: su orientación sigue a la del móvil
       this.screenLandscape = false;
+      this.forcePortrait = false; // p. ej. al dibujar la carita: siempre vertical
       this.stage = document.createElement("div");
       this.stage.className = "pad-stage";
       this.inner = document.createElement("div");
@@ -67,6 +68,7 @@
     }
     setScreenLandscape(l) {
       this.screenLandscape = !!l;
+      if (this.forcePortrait) return this._setRotated(false);
       if (this.blank) this._setRotated(this.screenLandscape);
       this.onOrient(this.rotated !== this.screenLandscape);
     }
@@ -186,7 +188,7 @@
       if (record) this.dirty = true;
       this.blank = true;
       // Lienzo vacío otra vez: vuelve a seguir la orientación del móvil
-      if (record && !!this.rotated !== this.screenLandscape) {
+      if (record && !this.forcePortrait && !!this.rotated !== this.screenLandscape) {
         this._setRotated(this.screenLandscape);
         this.onOrient(false);
       }
@@ -199,7 +201,7 @@
       this.clear(false);
       this.dirty = false;
       this.blank = true;
-      this.rotated = this.screenLandscape;
+      this.rotated = this.forcePortrait ? false : this.screenLandscape;
       this.zoom = 1;
       this.tool = "pen";
       this.layout();
