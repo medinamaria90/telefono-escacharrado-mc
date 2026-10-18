@@ -1,9 +1,7 @@
 # Dibulíos
 
 **Dibuja · adivina · pásalo.** El teléfono escacharrado con dibujos para jugar en
-familia, cada uno desde su móvil. Sin cuentas, sin anuncios y sin guardar las
-partidas: todo vive en la memoria del servidor y se borra al acabar.
-
+familia, cada uno desde su móvil. Sin crear cuenta y sin anuncios.
 👉 **https://dibulios.onrender.com**
 
 ---
