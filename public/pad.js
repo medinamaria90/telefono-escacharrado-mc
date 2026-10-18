@@ -146,6 +146,19 @@
       this.stage.scrollTop = 0;
       this.onChange();
     }
+    /** Carga una imagen guardada como punto de partida (para editar) */
+    loadImage(src, done) {
+      const img = new Image();
+      img.onload = () => {
+        this.reset();
+        this.ctx.drawImage(img, 0, 0, W, H);
+        this.dirty = false;
+        this.onChange();
+        done && done(true);
+      };
+      img.onerror = () => done && done(false);
+      img.src = src;
+    }
     canUndo() {
       return this.undoStack.length > 0;
     }

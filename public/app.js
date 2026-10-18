@@ -1104,6 +1104,7 @@
   let soloMode = false;
   let bookOpen = false;
   let bookReturn = null; // a dónde volver al salir del cuaderno
+  let editingId = null; // dibujo del cuaderno que se está editando
   const BOOK_KEY = "tg-cuaderno";
   const BOOK_MAX = 40;
   function readBook() {
@@ -1133,29 +1134,40 @@
   function newIdea() {
     $("drawWhat").textContent = FRASES[Math.floor(Math.random() * FRASES.length)];
   }
-  function startSolo() {
+  function startSolo(edit) {
     SFX.play("pop");
     soloMode = true;
     bookOpen = false;
+    editingId = edit ? edit.id : null;
     document.body.classList.add("solo");
     ensurePad();
     pad.reset();
     closePops();
     updateToolbar();
-    newIdea();
-    $("drawStep").textContent = "Dibujo libre · una idea:";
-    $("rerollBtn").hidden = false;
+    if (edit) {
+      $("drawWhat").textContent = edit.prompt;
+      $("drawStep").textContent = "Editando tu dibujo";
+      pad.loadImage(edit.img, (ok) => {
+        if (!ok) toast("No se pudo abrir ese dibujo.");
+        updateToolbar();
+      });
+    } else {
+      newIdea();
+      $("drawStep").textContent = "Dibujo libre · una idea:";
+    }
+    $("rerollBtn").hidden = !!edit;
     $("rerollBtn").textContent = "Otra idea";
     $("soloExitBtn").hidden = false;
     $("soloBookBtn").hidden = false;
     $("drawTimer").textContent = "";
-    $("drawDone").textContent = "Guardar";
+    $("drawDone").textContent = edit ? "Guardar cambios" : "Guardar";
     $("pauseBar").hidden = true;
     show("s-draw");
   }
   function exitSolo(silent) {
     soloMode = false;
     bookOpen = false;
+    editingId = null;
     document.body.classList.remove("solo");
     $("soloExitBtn").hidden = true;
     $("soloBookBtn").hidden = true;
@@ -1166,6 +1178,21 @@
     else show("s-home");
   }
   function saveToBook() {
+    if (editingId) {
+      const list = readBook();
+      const item = list.find((x) => x.id === editingId);
+      if (item && pad.dirty) {
+        item.img = pad.canvas.toDataURL("image/jpeg", 0.85);
+        item.date = new Date().toISOString();
+        if (!writeBook(list)) return toast("No queda espacio en este móvil para guardar los cambios.");
+        SFX.play("point");
+        toast("Cambios guardados 📒");
+      }
+      editingId = null;
+      $("drawDone").textContent = "Guardar";
+      $("rerollBtn").hidden = false;
+      return openBook("solo");
+    }
     if (!pad.dirty) return toast("Dibuja algo antes de guardarlo.");
     const list = readBook();
     list.unshift({ id: Date.now(), prompt: $("drawWhat").textContent, date: new Date().toISOString(), img: pad.canvas.toDataURL("image/jpeg", 0.85) });
@@ -1220,6 +1247,10 @@
     $("bookView").hidden = false;
   }
   $("bookClose").addEventListener("click", () => ($("bookView").hidden = true));
+  $("bookEdit").addEventListener("click", () => {
+    $("bookView").hidden = true;
+    if (viewing) startSolo(viewing);
+  });
   $("bookView").addEventListener("click", (e) => {
     if (e.target === $("bookView")) $("bookView").hidden = true;
   });
@@ -1239,12 +1270,12 @@
     $("bookView").hidden = true;
     renderBook();
   });
-  $("soloBtn").addEventListener("click", startSolo);
-  $("lobbySoloBtn").addEventListener("click", startSolo);
+  $("soloBtn").addEventListener("click", () => startSolo());
+  $("lobbySoloBtn").addEventListener("click", () => startSolo());
   $("soloExitBtn").addEventListener("click", () => exitSolo());
   $("bookBtn").addEventListener("click", () => openBook("home"));
   $("soloBookBtn").addEventListener("click", () => openBook("solo"));
-  $("bookDraw").addEventListener("click", startSolo);
+  $("bookDraw").addEventListener("click", () => startSolo());
   $("bookBack").addEventListener("click", () => {
     SFX.play("click");
     bookOpen = false;
