@@ -644,3 +644,42 @@ body.vote-end .end-center { gap: 8px; }
   .draw-prompt { flex: none; order: -1; }
   .draw-head, body.solo .draw-head { overflow: hidden; flex-wrap: nowrap; }
 }
+
+/* sala: la lista de jugadores nunca se sale de su cuadro (si no caben, se desliza dentro) */
+.players-card { overflow: hidden; min-height: 92px; }
+.players-card .chips { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.mode-seg button { min-height: 38px; }
+
+/* sala más compacta: cabe en móviles pequeños */
+#s-lobby .players-card { min-height: 112px; }
+#s-lobby { gap: 10px; }
+.mode-card .seg { flex-wrap: nowrap; }
+.mode-card .seg button { flex: 1 1 0; min-width: 0; padding: 6px 4px; font-size: .88rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mode-card .h3 { font-size: 1.05rem; line-height: 1.2; }
+.mode-card .mode-text { font-size: .85rem; }
+.mode-card .setting .label { font-size: .7rem; }
+@media (max-height: 700px) {
+  .code-card { padding: 8px 14px; }
+  .code-card .big-code { font-size: 1.8rem; }
+  #s-lobby .btn.big { padding: 12px; }
+}
+/* sala con el móvil en horizontal: dos columnas */
+@media (orientation: landscape) and (max-height: 540px) {
+  #s-lobby {
+    display: grid; max-width: 900px; padding-block: 6px 10px; gap: 8px 14px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas: "code mode" "players mode" "players start";
+  }
+  #s-lobby .code-card { grid-area: code; }
+  #s-lobby .players-card { grid-area: players; min-height: 0; }
+  #s-lobby .mode-card { grid-area: mode; overflow-y: auto; }
+  #s-lobby #startBtn { grid-area: start; }
+}
+#copyBtn { white-space: nowrap; padding-inline: 12px; }
+.code-card .label { white-space: nowrap; }
+.mode-card .mode-text { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+@media (max-width: 380px) {
+  .mode-card .seg button { font-size: .8rem; padding-inline: 2px; }
+  #copyBtn { font-size: .9rem; padding-inline: 10px; }
+}

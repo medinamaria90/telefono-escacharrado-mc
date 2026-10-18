@@ -115,6 +115,7 @@
         if (!res.ok) {
           session.set(null);
           state = null;
+          clearInvite(); // la sala ya no existe: inicio normal
           show("s-home");
           renderChrome();
         }
@@ -314,6 +315,7 @@
   socket.on("closed", () => {
     session.set(null);
     state = null;
+    clearInvite();
     toast("La sala se ha cerrado.");
     show("s-home");
     renderChrome();
@@ -480,6 +482,18 @@
       entered(res);
     });
   }
+  // Al salir de una sala, el inicio vuelve a ser el normal (crear o unirse con código)
+  function clearInvite() {
+    $("joinInvite").hidden = true;
+    $("homeActions").classList.remove("invited");
+    $("createBtn").classList.remove("secondary");
+    $("createBtn").classList.add("primary");
+    $("createBtn").textContent = "Crear una sala";
+    $("codeInput").value = "";
+    try {
+      if (location.search) history.replaceState(history.state, "", "/");
+    } catch (_) {}
+  }
   $("joinBtn").addEventListener("click", () => joinCode($("codeInput").value.trim()));
   $("codeInput").addEventListener("keydown", (e) => e.key === "Enter" && joinCode($("codeInput").value.trim()));
   $("joinInviteBtn").addEventListener("click", () => joinCode(inviteCode));
@@ -517,10 +531,7 @@
     session.set(null);
     state = null;
     gallery = null;
-    try {
-      history.replaceState(null, "", "/");
-    } catch (_) {}
-    $("joinInvite").hidden = true;
+    clearInvite();
     show("s-home");
     renderChrome();
   });
@@ -621,7 +632,7 @@
     const steps = n === 3 ? 5 : n;
     const seq = [];
     for (let k = 0; k < steps; k++) seq.push(k === 0 ? "frase" : k % 2 ? "dibujo" : "adivina");
-    return [`Teléfono · ${steps} pasos por historia`, seq.join(" → ") + (n === 3 ? " (con 3, la historia da vuelta y media)" : "")];
+    return [`Clásico · ${steps} pasos por historia`, seq.join(" → ") + (n === 3 ? " (con 3, la historia da vuelta y media)" : "")];
   }
   function renderLobby() {
     show("s-lobby");
@@ -634,8 +645,8 @@
     ul.innerHTML = "";
     state.players.forEach((p) => ul.appendChild(playerItem(p)));
     const [t, txt] = modeCopy(n);
-    $("modeTitle").textContent = (state.practice ? "🧪 Sala de pruebas · " : "") + t;
-    $("modeText").textContent = state.practice ? "Los robots juegan solos para que veas cómo funciona. " + txt : txt;
+    $("modeTitle").textContent = (state.practice ? "🧪 Pruebas · " : "") + t;
+    $("modeText").textContent = state.practice ? "🤖 Los robots juegan solos. " + txt : txt;
     const host = isHost();
     for (const b of $("timeSeg").children) {
       b.setAttribute("aria-pressed", String(b.dataset.v === state.settings.time));

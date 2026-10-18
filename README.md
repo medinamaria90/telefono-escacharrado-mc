@@ -11,21 +11,21 @@ familia, cada uno desde su móvil. Sin crear cuenta y sin anuncios.
 1. Una persona pulsa **Crear una sala** y comparte el enlace (o el código de 5
    letras, sin números) por WhatsApp.
 2. Cada uno escribe su nombre y elige su carita entre las 45 disponibles.
-3. El anfitrión elige el modo (**Teléfono** o **Votación**), el tiempo por turno
+3. El anfitrión elige el modo de juego (**Clásico** o **Votación**), el tiempo por turno
    (rápido, normal, relajado o sin límite) y pulsa **Empezar partida**.
 
 En el inicio, el enlace **¿Cómo se juega?** lo explica en cinco pasos para quien
 no lo conozca.
 
-### Modo Teléfono
+### Modo Clásico
 
 La mecánica se adapta al número de jugadores:
 
 | Jugadores | Modo | Cómo funciona |
 |---|---|---|
 | 2 | **Dúo** | En cada ronda los dos dibujáis a la vez una frase secreta y después adivináis el dibujo del otro. Puntuáis en equipo (3 por acierto, 1 por casi). Quien dibujó puede dar por buena una respuesta. Se eligen de 2 a 6 rondas. |
-| 3 | **Teléfono** | Cada historia tiene 5 pasos (frase → dibujo → adivina → dibujo → adivina), para que dé tiempo a que se líe. |
-| 4 a 12 | **Teléfono** | Cada uno empieza con una frase y las historias pasan una vez por cada jugador, alternando dibujo y adivinanza. |
+| 3 | **Clásico** | Cada historia tiene 5 pasos (frase → dibujo → adivina → dibujo → adivina), para que dé tiempo a que se líe. |
+| 4 a 12 | **Clásico** | Cada uno empieza con una frase y las historias pasan una vez por cada jugador, alternando dibujo y adivinanza. |
 
 - Mientras se juega **no se ve quién hizo cada cosa**: se descubre al final.
 - Al terminar, el anfitrión va enseñando las historias **paso a paso, en todos los
