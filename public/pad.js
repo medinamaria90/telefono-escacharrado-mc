@@ -55,27 +55,49 @@
     }
 
     // ---- tamaño y zoom ----
+    // Girado (móvil en horizontal): el lienzo sigue siendo vertical por dentro, pero se
+    // enseña tumbado para aprovechar todo el ancho. El dibujo se guarda tal cual, en vertical.
+    setRotated(r) {
+      r = !!r;
+      if (r === !!this.rotated) return;
+      this.rotated = r;
+      this.zoom = 1;
+      this.layout();
+      this.stage.scrollLeft = 0;
+      this.stage.scrollTop = 0;
+      this.onChange();
+    }
     baseWidth() {
       const sw = this.stage.clientWidth - 2;
       const sh = this.stage.clientHeight - 2;
+      // ancho del lienzo (en su orientación vertical) que cabe en pantalla
+      if (this.rotated) return Math.max(80, Math.min(sh, (sw * W) / H));
       return Math.max(120, Math.min(sw, (sh * W) / H));
     }
     layout(keepCenter) {
       const before = keepCenter || this._center();
-      const bw = this.baseWidth();
-      this.canvas.style.width = bw * this.zoom + "px";
-      this.canvas.style.height = (bw * this.zoom * H) / W + "px";
-      this.over.style.width = this.canvas.style.width;
-      this.over.style.height = this.canvas.style.height;
+      const a = this.baseWidth() * this.zoom; // ancho del lienzo vertical
+      const b = (a * H) / W; // alto del lienzo vertical
+      for (const c of [this.canvas, this.over]) {
+        c.style.position = "absolute";
+        c.style.left = "0";
+        c.style.top = "0";
+        c.style.width = a + "px";
+        c.style.height = b + "px";
+        c.style.transformOrigin = "0 0";
+        c.style.transform = this.rotated ? `translateY(${a}px) rotate(-90deg)` : "";
+      }
+      this.inner.style.width = (this.rotated ? b : a) + "px";
+      this.inner.style.height = (this.rotated ? a : b) + "px";
       this._restoreCenter(before);
     }
     _center() {
       const s = this.stage;
-      const cw = this.canvas.offsetWidth || 1;
-      const ch = this.canvas.offsetHeight || 1;
+      const cw = this.inner.offsetWidth || 1;
+      const ch = this.inner.offsetHeight || 1;
       return {
-        fx: (s.scrollLeft + s.clientWidth / 2 - this.canvas.offsetLeft) / cw,
-        fy: (s.scrollTop + s.clientHeight / 2 - this.canvas.offsetTop) / ch,
+        fx: (s.scrollLeft + s.clientWidth / 2 - this.inner.offsetLeft) / cw,
+        fy: (s.scrollTop + s.clientHeight / 2 - this.inner.offsetTop) / ch,
         sx: s.clientWidth / 2,
         sy: s.clientHeight / 2,
       };
@@ -83,8 +105,8 @@
     _restoreCenter(c) {
       if (!c) return;
       const s = this.stage;
-      s.scrollLeft = this.canvas.offsetLeft + c.fx * this.canvas.offsetWidth - c.sx;
-      s.scrollTop = this.canvas.offsetTop + c.fy * this.canvas.offsetHeight - c.sy;
+      s.scrollLeft = this.inner.offsetLeft + c.fx * this.inner.offsetWidth - c.sx;
+      s.scrollTop = this.inner.offsetTop + c.fy * this.inner.offsetHeight - c.sy;
     }
     setZoom(z, anchor) {
       z = Math.max(1, Math.min(5, z));
@@ -96,8 +118,8 @@
         const sx = anchor.x - r.left;
         const sy = anchor.y - r.top;
         keep = {
-          fx: (this.stage.scrollLeft + sx - this.canvas.offsetLeft) / this.canvas.offsetWidth,
-          fy: (this.stage.scrollTop + sy - this.canvas.offsetTop) / this.canvas.offsetHeight,
+          fx: (this.stage.scrollLeft + sx - this.inner.offsetLeft) / this.inner.offsetWidth,
+          fy: (this.stage.scrollTop + sy - this.inner.offsetTop) / this.inner.offsetHeight,
           sx,
           sy,
         };
@@ -181,8 +203,11 @@
 
     // ---- entrada ----
     _pt(e) {
-      const r = this.canvas.getBoundingClientRect();
-      return { x: ((e.clientX - r.left) * W) / r.width, y: ((e.clientY - r.top) * H) / r.height };
+      const r = this.inner.getBoundingClientRect();
+      const rx = e.clientX - r.left;
+      const ry = e.clientY - r.top;
+      if (this.rotated) return { x: ((r.height - ry) * W) / r.height, y: (rx * H) / r.width };
+      return { x: (rx * W) / r.width, y: (ry * H) / r.height };
     }
     _bind() {
       const c = this.stage;

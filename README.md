@@ -9,13 +9,15 @@ familia, cada uno desde su móvil. Sin crear cuenta y sin anuncios.
 ## Cómo se juega
 
 1. Una persona pulsa **Crear una sala** y comparte el enlace (o el código de 5
-   letras) por WhatsApp.
+   letras, sin números) por WhatsApp.
 2. Cada uno escribe su nombre y elige su carita entre las 45 disponibles.
-3. El anfitrión elige el tiempo por turno (rápido, normal, relajado o sin límite)
-   y pulsa **Empezar partida**.
+3. El anfitrión elige el modo (**Teléfono** o **Votación**), el tiempo por turno
+   (rápido, normal, relajado o sin límite) y pulsa **Empezar partida**.
 
 En el inicio, el enlace **¿Cómo se juega?** lo explica en cinco pasos para quien
 no lo conozca.
+
+### Modo Teléfono
 
 La mecánica se adapta al número de jugadores:
 
@@ -30,6 +32,21 @@ La mecánica se adapta al número de jugadores:
   móviles a la vez**. Al adivinar un dibujo se ve el dibujo en grande con la
   respuesta debajo, y antes del último paso suena un redoble.
 - Desde la pantalla final se pueden volver a ver las historias tranquilamente.
+
+### Modo Votación (3 a 12 jugadores)
+
+- En cada ronda todos dibujan **la misma frase** a la vez.
+- Después cada uno puntúa los dibujos de los demás **del 1 al 5 estrellas**, uno a
+  uno, **sin saber de quién es cada dibujo** (el suyo no le sale).
+- Al acabar la ronda se ven los dibujos ordenados por estrellas y ya con su autor.
+- Se eligen de 2 a 6 rondas. Al final, **podio** con redoble: tercero, segundo y
+  ganador (los empates comparten puesto), y debajo el resto de la clasificación.
+
+### Sala de pruebas
+
+Con el código **ZZZZZ** se crea una sala privada con **3 robots** que juegan solos
+(escriben frases, hacen garabatos, adivinan y puntúan). Sirve para ver cómo es una
+partida de 4 sin tener a nadie más. Cada entrada crea una sala nueva.
 
 ### Si alguien se va o se queda sin tiempo
 
@@ -84,6 +101,9 @@ trazo, roce de goma, siseo de spray, chapoteo al rellenar…
   algo, aparece un aviso con el botón «Actualizar».
 - Pensado para móvil: cada pantalla cabe sin deslizar. En **tableta** los botones
   son más grandes y, en horizontal, las herramientas pasan a un lateral.
+- **Móvil en horizontal:** el inicio se reparte en dos columnas y, al dibujar, el
+  lienzo se tumba para ocupar todo el ancho, con las herramientas a un lado. El
+  dibujo se guarda en vertical (girado), como todos.
 
 ## Privacidad y datos
 
@@ -95,7 +115,8 @@ trazo, roce de goma, siseo de spray, chapoteo al rellenar…
 - **Estadísticas anónimas** con [Umami](https://umami.is) (sin cookies ni datos
   personales): visitas, tiempo de uso, pantallas vistas y acciones clave (salas
   creadas, partidas empezadas y terminadas con nº de jugadores y modo, dibujo
-  libre, dibujos guardados, instalaciones, aperturas de «¿Cómo se juega?»). Solo cuenta en dibulios.onrender.com
+  libre, dibujos guardados, instalaciones, aperturas de «¿Cómo se juega?», salas de
+  pruebas). Solo cuenta en dibulios.onrender.com
   y no registra los códigos de sala.
 
 ---

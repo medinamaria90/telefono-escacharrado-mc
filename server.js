@@ -21,9 +21,9 @@ const HOST_HANDOVER_MS = 25 * 1000;
 const GRACE_MS = 4000; // margen tras agotarse el tiempo
 
 const TIMES = {
-  rapido: { write: 40, draw: 70, guess: 30 },
-  normal: { write: 60, draw: 110, guess: 45 },
-  relajado: { write: 90, draw: 180, guess: 70 },
+  rapido: { write: 40, draw: 70, guess: 30, vote: 45 },
+  normal: { write: 60, draw: 110, guess: 45, vote: 70 },
+  relajado: { write: 90, draw: 180, guess: 70, vote: 100 },
   libre: null,
 };
 
@@ -52,13 +52,15 @@ const io = new Server(server, { maxHttpBufferSize: 8e6, pingTimeout: 30000 });
 const rooms = new Map();
 
 // ---------- utilidades ----------
-const CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+// Solo letras (más cómodo de dictar y teclear). Sin I ni O para no confundir.
+const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+const PRACTICE_CODE = "ZZZZZ"; // sala de pruebas con robots
 function newCode() {
   let c;
   do {
     c = "";
     for (let i = 0; i < 5; i++) c += CODE_CHARS[crypto.randomInt(CODE_CHARS.length)];
-  } while (rooms.has(c));
+  } while (rooms.has(c) || c === PRACTICE_CODE);
   return c;
 }
 const newId = () => crypto.randomBytes(9).toString("base64url");
@@ -121,7 +123,7 @@ function makePlayer(name, emoji) {
   return { id: newId(), token: newId(), name: cleanName(name), emoji: cleanEmoji(emoji), socketId: null, connected: false, left: false, droppedAt: 0 };
 }
 function connectedPlayers(room) {
-  return [...room.players.values()].filter((p) => p.connected);
+  return [...room.players.values()].filter((p) => p.connected && !p.bot);
 }
 function touchRoom(room) {
   room.updatedAt = Date.now();
@@ -142,8 +144,66 @@ function deleteRoom(code) {
 function ensureHost(room) {
   const host = room.players.get(room.hostId);
   if (host && host.connected && !host.left) return;
-  const next = [...room.players.values()].find((p) => p.connected && !p.left);
+  const next = [...room.players.values()].find((p) => p.connected && !p.left && !p.bot);
   if (next) room.hostId = next.id;
+}
+
+// ---------- robots de la sala de pruebas ----------
+const BOTS = [
+  { name: "Robotito", emoji: "av:robot" },
+  { name: "Alien Bip", emoji: "av:alien" },
+  { name: "Dino Rex", emoji: "av:dino" },
+];
+function addBots(room) {
+  for (const b of BOTS) {
+    const p = makePlayer(b.name, b.emoji);
+    p.bot = true;
+    p.connected = true;
+    room.players.set(p.id, p);
+  }
+}
+/** Garabato al azar (SVG): los robots no saben dibujar mejor */
+function botDrawing() {
+  const colors = ["#ff3b3b", "#2563eb", "#1f8a3a", "#ffd21f", "#9b5de5", "#ff7a1a", "#1b1b1f", "#d946ef"];
+  const r = (a, b) => a + crypto.randomInt(b - a + 1);
+  let shapes = "";
+  for (let i = 0; i < r(3, 6); i++) {
+    const c = pick(colors);
+    const t = crypto.randomInt(3);
+    if (t === 0) shapes += `<circle cx="${r(120, 480)}" cy="${r(150, 750)}" r="${r(40, 160)}" fill="${crypto.randomInt(2) ? c : "none"}" stroke="${c}" stroke-width="10"/>`;
+    else if (t === 1) shapes += `<rect x="${r(60, 360)}" y="${r(100, 600)}" width="${r(80, 240)}" height="${r(80, 240)}" fill="none" stroke="${c}" stroke-width="10" rx="12"/>`;
+    else {
+      let d = `M${r(50, 550)} ${r(50, 850)}`;
+      for (let k = 0; k < r(3, 7); k++) d += ` Q${r(50, 550)} ${r(50, 850)} ${r(50, 550)} ${r(50, 850)}`;
+      shapes += `<path d="${d}" fill="none" stroke="${c}" stroke-width="12" stroke-linecap="round"/>`;
+    }
+  }
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900" viewBox="0 0 600 900"><rect width="600" height="900" fill="#fff"/>${shapes}</svg>`;
+  return "data:image/svg+xml;base64," + Buffer.from(svg).toString("base64");
+}
+function botContent(game, botId) {
+  if (game.stepType === "draw") return botDrawing();
+  if (game.stepType === "vote") {
+    const v = {};
+    for (const k of votableFor(game, botId)) v[k] = 1 + crypto.randomInt(5);
+    return v;
+  }
+  return pick(FRASES); // escribir o adivinar
+}
+/** Cada robot contesta al cabo de unos segundos, como si pensara */
+function scheduleBots(room) {
+  const game = room.game;
+  if (!game || !room.practice || game.stepType === "result") return;
+  const seq = game.seq;
+  for (const id of game.order) {
+    const p = room.players.get(id);
+    if (!p || !p.bot || game.submissions.get(id)?.done) continue;
+    setTimeout(() => {
+      if (room.game !== game || game.seq !== seq || room.phase !== "playing" || game.submissions.get(id)?.done) return;
+      game.submissions.set(id, { content: botContent(game, id), done: true });
+      maybeFinish(room);
+    }, 2500 + crypto.randomInt(5000));
+  }
 }
 
 // ---------- partida ----------
@@ -159,7 +219,7 @@ function startGame(room) {
   const order = shuffle([...room.players.values()].filter((p) => !p.left).map((p) => p.id));
   const n = order.length;
   const game = {
-    mode: n === 2 ? "duo" : "chain",
+    mode: n === 2 ? "duo" : room.settings.mode === "votacion" ? "vote" : "chain",
     order,
     step: 0,
     stepType: null,
@@ -170,6 +230,16 @@ function startGame(room) {
   if (game.mode === "chain") {
     game.steps = chainLength(n);
     game.books = order.map((id) => ({ owner: id, entries: [] }));
+  } else if (game.mode === "vote") {
+    // Votación: todos dibujan la misma frase, se puntúa del 1 al 5 sin saber de quién es cada dibujo
+    game.rounds = room.settings.duoRounds;
+    game.round = 0;
+    game.stage = "draw"; // draw -> vote -> result
+    game.phrases = [];
+    game.drawings = []; // por ronda: [{by, image, votes: {votante: estrellas}, points}]
+    game.voteOrder = []; // por ronda: orden (barajado) en que se enseñan los dibujos
+    game.totals = new Map(order.map((id) => [id, 0]));
+    game.usedPhrases = new Set();
   } else {
     game.rounds = room.settings.duoRounds;
     game.round = 0;
@@ -193,7 +263,13 @@ function freshPhrase(game) {
 
 function currentStepType(game) {
   if (game.mode === "chain") return typeForChainStep(game.step);
+  if (game.mode === "vote") return game.stage;
   return game.duoStage;
+}
+/** Dibujos que puede puntuar un jugador: los de los demás que no están en blanco */
+function votableFor(game, playerId) {
+  const list = game.drawings[game.round] || [];
+  return (game.voteOrder[game.round] || []).filter((k) => list[k] && list[k].image && list[k].by !== playerId);
 }
 
 function beginStep(room) {
@@ -201,10 +277,12 @@ function beginStep(room) {
   clearTimeout(room.stepTimer);
   game.submissions = new Map();
   game.stepType = currentStepType(game);
-  if (game.mode === "duo" && game.duoStage === "result") {
+  game.seq = (game.seq || 0) + 1;
+  if ((game.mode === "duo" && game.duoStage === "result") || (game.mode === "vote" && game.stage === "result")) {
     game.deadline = null;
     return;
   }
+  if (game.mode === "vote" && game.stage === "draw") game.phrases[game.round] = freshPhrase(game);
   if (game.mode === "duo" && game.duoStage === "draw") {
     game.secrets = new Map();
     for (const id of game.order) game.secrets.set(id, { phrase: freshPhrase(game), rerolls: 2 });
@@ -218,8 +296,11 @@ function beginStep(room) {
   for (const id of game.order) {
     const p = room.players.get(id);
     if (p && p.left) game.submissions.set(id, { content: null, done: true });
+    // Sin dibujos que puntuar (todos los demás en blanco): no hay nada que hacer
+    else if (game.mode === "vote" && game.stage === "vote" && !votableFor(game, id).length) game.submissions.set(id, { content: {}, done: true });
   }
   checkPause(room);
+  scheduleBots(room);
   maybeFinish(room);
 }
 
@@ -273,7 +354,7 @@ function taskFor(room, playerId) {
     type: game.stepType,
     deadline: game.deadline,
     submitted: !!(sub && sub.done),
-    stepKey: `${game.mode}-${game.mode === "chain" ? game.step : game.round + "-" + game.duoStage}`,
+    stepKey: `${game.mode}-${game.mode === "chain" ? game.step : game.round + "-" + (game.mode === "vote" ? game.stage : game.duoStage)}`,
   };
   if (game.mode === "chain") {
     base.stepNumber = game.step + 1;
@@ -283,6 +364,20 @@ function taskFor(room, playerId) {
       const prev = book.entries[game.step - 1];
       // Sin autor: quién lo hizo se descubre al final
       base.prompt = { kind: prev.type === "draw" ? "image" : "text", value: prev.content, by: null };
+    }
+    return base;
+  }
+  if (game.mode === "vote") {
+    base.round = game.round + 1;
+    base.rounds = game.rounds;
+    base.phrase = game.phrases[game.round];
+    if (game.stage === "draw") {
+      base.secret = base.phrase;
+      base.rerolls = 0;
+    } else if (game.stage === "vote") {
+      const list = game.drawings[game.round];
+      // Sin autor: se descubre en el resultado de la ronda
+      base.items = votableFor(game, playerId).map((k) => ({ k, image: list[k].image }));
     }
     return base;
   }
@@ -306,7 +401,17 @@ function submit(room, playerId, content) {
   if (!game || room.phase !== "playing" || !game.order.includes(playerId)) return;
   if (game.stepType === "result") return;
   let value = null;
-  if (game.stepType === "draw") {
+  if (game.stepType === "vote") {
+    const allowed = new Set(votableFor(game, playerId));
+    value = {};
+    if (content && typeof content === "object") {
+      for (const [k, v] of Object.entries(content)) {
+        const key = Number(k);
+        const stars = Number(v);
+        if (allowed.has(key) && Number.isInteger(stars) && stars >= 1 && stars <= 5) value[key] = stars;
+      }
+    }
+  } else if (game.stepType === "draw") {
     value = isImage(content) ? content : null;
   } else {
     value = cleanText(content);
@@ -345,6 +450,29 @@ function finishStep(room) {
     });
     game.step++;
     if (game.step >= game.steps) return startReveal(room);
+    beginStep(room);
+    return broadcast(room);
+  }
+
+  if (game.mode === "vote") {
+    if (game.stage === "draw") {
+      game.drawings[game.round] = game.order.map((id) => ({ by: id, image: contentOf(id), votes: {}, points: 0 }));
+      game.voteOrder[game.round] = shuffle(game.order.map((_, k) => k));
+      game.stage = "vote";
+    } else if (game.stage === "vote") {
+      const list = game.drawings[game.round];
+      for (const voter of game.order) {
+        const v = contentOf(voter) || {};
+        for (const [k, stars] of Object.entries(v)) {
+          const d = list[Number(k)];
+          if (!d || d.by === voter) continue;
+          d.votes[voter] = stars;
+          d.points += stars;
+          game.totals.set(d.by, (game.totals.get(d.by) || 0) + stars);
+        }
+      }
+      game.stage = "result";
+    }
     beginStep(room);
     return broadcast(room);
   }
@@ -402,6 +530,41 @@ function duoApprove(room, playerId, drawerId) {
   broadcast(room);
 }
 
+function voteNext(room) {
+  const game = room.game;
+  if (!game || game.mode !== "vote" || game.stage !== "result" || room.phase !== "playing") return;
+  game.round++;
+  if (game.round >= game.rounds) {
+    room.phase = "end";
+    game.phase = "end";
+    broadcast(room);
+    sendGallery(room);
+    return;
+  }
+  game.stage = "draw";
+  beginStep(room);
+  broadcast(room);
+}
+
+/** Resultado de una ronda de votación, de más a menos estrellas, ya con autores */
+function voteRound(room, r) {
+  const game = room.game;
+  const list = game.drawings[r] || [];
+  return {
+    phrase: game.phrases[r],
+    items: list
+      .map((d) => ({ by: who(room, d.by), image: d.image, points: d.points, votes: Object.keys(d.votes).length }))
+      .sort((a, b) => b.points - a.points),
+  };
+}
+/** Clasificación general; los empates comparten puesto */
+function voteRanking(room) {
+  const game = room.game;
+  const rows = game.order.map((id) => ({ ...who(room, id), id, points: game.totals.get(id) || 0 })).sort((a, b) => b.points - a.points);
+  rows.forEach((row, i) => (row.place = i > 0 && rows[i - 1].points === row.points ? rows[i - 1].place : i + 1));
+  return rows;
+}
+
 function startReveal(room) {
   const game = room.game;
   room.phase = "reveal";
@@ -456,6 +619,9 @@ function galleryData(room) {
       books: game.books.map((b) => ({ owner: who(room, b.owner), entries: b.entries.map((e) => publicEntry(room, e)) })),
     };
   }
+  if (game.mode === "vote") {
+    return { mode: "vote", rounds: game.drawings.map((_, r) => voteRound(room, r)), ranking: voteRanking(room) };
+  }
   return {
     mode: "duo",
     teamScore: game.teamScore,
@@ -482,6 +648,16 @@ function endGameEarly(room) {
     game.steps = done;
     for (const b of game.books) b.entries = b.entries.slice(0, done);
     return startReveal(room);
+  }
+  if (game.mode === "vote") {
+    const done = game.stage === "result" ? game.round + 1 : game.round;
+    if (done < 1) return backToLobby(room);
+    game.rounds = done;
+    game.drawings = game.drawings.slice(0, done);
+    room.phase = "end";
+    game.phase = "end";
+    broadcast(room);
+    return sendGallery(room);
   }
   const done = game.duoStage === "result" ? game.round + 1 : game.round;
   if (done < 1) return backToLobby(room);
@@ -519,7 +695,7 @@ function stateFor(room, playerId) {
     hostId: room.hostId,
     phase: room.phase,
     settings: room.settings,
-    mode: game ? game.mode : players.length === 2 ? "duo" : "chain",
+    mode: game ? game.mode : players.length === 2 ? "duo" : room.settings.mode === "votacion" ? "vote" : "chain",
     chainSteps: chainLength(Math.max(players.length, 3)),
     players: players.map((p) => ({
       id: p.id,
@@ -527,9 +703,11 @@ function stateFor(room, playerId) {
       emoji: p.emoji,
       connected: p.connected,
       left: p.left,
+      bot: !!p.bot,
       done: !!(game && room.phase === "playing" && game.submissions.get(p.id)?.done),
     })),
     maxPlayers: MAX_PLAYERS,
+    practice: !!room.practice,
   };
   if (!game) return st;
   st.mode = game.mode;
@@ -542,6 +720,9 @@ function stateFor(room, playerId) {
           .filter((p) => p && (!p.connected || p.left))
           .map((p) => ({ name: p.name, emoji: p.emoji, left: !!p.left })),
       };
+    }
+    if (game.mode === "vote" && game.stage === "result") {
+      st.voteResult = { round: game.round + 1, rounds: game.rounds, ...voteRound(room, game.round) };
     }
     if (game.mode === "duo" && game.duoStage === "result") {
       st.result = {
@@ -564,6 +745,7 @@ function stateFor(room, playerId) {
       entries: book.entries.slice(0, r.entry + 1).map((e) => publicEntry(room, e)),
     };
   }
+  if (room.phase === "end" && game.mode === "vote") st.ranking = voteRanking(room);
   if (room.phase === "end" && game.mode === "duo") {
     st.teamScore = game.teamScore;
     st.maxScore = game.rounds * 6;
@@ -600,22 +782,27 @@ io.on("connection", (socket) => {
     checkPause(r);
   }
 
-  socket.on("create", (data, ack) => {
-    if (typeof ack !== "function") return;
+  function newRoom() {
     const r = {
       code: newCode(),
       players: new Map(),
       hostId: null,
       phase: "lobby",
-      settings: { time: "normal", duoRounds: 3 },
+      settings: { time: "normal", duoRounds: 3, mode: "telefono" },
       game: null,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
+    rooms.set(r.code, r);
+    return r;
+  }
+
+  socket.on("create", (data, ack) => {
+    if (typeof ack !== "function") return;
+    const r = newRoom();
     const p = makePlayer(data?.name, data?.emoji);
     r.players.set(p.id, p);
     r.hostId = p.id;
-    rooms.set(r.code, r);
     attach(r, p);
     ack({ ok: true, code: r.code, playerId: p.id, token: p.token });
     broadcast(r);
@@ -623,6 +810,18 @@ io.on("connection", (socket) => {
 
   socket.on("join", (data, ack) => {
     if (typeof ack !== "function") return;
+    // Sala de pruebas: cada vez se crea una sala nueva con 3 robots que juegan solos
+    if (String(data?.code || "").toUpperCase().trim() === PRACTICE_CODE && !data?.rejoinOnly) {
+      const r = newRoom();
+      r.practice = true;
+      const p = makePlayer(data?.name, data?.emoji);
+      r.players.set(p.id, p);
+      r.hostId = p.id;
+      addBots(r);
+      attach(r, p);
+      ack({ ok: true, code: r.code, playerId: p.id, token: p.token });
+      return broadcast(r);
+    }
     const r = getRoom(data?.code);
     if (!r) return ack({ ok: false, error: "No existe ninguna sala con ese código. Revisa las letras." });
     // ¿Vuelve alguien que ya estaba?
@@ -669,6 +868,7 @@ io.on("connection", (socket) => {
   socket.on("settings", (data) => {
     if (!isHost() || room.phase !== "lobby") return;
     if (data && Object.hasOwn(TIMES, data.time)) room.settings.time = data.time;
+    if (data && ["telefono", "votacion"].includes(data.mode)) room.settings.mode = data.mode;
     const dr = Number(data?.duoRounds);
     if ([2, 3, 4, 5, 6].includes(dr)) room.settings.duoRounds = dr;
     broadcast(room);
@@ -680,6 +880,7 @@ io.on("connection", (socket) => {
     // Antes de empezar, fuera quien no está conectado
     for (const [id, p] of room.players) if (!p.connected) room.players.delete(id);
     if (active.length < 2) return socket.emit("toast", "Hacen falta al menos 2 jugadores.");
+    if (room.settings.mode === "votacion" && active.length < 3) return socket.emit("toast", "La votación necesita al menos 3 jugadores.");
     startGame(room);
     broadcast(room);
   });
@@ -724,6 +925,11 @@ io.on("connection", (socket) => {
     duoNext(room);
   });
 
+  socket.on("voteNext", () => {
+    if (!isHost()) return;
+    voteNext(room);
+  });
+
   socket.on("duoApprove", (drawerId) => {
     if (!room || !player) return;
     duoApprove(room, player.id, drawerId);
@@ -752,8 +958,9 @@ io.on("connection", (socket) => {
     room = null;
     player = null;
     ensureHost(r);
-    if ([...r.players.values()].every((x) => x.left || !x.connected)) {
-      if (r.players.size === 0 || [...r.players.values()].every((x) => x.left)) return deleteRoom(r.code);
+    const humans = [...r.players.values()].filter((x) => !x.bot);
+    if (humans.every((x) => x.left || !x.connected)) {
+      if (humans.length === 0 || humans.every((x) => x.left)) return deleteRoom(r.code);
     }
     if (r.game && r.phase === "playing") {
       checkPause(r);

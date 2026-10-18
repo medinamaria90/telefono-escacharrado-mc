@@ -9,6 +9,7 @@
     "s-lobby": ["/sala", "Sala de espera"],
     "s-text": ["/escribir-adivinar", "Escribir o adivinar"],
     "s-draw": ["/dibujar", "Dibujar"],
+    "s-vote": ["/votar", "Votar"],
     "s-wait": ["/esperando", "Esperando"],
     "s-result": ["/resultado-duo", "Resultado dúo"],
     "s-reveal": ["/revelacion", "Revelación"],
@@ -101,7 +102,7 @@
   let wakeLock = null;
 
   const params = new URLSearchParams(location.search);
-  const inviteCode = (params.get("sala") || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 5);
+  const inviteCode = (params.get("sala") || "").toUpperCase().replace(/[^A-Z]/g, "").slice(0, 5);
 
   // ---------- conexión ----------
   const socket = io({ transports: ["websocket", "polling"] });
@@ -137,14 +138,15 @@
     render();
   });
   // Sonidos según lo que cambia entre un estado y el siguiente
+  const modeName = (m) => (m === "duo" ? "duo" : m === "vote" ? "votacion" : "telefono");
   function trackGame(prev, next) {
     if (!prev || prev.code !== next.code || next.hostId !== next.you) return;
     const n = next.players.filter((p) => !p.left).length;
     if (prev.phase === "lobby" && next.phase === "playing") {
-      track("partida_empezada", { jugadores: n, modo: next.mode === "duo" ? "duo" : "telefono", tiempo: next.settings.time });
+      track("partida_empezada", { jugadores: n, modo: modeName(next.mode), tiempo: next.settings.time, pruebas: !!next.practice });
     }
     if (prev.phase !== "end" && next.phase === "end") {
-      track("partida_terminada", { jugadores: n, modo: next.mode === "duo" ? "duo" : "telefono" });
+      track("partida_terminada", { jugadores: n, modo: modeName(next.mode) });
     }
   }
   function playCues(prev, next) {
@@ -152,7 +154,7 @@
     if (!prev || prev.code !== next.code) return;
     if (prev.phase !== next.phase) {
       if (next.phase === "playing" && prev.phase === "lobby") return SFX.play("start");
-      if (next.phase === "end") return SFX.play("end");
+      if (next.phase === "end") return SFX.play(next.mode === "vote" ? "drum" : "end");
       if (next.phase === "reveal") return SFX.play("page");
     }
     if (next.phase === "lobby") {
@@ -171,6 +173,7 @@
     }
     if (next.phase === "playing" && !!next.paused !== !!prev.paused) SFX.play(next.paused ? "leave" : "join");
     if (next.phase === "playing") {
+      if (next.voteResult && !prev.voteResult) return SFX.play("point");
       if (next.result && !prev.result) return SFX.play(next.result.cards.some((c) => c.points > 0) ? "point" : "page");
       if (next.result && prev.result && next.result.teamScore > prev.result.teamScore) return SFX.play("point");
       if (next.task && prev.task && next.task.stepKey === prev.task.stepKey) {
@@ -317,7 +320,7 @@
   });
 
   // ---------- utilidades de interfaz ----------
-  const screens = ["s-home", "s-lobby", "s-text", "s-draw", "s-wait", "s-result", "s-reveal", "s-end", "s-book"];
+  const screens = ["s-home", "s-lobby", "s-text", "s-draw", "s-vote", "s-wait", "s-result", "s-reveal", "s-end", "s-book"];
   function show(id) {
     for (const s of screens) $(s).hidden = s !== id;
     document.body.dataset.screen = id;
@@ -426,7 +429,7 @@
     store.set("tg-name", me.name);
   });
   $("codeInput").addEventListener("input", (e) => {
-    e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    e.target.value = e.target.value.toUpperCase().replace(/[^A-ZÑ]/g, "").replace(/Ñ/g, "N");
   });
 
   // Guarda en el móvil el nombre tal y como esté en la casilla (también si lo autocompletó el teclado)
@@ -467,13 +470,13 @@
   });
   function joinCode(code) {
     if (needName()) return;
-    if (!/^[A-Z0-9]{5}$/.test(code)) {
-      $("homeError").textContent = "El código tiene 5 letras o números.";
+    if (!/^[A-Z]{5}$/.test(code)) {
+      $("homeError").textContent = "El código tiene 5 letras.";
       return;
     }
     const s = session.get();
     socket.emit("join", { code, name: me.name, emoji: me.emoji, token: s && s.code === code ? s.token : null }, (res) => {
-      if (res && res.ok) track("sala_unido", { invitacion: code === inviteCode ? "enlace" : "codigo" });
+      if (res && res.ok) track(code === "ZZZZZ" ? "sala_pruebas" : "sala_unido", { invitacion: code === inviteCode ? "enlace" : "codigo" });
       entered(res);
     });
   }
@@ -598,6 +601,7 @@
     const tags = el("span", "p-tags");
     if (p.id === state.you) tags.appendChild(el("span", "tag you", "tú"));
     if (p.id === state.hostId) tags.appendChild(el("span", "tag host", "anfitrión"));
+    if (p.bot) tags.appendChild(el("span", "tag", "robot"));
     if (p.left) tags.appendChild(el("span", "tag", "se fue"));
     else if (!p.connected) tags.appendChild(el("span", "tag warn", "sin conexión"));
     if (opts.status) tags.appendChild(el("span", "p-status " + (p.done ? "ok" : "pending"), p.done ? "✔" : "…"));
@@ -607,6 +611,11 @@
 
   // ---------- sala de espera ----------
   function modeCopy(n) {
+    const vote = state.settings.mode === "votacion";
+    if (vote) {
+      if (n < 3) return ["Votación · hacen falta 3 jugadores", `Comparte el enlace: ${n < 2 ? "faltan 2 más" : "falta 1 más"} para poder votar.`];
+      return [`Votación · ${state.settings.duoRounds} rondas`, "Todos dibujáis la misma frase y puntuáis los dibujos de los demás del 1 al 5, sin saber de quién son. Gana quien más estrellas sume."];
+    }
     if (n < 2) return ["Esperando a más gente", "Comparte el enlace. Hacen falta al menos 2 jugadores."];
     if (n === 2) return ["Modo Dúo", "Dibujáis a la vez una frase secreta y adivináis el dibujo del otro. Sumáis puntos en equipo."];
     const steps = n === 3 ? 5 : n;
@@ -625,30 +634,43 @@
     ul.innerHTML = "";
     state.players.forEach((p) => ul.appendChild(playerItem(p)));
     const [t, txt] = modeCopy(n);
-    $("modeTitle").textContent = t;
-    $("modeText").textContent = txt;
+    $("modeTitle").textContent = (state.practice ? "🧪 Sala de pruebas · " : "") + t;
+    $("modeText").textContent = state.practice ? "Los robots juegan solos para que veas cómo funciona. " + txt : txt;
     const host = isHost();
     for (const b of $("timeSeg").children) {
       b.setAttribute("aria-pressed", String(b.dataset.v === state.settings.time));
+      b.disabled = !host;
+    }
+    for (const b of $("modeSeg").children) {
+      b.setAttribute("aria-pressed", String(b.dataset.v === state.settings.mode));
       b.disabled = !host;
     }
     for (const b of $("roundsSeg").children) {
       b.setAttribute("aria-pressed", String(Number(b.dataset.v) === state.settings.duoRounds));
       b.disabled = !host;
     }
-    $("duoRoundsSetting").hidden = n !== 2;
+    const voteMode = state.settings.mode === "votacion";
+    $("duoRoundsSetting").hidden = !(voteMode || n === 2);
     $("lobbySoloBtn").hidden = n !== 1;
     const hostP = state.players.find((p) => p.id === state.hostId);
     $("notHostHint").textContent = host ? "" : `${nameOf(hostP, "El anfitrión")} elige las opciones y empieza la partida.`;
     $("startBtn").hidden = !host;
-    $("startBtn").disabled = n < 2;
-    $("startBtn").textContent = n < 2 ? "Esperando jugadores…" : "Empezar partida";
+    const need = voteMode ? 3 : 2;
+    $("startBtn").disabled = n < need;
+    $("startBtn").textContent = n < need ? "Esperando jugadores…" : "Empezar partida";
   }
   $("timeSeg").addEventListener("click", (e) => {
     const v = e.target.dataset && e.target.dataset.v;
     if (v && isHost()) {
       SFX.play("click");
       socket.emit("settings", { time: v });
+    }
+  });
+  $("modeSeg").addEventListener("click", (e) => {
+    const v = e.target.closest("button")?.dataset.v;
+    if (v && isHost()) {
+      SFX.play("click");
+      socket.emit("settings", { mode: v });
     }
   });
   $("roundsSeg").addEventListener("click", (e) => {
@@ -677,11 +699,12 @@
 
   // ---------- turnos ----------
   function stepLabel(task) {
-    if (state.mode === "duo") return `Ronda ${task.round} de ${task.rounds}`;
+    if (state.mode === "duo" || state.mode === "vote") return `Ronda ${task.round} de ${task.rounds}`;
     return `Paso ${task.stepNumber} de ${task.totalSteps}`;
   }
 
   function renderPlaying() {
+    if (state.voteResult) return renderVoteResult();
     if (state.result) return renderResult();
     const task = state.task;
     if (!task) return;
@@ -697,6 +720,9 @@
       $("drawWhat").textContent = task.secret != null ? task.secret : task.prompt ? (task.prompt.value || "(sin respuesta)") : "";
       $("rerollBtn").hidden = !(task.secret != null && task.rerolls > 0);
       $("rerollBtn").textContent = `🎲 ${task.rerolls}`;
+    } else if (task.type === "vote") {
+      show("s-vote");
+      paintVote();
     } else show("s-text");
   }
 
@@ -708,11 +734,18 @@
       closePops();
       updateToolbar();
       $("drawStep").textContent = stepLabel(task);
-      if (task.secret != null) {
+      if (state.mode === "vote") {
+        $("drawStep").textContent = stepLabel(task) + " · Todos dibujáis esto";
+      } else if (task.secret != null) {
         $("drawStep").textContent = stepLabel(task) + " · Dibuja en secreto";
       } else {
         $("drawStep").textContent = stepLabel(task) + (prompt && prompt.by ? ` · Frase de ${prompt.by.name}` : " · Dibuja esto");
       }
+      return;
+    }
+    if (task.type === "vote") {
+      votes = {};
+      vIdx = 0;
       return;
     }
     $("textStep").textContent = stepLabel(task);
@@ -797,16 +830,16 @@
     return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
   }
   setInterval(() => {
-    const task = state && state.phase === "playing" && !state.result && !state.paused ? state.task : null;
+    const task = state && state.phase === "playing" && !state.result && !state.voteResult && !state.paused ? state.task : null;
     if (state && state.paused) {
-      [$("textTimer"), $("drawTimer"), $("waitTimer")].forEach((t) => {
+      [$("textTimer"), $("drawTimer"), $("waitTimer"), $("voteTimer")].forEach((t) => {
         t.textContent = "⏸";
         t.classList.remove("urgent");
       });
       document.body.classList.remove("hurry");
       return;
     }
-    const timers = [$("textTimer"), $("drawTimer"), $("waitTimer")];
+    const timers = [$("textTimer"), $("drawTimer"), $("waitTimer"), $("voteTimer")];
     if (!task || !task.deadline || task.submitted) document.body.classList.remove("hurry");
     if (!task || !task.deadline) {
       timers.forEach((t) => {
@@ -836,6 +869,8 @@
       autoSubmitted = currentStepKey;
       if (task.type === "draw") {
         if (pad && pad.dirty) sendDrawing();
+      } else if (task.type === "vote") {
+        if (Object.keys(votes).length) socket.emit("submit", { stepKey: currentStepKey, content: votes });
       } else {
         const v = $("textInput").value.trim();
         if (v) socket.emit("submit", { stepKey: currentStepKey, content: v });
@@ -986,7 +1021,16 @@
     shadeKnob.style.left = "50%";
     // Tocar el lienzo cierra los desplegables; el cubo de pintura chapotea
     $("pad").addEventListener("pointerdown", () => closePops(), true);
+    // Móvil en horizontal: el lienzo se tumba para ocupar todo el ancho
+    try {
+      const mq = window.matchMedia(LANDSCAPE_PHONE);
+      const apply = () => pad.setRotated(mq.matches);
+      apply();
+      if (mq.addEventListener) mq.addEventListener("change", apply);
+      else if (mq.addListener) mq.addListener(apply);
+    } catch (_) {}
   }
+  const LANDSCAPE_PHONE = "(orientation: landscape) and (max-height: 540px)";
   const POPS = [["sizes", "sizeToggle"], ["colors", "colorToggle"]];
   function togglePop(popId, open) {
     for (const [pid, bid] of POPS) {
@@ -1118,6 +1162,8 @@
     $("resultScore").textContent = score;
     const box = $("resultCards");
     box.innerHTML = "";
+    box.className = "duo-cards grow";
+    $("duoNextBtn").disabled = false;
     cards.forEach((c) => box.appendChild(duoCardEl(c, allowApprove)));
   }
   function renderResult() {
@@ -1133,6 +1179,7 @@
       else viewer = null;
       return render();
     }
+    if (state && state.voteResult) return socket.emit("voteNext");
     socket.emit("duoNext");
   });
   $("duoPrevBtn").addEventListener("click", () => {
@@ -1141,6 +1188,129 @@
       render();
     }
   });
+
+  // ---------- votación ----------
+  let votes = {}; // dibujo -> estrellas
+  let vIdx = 0;
+  const STAR_TEXT = ["Toca las estrellas para puntuar", "😬 Mejorable", "🙂 Regular", "😊 Bien", "😃 ¡Muy bien!", "🤩 ¡Obra maestra!"];
+  function paintVote() {
+    const task = state.task;
+    const items = task.items || [];
+    $("voteStep").textContent = stepLabel(task) + " · Puntúa";
+    $("votePhrase").textContent = "«" + (task.phrase || "") + "»";
+    const empty = !items.length;
+    $("voteFig").hidden = empty;
+    $("voteEmpty").hidden = !empty;
+    $("voteStars").hidden = empty;
+    $("starsLabel").hidden = empty;
+    $("votePrev").hidden = empty;
+    if (empty) {
+      $("voteNextBtn").textContent = "Continuar";
+      $("voteNextBtn").disabled = false;
+      return;
+    }
+    vIdx = Math.min(vIdx, items.length - 1);
+    const it = items[vIdx];
+    if ($("voteImg").getAttribute("src") !== it.image) $("voteImg").src = it.image;
+    $("voteCount").textContent = `Dibujo ${vIdx + 1} de ${items.length} · ¿de quién será?`;
+    const mine = votes[it.k] || 0;
+    for (const b of $("voteStars").children) {
+      const n = Number(b.dataset.s);
+      b.classList.toggle("on", n <= mine);
+      b.setAttribute("aria-pressed", String(n === mine));
+    }
+    $("starsLabel").textContent = STAR_TEXT[mine];
+    const last = vIdx === items.length - 1;
+    $("votePrev").disabled = vIdx === 0;
+    $("voteNextBtn").textContent = last ? "Enviar puntos" : "Siguiente";
+    $("voteNextBtn").disabled = !mine;
+  }
+  $("voteStars").addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    const task = state && state.task;
+    if (!b || !task || task.type !== "vote") return;
+    const items = task.items || [];
+    const it = items[vIdx];
+    if (!it) return;
+    votes[it.k] = Number(b.dataset.s);
+    SFX.play(votes[it.k] >= 4 ? "pop" : "color");
+    paintVote();
+    // Pasa solo al siguiente dibujo, con un momento para ver las estrellas
+    const at = vIdx;
+    if (at < items.length - 1)
+      setTimeout(() => {
+        if (vIdx === at && state.task && state.task.type === "vote") {
+          vIdx++;
+          SFX.play("page");
+          paintVote();
+        }
+      }, 450);
+  });
+  $("votePrev").addEventListener("click", () => {
+    if (vIdx > 0) {
+      vIdx--;
+      SFX.play("click");
+      paintVote();
+    }
+  });
+  $("voteNextBtn").addEventListener("click", () => {
+    const items = (state.task && state.task.items) || [];
+    if (vIdx < items.length - 1) {
+      vIdx++;
+      SFX.play("page");
+      return paintVote();
+    }
+    const missing = items.findIndex((it) => !votes[it.k]);
+    if (missing >= 0) {
+      vIdx = missing;
+      toast("Te falta puntuar este dibujo.");
+      return paintVote();
+    }
+    socket.emit("submit", { stepKey: currentStepKey, content: votes });
+    SFX.play("send");
+  });
+
+  // Resultado de una ronda: dibujos de más a menos estrellas, ya con su autor
+  const MEDAL = ["🥇", "🥈", "🥉"];
+  function paintVoteRound(title, round) {
+    show("s-result");
+    $("resultTitle").textContent = title;
+    $("resultScore").textContent = "Resultados";
+    const box = $("resultCards");
+    box.innerHTML = "";
+    box.className = "duo-cards grow vote-cards n" + Math.min(round.items.length, 12);
+    const ph = el("p", "secret vote-round-phrase", "«" + round.phrase + "»");
+    box.appendChild(ph);
+    let place = 0;
+    round.items.forEach((it, i) => {
+      if (i === 0 || it.points !== round.items[i - 1].points) place = i;
+      const card = el("article", "duo-card vote-card");
+      const head = el("div", "duo-card-head");
+      head.appendChild(el("span", "vote-place", it.points > 0 && place < 3 ? MEDAL[place] : `${place + 1}.º`));
+      head.appendChild(who(it.by));
+      card.appendChild(head);
+      if (it.image) {
+        const img = el("img", "duo-img");
+        img.src = it.image;
+        img.alt = "Dibujo de " + it.by.name;
+        card.appendChild(img);
+      } else card.appendChild(blankEl("grow-img"));
+      card.appendChild(el("div", "pts vote-pts", `★ ${it.points}`));
+      box.appendChild(card);
+    });
+  }
+  function renderVoteResult() {
+    currentStepKey = "voteResult";
+    const r = state.voteResult;
+    paintVoteRound(`Ronda ${r.round} de ${r.rounds}`, r);
+    $("duoPrevBtn").hidden = true;
+    const host = isHost();
+    const hostP = state.players.find((p) => p.id === state.hostId);
+    $("duoNextBtn").disabled = !host;
+    $("duoNextBtn").textContent = !host
+      ? `${nameOf(hostP, "El anfitrión")} pasa a la siguiente…`
+      : r.round >= r.rounds ? "Ver el podio 🏆" : "Siguiente ronda";
+  }
 
   // ---------- revelación: un paso por pantalla ----------
   const VERB = { write: "escribió", draw: "dibujó", guess: "dijo" };
@@ -1238,6 +1408,14 @@
   }
   function renderViewer() {
     if (!gallery) return renderEndScreen();
+    if (viewer.kind === "vote") {
+      paintVoteRound(`Ronda ${viewer.book + 1} de ${gallery.rounds.length}`, gallery.rounds[viewer.book]);
+      $("duoNextBtn").disabled = false;
+      $("duoPrevBtn").hidden = false;
+      $("duoPrevBtn").disabled = viewer.book === 0;
+      $("duoNextBtn").textContent = viewer.book < gallery.rounds.length - 1 ? "Siguiente ronda" : "Volver";
+      return;
+    }
     if (viewer.kind === "duo") {
       const cards = gallery.rounds[viewer.book];
       paintDuo(`Ronda ${viewer.book + 1} de ${gallery.rounds.length}`, `Equipo: ${gallery.teamScore} pts`, cards, false);
@@ -1490,9 +1668,61 @@
     if (viewer) return renderViewer();
     renderEndScreen();
   }
+  let podiumShown = null;
+  function paintPodium(ranking) {
+    const pod = $("podium");
+    const rest = $("rankRest");
+    // El podio solo se anima la primera vez que se ve
+    const key = state.code + ":" + ranking.map((r) => r.id + r.points).join(",");
+    const animate = podiumShown !== key;
+    podiumShown = key;
+    pod.innerHTML = "";
+    pod.classList.toggle("animate", animate);
+    const top = ranking.filter((r) => r.place <= 3);
+    const steps = [2, 1, 3]; // segundo, primero, tercero
+    for (const place of steps) {
+      const group = top.filter((r) => r.place === place);
+      const col = el("div", "podium-col p" + place);
+      if (!group.length) {
+        col.classList.add("empty");
+        pod.appendChild(col);
+        continue;
+      }
+      const faces = el("div", "podium-faces");
+      group.forEach((r) => faces.appendChild(AVATARS.avatarEl(r.emoji, "podium-avatar")));
+      col.appendChild(faces);
+      col.appendChild(el("span", "podium-name", group.map((r) => r.name).join(" y ")));
+      col.appendChild(el("span", "podium-pts", `★ ${group[0].points}`));
+      const block = el("div", "podium-block", MEDAL[place - 1]);
+      col.appendChild(block);
+      pod.appendChild(col);
+    }
+    rest.innerHTML = "";
+    const others = ranking.filter((r) => r.place > 3);
+    rest.hidden = !others.length;
+    others.forEach((r) => {
+      const li = el("li", "rank-row");
+      li.appendChild(el("span", "rank-place", `${r.place}.º`));
+      li.appendChild(who(r));
+      li.appendChild(el("span", "rank-pts", `★ ${r.points}`));
+      rest.appendChild(li);
+    });
+    if (animate) setTimeout(() => state && state.phase === "end" && !viewer && SFX.play("end"), 2300);
+  }
   function renderEndScreen() {
     show("s-end");
-    if (state.mode === "duo") {
+    const isVote = state.mode === "vote" && state.ranking;
+    $("podium").hidden = !isVote;
+    $("rankRest").hidden = true;
+    $("endBadge").hidden = !!isVote;
+    document.body.classList.toggle("vote-end", !!isVote);
+    if (isVote) {
+      const winners = state.ranking.filter((r) => r.place === 1);
+      $("endTitle").textContent = winners.length > 1 ? "¡Empate en lo más alto!" : `¡Gana ${winners[0].name}!`;
+      $("endText").textContent = `${state.ranking[0].points} estrellas. ¿La revancha?`;
+      $("reviewBtn").textContent = "Volver a ver las rondas";
+      paintPodium(state.ranking);
+    } else if (state.mode === "duo") {
       $("endTitle").textContent = `${state.teamScore ?? 0} de ${state.maxScore ?? 0} puntos`;
       $("endText").textContent = duoVerdict(state.teamScore || 0, state.maxScore || 1);
       $("reviewBtn").textContent = "Volver a ver las rondas";
@@ -1508,7 +1738,7 @@
   }
   $("reviewBtn").addEventListener("click", () => {
     if (!gallery) return;
-    viewer = { kind: gallery.mode === "duo" ? "duo" : "chain", book: 0, entry: 0 };
+    viewer = { kind: gallery.mode, book: 0, entry: 0 };
     render();
   });
   $("againBtn").addEventListener("click", () => socket.emit("lobby"));

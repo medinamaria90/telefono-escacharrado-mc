@@ -112,6 +112,10 @@
     </div>
 
     <div class="card mode-card">
+      <div class="seg mode-seg" id="modeSeg" role="group" aria-label="Modo de juego">
+        <button type="button" data-v="telefono">📞 Teléfono</button>
+        <button type="button" data-v="votacion">⭐ Votación</button>
+      </div>
       <h2 class="h3" id="modeTitle"></h2>
       <p class="mode-text" id="modeText"></p>
       <div class="setting">
@@ -160,6 +164,32 @@
         <button class="btn primary" type="submit">¡Listo!</button>
       </div>
     </form>
+  </main>
+
+  <!-- TURNO: VOTAR -->
+  <main class="screen fit-screen" id="s-vote" hidden>
+    <div class="turn-head">
+      <span class="step-pill" id="voteStep"></span>
+      <span class="timer" id="voteTimer"></span>
+    </div>
+    <h2 class="turn-title vote-phrase" id="votePhrase"></h2>
+    <figure class="prompt-figure grow" id="voteFig">
+      <img id="voteImg" alt="Dibujo para puntuar">
+      <figcaption id="voteCount"></figcaption>
+    </figure>
+    <div class="blank-canvas grow" id="voteEmpty" hidden><span class="blank-emoji" aria-hidden="true">🙈</span><strong>No hay dibujos que puntuar</strong><span>Los demás dejaron el lienzo en blanco.</span></div>
+    <div class="stars" id="voteStars" role="radiogroup" aria-label="Puntuación">
+      <button type="button" data-s="1" aria-label="1 estrella">★</button>
+      <button type="button" data-s="2" aria-label="2 estrellas">★</button>
+      <button type="button" data-s="3" aria-label="3 estrellas">★</button>
+      <button type="button" data-s="4" aria-label="4 estrellas">★</button>
+      <button type="button" data-s="5" aria-label="5 estrellas">★</button>
+    </div>
+    <p class="stars-label" id="starsLabel">Toca las estrellas para puntuar</p>
+    <div class="bottom-controls">
+      <button class="btn secondary" id="votePrev" type="button">Anterior</button>
+      <button class="btn primary" id="voteNextBtn" type="button">Siguiente</button>
+    </div>
   </main>
 
   <!-- TURNO: DIBUJAR -->
@@ -241,9 +271,11 @@
   <!-- FINAL -->
   <main class="screen fit-screen end-screen" id="s-end" hidden>
     <div class="end-center grow">
-      <div class="end-badge" aria-hidden="true">🎉</div>
+      <div class="end-badge" id="endBadge" aria-hidden="true">🎉</div>
       <h2 class="hero-title small" id="endTitle">¡Fin de la partida!</h2>
       <p class="lead" id="endText"></p>
+      <div class="podium" id="podium" hidden></div>
+      <ol class="rank-rest" id="rankRest" hidden></ol>
       <button class="btn secondary big" id="reviewBtn" type="button">Volver a ver las historias</button>
     </div>
     <div class="end-actions">
