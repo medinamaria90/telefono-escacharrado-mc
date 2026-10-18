@@ -166,6 +166,66 @@
     if (state && state.phase === "end") renderEnd();
   });
   socket.on("toast", (t) => toast(t));
+
+  // ---------- versión nueva ----------
+  let outdated = false;
+  socket.on("version", (v) => {
+    if (!window.APP_V || window.APP_V.indexOf("__") === 0 || v === window.APP_V) return;
+    outdated = true;
+    // Si no estás haciendo nada, se actualiza sola; si no, se ofrece el botón
+    if (!state && !soloMode && !bookOpen) return location.reload();
+    $("updateBar").hidden = false;
+  });
+  $("updateBtn").addEventListener("click", () => location.reload());
+
+  // ---------- invitación a instalar ----------
+  const installed = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  let installEvt = null;
+  function showInstall(mode) {
+    if (installed || store.get("tg-install-hidden", "") === "1") return;
+    const card = $("installCard");
+    if (mode === "prompt") {
+      $("installHint").textContent = "Tenlo en tu pantalla de inicio, como una app.";
+      $("installBtn").hidden = false;
+    } else if (mode === "ios") {
+      $("installHint").innerHTML = "";
+      $("installHint").append("En Safari, toca Compartir ", el("strong", "", "⬆️"), " y luego «Añadir a pantalla de inicio».");
+      $("installBtn").hidden = true;
+    } else {
+      $("installHint").textContent = "Abre el menú ⋮ del navegador y elige «Añadir a pantalla de inicio» o «Instalar».";
+      $("installBtn").hidden = true;
+    }
+    card.hidden = false;
+  }
+  window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault();
+    installEvt = e;
+    showInstall("prompt");
+  });
+  window.addEventListener("appinstalled", () => {
+    $("installCard").hidden = true;
+    toast("¡Dibulíos instalado! 🎉");
+  });
+  $("installBtn").addEventListener("click", async () => {
+    if (!installEvt) return;
+    SFX.play("pop");
+    installEvt.prompt();
+    try {
+      const r = await installEvt.userChoice;
+      if (r.outcome === "accepted") $("installCard").hidden = true;
+    } catch (_) {}
+    installEvt = null;
+  });
+  $("installClose").addEventListener("click", () => {
+    store.set("tg-install-hidden", "1");
+    $("installCard").hidden = true;
+  });
+  if (!installed) {
+    if (isIOS) showInstall("ios");
+    // Navegadores sin botón de instalar: indicación manual tras unos segundos
+    else setTimeout(() => { if (!installEvt && /android/i.test(navigator.userAgent)) showInstall("manual"); }, 4000);
+  }
   socket.on("replaced", () => {
     toast("Has abierto el juego en otra pestaña.");
   });
@@ -402,6 +462,7 @@
   });
 
   function render() {
+    if (outdated && state && (state.phase === "lobby" || state.phase === "end") && !soloMode && !bookOpen) return location.reload();
     if (soloMode || bookOpen) {
       if (state && state.phase !== "lobby") {
         exitSolo(true);
@@ -524,7 +585,7 @@
       show("s-draw");
       $("drawWhat").textContent = task.secret != null ? task.secret : task.prompt ? (task.prompt.value || "(sin respuesta)") : "";
       $("rerollBtn").hidden = !(task.secret != null && task.rerolls > 0);
-      $("rerollBtn").textContent = `Otra (${task.rerolls})`;
+      $("rerollBtn").textContent = `🎲 ${task.rerolls}`;
     } else show("s-text");
   }
 
@@ -1166,10 +1227,11 @@
       $("drawStep").textContent = "Dibujo libre · una idea:";
     }
     $("rerollBtn").hidden = !!edit;
-    $("rerollBtn").textContent = "Otra idea";
+    $("rerollBtn").textContent = "🎲 Idea";
     $("soloExitBtn").hidden = false;
     $("soloBookBtn").hidden = false;
     $("drawTimer").textContent = "";
+    $("drawTimer").hidden = true;
     $("drawDone").textContent = edit ? "Guardar cambios" : "Guardar";
     $("pauseBar").hidden = true;
     show("s-draw");
@@ -1181,6 +1243,7 @@
     document.body.classList.remove("solo");
     $("soloExitBtn").hidden = true;
     $("soloBookBtn").hidden = true;
+    $("drawTimer").hidden = false;
     $("drawDone").textContent = "¡Listo!";
     currentStepKey = null;
     if (!silent) SFX.play("click");

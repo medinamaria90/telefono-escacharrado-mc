@@ -575,6 +575,7 @@ function broadcast(room) {
 
 // ---------- conexiones ----------
 io.on("connection", (socket) => {
+  socket.emit("version", BOOT);
   let room = null;
   let player = null;
 

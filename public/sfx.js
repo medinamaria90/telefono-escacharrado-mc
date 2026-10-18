@@ -69,13 +69,13 @@
     point: () => [784, 988, 1175].forEach((f, i) => tone(f, i * 0.07, 0.14, { type: "triangle", vol: 0.14 })),
     click: () => tone(1400, 0, 0.035, { type: "triangle", vol: 0.08 }),
     pop: () => tone(420, 0, 0.09, { type: "sine", to: 900, vol: 0.16 }),
-    color: () => tone(700 + Math.random() * 500, 0, 0.07, { type: "sine", vol: 0.12 }),
+    color: () => tone(700 + Math.random() * 500, 0, 0.07, { type: "sine", vol: 0.08 }),
     splash: () => {
-      noise(0.22, 0.12, 1800);
-      tone(300, 0, 0.18, { type: "sine", to: 120, vol: 0.12 });
+      noise(0.22, 0.07, 1800);
+      tone(300, 0, 0.18, { type: "sine", to: 120, vol: 0.07 });
     },
     undo: () => tone(900, 0, 0.12, { type: "triangle", to: 450, vol: 0.1 }),
-    crumple: () => { noise(0.35, 0.16, 3000); },
+    crumple: () => { noise(0.35, 0.09, 3000); },
     blip: () => tone(1180, 0, 0.07, { type: "sine", vol: 0.1 }),
     drum: () => {
       for (let i = 0; i < 14; i++) noise(0.05, 0.05 + i * 0.006, 900, i * 0.055);
@@ -115,8 +115,8 @@
     g.gain.value = 0;
     src.connect(hp).connect(bp).connect(g).connect(a.destination);
     src.start();
-    strokeNode = { src, g, bp, kind, max: kind === "eraser" ? 0.22 : kind === "spray" ? 0.12 : 0.16 };
-    if (kind === "spray") g.gain.setTargetAtTime(0.1, a.currentTime, 0.02);
+    strokeNode = { src, g, bp, kind, max: kind === "eraser" ? 0.07 : kind === "spray" ? 0.045 : 0.055 };
+    if (kind === "spray") g.gain.setTargetAtTime(0.035, a.currentTime, 0.02);
   }
   function strokeMove(speed) {
     if (!strokeNode || !ctx) return;

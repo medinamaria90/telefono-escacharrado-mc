@@ -28,6 +28,10 @@
   </header>
 
   <div class="banner" id="offline" hidden>Sin conexión. Reconectando…</div>
+  <div class="update-bar" id="updateBar" hidden>
+    <span>✨ Hay una versión nueva de Dibulíos</span>
+    <button class="btn-ghost small" id="updateBtn" type="button">Actualizar</button>
+  </div>
   <div class="pause-bar" id="pauseBar" role="status" hidden>
     <span class="pause-icon" aria-hidden="true">⏸</span>
     <span class="pause-text" id="pauseText"></span>
@@ -68,6 +72,15 @@
       <p class="error" id="homeError" role="alert"></p>
     </div>
     <button class="btn-ghost small icon-btn theme-btn theme-fab" type="button" aria-label="Cambiar a modo oscuro" title="Claro u oscuro">🌙</button>
+    <div class="install-card" id="installCard" hidden>
+      <img src="logo.svg" alt="" width="40" height="40">
+      <div class="install-text">
+        <strong>Instala Dibulíos</strong>
+        <span id="installHint">Tenlo en tu pantalla de inicio, como una app.</span>
+      </div>
+      <button class="btn primary small-btn" id="installBtn" type="button">Instalar</button>
+      <button class="install-x" id="installClose" type="button" aria-label="No mostrar más">✕</button>
+    </div>
     <div class="home-solo">
       <button class="btn-ghost" id="soloBtn" type="button">✏️ Dibujar yo solo</button>
       <button class="btn-ghost" id="bookBtn" type="button">📒 Mi cuaderno</button>
@@ -304,6 +317,7 @@
 <script src="sfx.js?v=__V__"></script>
 <script src="avatars.js?v=__V__"></script>
 <script src="pad.js?v=__V__"></script>
+<script>window.APP_V = "__V__";</script>
 <script src="app.js?v=__V__"></script>
 </body>
 </html>

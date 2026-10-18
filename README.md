@@ -73,7 +73,12 @@ trazo, roce de goma, siseo de spray, chapoteo al rellenar…
   móvil vibra y suena un tic-tac.
 - **Modo claro por defecto**, con botón 🌙/☀️ para pasar a oscuro (cada móvil lo
   recuerda).
-- Se puede **añadir a la pantalla de inicio** y se ve con su logo, como una app.
+- **Instalable como app:** en el inicio aparece una invitación a instalar.
+  En Android (Chrome, Samsung) con botón «Instalar»; en iPhone, desde Safari:
+  Compartir ⬆️ → «Añadir a pantalla de inicio». Se ve con su logo, como una app.
+- **Se actualiza sola:** la app instalada carga siempre la última versión. Si se
+  publica una nueva con la app abierta, se recarga sola o, si estás en mitad de
+  algo, aparece un aviso con el botón «Actualizar».
 - Pensado para móvil: cada pantalla cabe sin deslizar.
 
 ## Privacidad y datos
