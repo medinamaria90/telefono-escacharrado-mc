@@ -723,22 +723,74 @@
       });
       cs.appendChild(b);
     });
-    const custom = el("label", "color-btn custom");
-    custom.title = "Otro color";
-    const input = document.createElement("input");
-    input.type = "color";
-    input.id = "customColor";
-    input.value = "#ff6b35";
-    input.setAttribute("aria-label", "Elegir otro color");
-    input.addEventListener("input", () => {
-      pad.color = input.value;
-      custom.style.setProperty("--c", input.value);
+    // Color libre: barra de arcoíris (saturación al máximo) + barra de luz
+    const free = el("div", "free-color");
+    const hueBar = el("div", "hue-bar");
+    hueBar.setAttribute("aria-label", "Elegir cualquier color");
+    const hueKnob = el("span", "bar-knob");
+    hueBar.appendChild(hueKnob);
+    const shadeBar = el("div", "shade-bar");
+    shadeBar.setAttribute("aria-label", "Más claro o más oscuro");
+    const shadeKnob = el("span", "bar-knob");
+    shadeBar.appendChild(shadeKnob);
+    free.appendChild(el("span", "free-label", "Cualquier color"));
+    free.appendChild(hueBar);
+    free.appendChild(shadeBar);
+    cs.appendChild(free);
+    let hue = 0;
+    let light = 50;
+    const hslHex = (h, l) => {
+      const a2 = Math.min(l, 100 - l) / 100;
+      const f = (n) => {
+        const k = (n + h / 30) % 12;
+        const c = l / 100 - a2 * Math.max(-1, Math.min(k - 3, 9 - k, 1));
+        return Math.round(255 * c).toString(16).padStart(2, "0");
+      };
+      return "#" + f(0) + f(8) + f(4);
+    };
+    function applyFree() {
+      pad.color = hslHex(hue, light);
+      shadeBar.style.setProperty("--h", hue);
+      hueKnob.style.left = (hue / 360) * 100 + "%";
+      shadeKnob.style.left = (1 - light / 100) * 100 + "%";
       if (pad.tool === "eraser" || pad.tool === "hand") pad.tool = "pen";
       updateToolbar();
+    }
+    function dragBar(bar, onX) {
+      const at = (e) => {
+        const r = bar.getBoundingClientRect();
+        onX(Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)));
+      };
+      bar.addEventListener("pointerdown", (e) => {
+        e.preventDefault();
+        try {
+          bar.setPointerCapture(e.pointerId);
+        } catch (_) {}
+        SFX.play("color");
+        at(e);
+        const move = (ev) => at(ev);
+        const up = () => {
+          bar.removeEventListener("pointermove", move);
+          bar.removeEventListener("pointerup", up);
+          bar.removeEventListener("pointercancel", up);
+        };
+        bar.addEventListener("pointermove", move);
+        bar.addEventListener("pointerup", up);
+        bar.addEventListener("pointercancel", up);
+      });
+    }
+    dragBar(hueBar, (x) => {
+      hue = Math.round(x * 359);
+      light = 50; // al cambiar de tono, color puro
+      applyFree();
     });
-    input.addEventListener("change", () => closePops());
-    custom.appendChild(input);
-    cs.appendChild(custom);
+    dragBar(shadeBar, (x) => {
+      light = Math.round((1 - x) * 100);
+      applyFree();
+    });
+    shadeBar.style.setProperty("--h", hue);
+    hueKnob.style.left = "0%";
+    shadeKnob.style.left = "50%";
     // Tocar el lienzo cierra los desplegables; el cubo de pintura chapotea
     $("pad").addEventListener("pointerdown", () => {
       closePops();
@@ -776,8 +828,6 @@
     document.querySelectorAll("[data-tool]").forEach((b) => b.classList.toggle("active", b.dataset.tool === pad.tool));
     document.querySelectorAll(".size-btn").forEach((b) => b.classList.toggle("active", Number(b.dataset.size) === pad.size));
     document.querySelectorAll(".color-btn[data-color]").forEach((b) => b.classList.toggle("active", b.dataset.color === pad.color && pad.tool !== "eraser"));
-    const custom = document.querySelector(".color-btn.custom");
-    if (custom) custom.classList.toggle("active", !COLORS.includes(pad.color) && pad.tool !== "eraser");
     $("undoBtn").disabled = !pad.canUndo();
     $("redoBtn").disabled = !pad.canRedo();
     $("zoomOutBtn").disabled = pad.zoom <= 1;
