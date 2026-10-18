@@ -20,6 +20,8 @@
   window.addEventListener("pointerdown", unlock, { passive: true });
   window.addEventListener("keydown", unlock);
 
+  // Sonidos discretos: todo suena más bajo que el volumen nominal
+  const SOFT = 0.55;
   function tone(freq, start, dur, opts = {}) {
     const a = ac();
     if (!a || muted) return;
@@ -29,7 +31,7 @@
     o.type = opts.type || "sine";
     o.frequency.setValueAtTime(freq, t0);
     if (opts.to) o.frequency.exponentialRampToValueAtTime(opts.to, t0 + dur);
-    const vol = opts.vol ?? 0.18;
+    const vol = (opts.vol ?? 0.18) * SOFT;
     g.gain.setValueAtTime(0.0001, t0);
     g.gain.exponentialRampToValueAtTime(vol, t0 + 0.012);
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
@@ -52,7 +54,7 @@
     f.type = "bandpass";
     f.frequency.value = freq;
     const g = a.createGain();
-    g.gain.value = vol;
+    g.gain.value = vol * SOFT;
     src.connect(f).connect(g).connect(a.destination);
     src.start(a.currentTime + start);
   }
@@ -60,16 +62,16 @@
   const SOUNDS = {
     join: () => { tone(520, 0, 0.09, { type: "triangle" }); tone(780, 0.07, 0.12, { type: "triangle" }); },
     leave: () => { tone(500, 0, 0.1, { type: "triangle" }); tone(340, 0.08, 0.14, { type: "triangle" }); },
-    start: () => [523, 659, 784, 1047].forEach((f, i) => tone(f, i * 0.09, 0.18, { type: "square", vol: 0.08 })),
+    start: () => [523, 784].forEach((f, i) => tone(f, i * 0.1, 0.18, { type: "triangle", vol: 0.12 })),
     turn: () => { tone(880, 0, 0.12, { type: "sine", vol: 0.2 }); tone(1320, 0.1, 0.22, { type: "sine", vol: 0.16 }); },
     send: () => tone(600, 0, 0.12, { type: "sine", to: 1200, vol: 0.14 }),
     tick: () => tone(1000, 0, 0.05, { type: "square", vol: 0.06 }),
     timeup: () => { tone(220, 0, 0.25, { type: "sawtooth", vol: 0.09 }); tone(180, 0.22, 0.35, { type: "sawtooth", vol: 0.09 }); },
-    page: () => tone(300, 0, 0.16, { type: "triangle", to: 900, vol: 0.12 }),
-    point: () => [784, 988, 1175].forEach((f, i) => tone(f, i * 0.07, 0.14, { type: "triangle", vol: 0.14 })),
-    click: () => tone(1400, 0, 0.035, { type: "triangle", vol: 0.08 }),
+    page: () => tone(520, 0, 0.1, { type: "sine", to: 700, vol: 0.07 }),
+    point: () => [784, 1175].forEach((f, i) => tone(f, i * 0.08, 0.14, { type: "sine", vol: 0.12 })),
+    click: () => tone(1400, 0, 0.03, { type: "sine", vol: 0.05 }),
     pop: () => tone(420, 0, 0.09, { type: "sine", to: 900, vol: 0.16 }),
-    color: () => tone(700 + Math.random() * 500, 0, 0.07, { type: "sine", vol: 0.08 }),
+    color: () => tone(700 + Math.random() * 500, 0, 0.06, { type: "sine", vol: 0.05 }),
     splash: () => {
       noise(0.22, 0.07, 1800);
       tone(300, 0, 0.18, { type: "sine", to: 120, vol: 0.07 });
@@ -77,12 +79,9 @@
     undo: () => tone(900, 0, 0.12, { type: "triangle", to: 450, vol: 0.1 }),
     crumple: () => { noise(0.35, 0.09, 3000); },
     blip: () => tone(1180, 0, 0.07, { type: "sine", vol: 0.1 }),
-    drum: () => {
-      for (let i = 0; i < 14; i++) noise(0.05, 0.05 + i * 0.006, 900, i * 0.055);
-      tone(160, 0.8, 0.35, { type: "sine", vol: 0.25 });
-      noise(0.5, 0.14, 6000, 0.8);
-    },
-    end: () => [523, 659, 784, 659, 784, 1047].forEach((f, i) => tone(f, i * 0.11, 0.2, { type: "triangle", vol: 0.15 })),
+    // Antes era un redoble: ahora solo un "ta-chán" suave
+    drum: () => [659, 988].forEach((f, i) => tone(f, i * 0.12, 0.25, { type: "sine", vol: 0.12 })),
+    end: () => [523, 659, 784].forEach((f, i) => tone(f, i * 0.12, 0.22, { type: "sine", vol: 0.13 })),
   };
 
   // Trazo continuo: rasgueo de lápiz (o roce de goma) que sigue la velocidad del dedo

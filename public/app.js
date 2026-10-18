@@ -155,7 +155,7 @@
     if (!prev || prev.code !== next.code) return;
     if (prev.phase !== next.phase) {
       if (next.phase === "playing" && prev.phase === "lobby") return SFX.play("start");
-      if (next.phase === "end") return SFX.play(next.mode === "vote" ? "drum" : "end");
+      if (next.phase === "end") return next.mode === "vote" ? null : SFX.play("end");
       if (next.phase === "reveal") return SFX.play("page");
     }
     if (next.phase === "lobby") {
@@ -1250,7 +1250,7 @@
     const it = items[vIdx];
     if (!it) return;
     votes[it.k] = Number(b.dataset.s);
-    SFX.play(votes[it.k] >= 4 ? "pop" : "color");
+    SFX.play("color");
     paintVote();
     // Pasa solo al siguiente dibujo, con un momento para ver las estrellas
     const at = vIdx;
@@ -1258,7 +1258,6 @@
       setTimeout(() => {
         if (vIdx === at && state.task && state.task.type === "vote") {
           vIdx++;
-          SFX.play("page");
           paintVote();
         }
       }, 450);

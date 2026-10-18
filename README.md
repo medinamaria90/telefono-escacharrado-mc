@@ -30,7 +30,7 @@ La mecánica se adapta al número de jugadores:
 - Mientras se juega **no se ve quién hizo cada cosa**: se descubre al final.
 - Al terminar, el anfitrión va enseñando las historias **paso a paso, en todos los
   móviles a la vez**. Al adivinar un dibujo se ve el dibujo en grande con la
-  respuesta debajo, y antes del último paso suena un redoble.
+  respuesta debajo, y el último paso se anuncia con un «ta-chán» suave.
 - Desde la pantalla final se pueden volver a ver las historias tranquilamente.
 
 ### Modo Votación (3 a 12 jugadores)
@@ -40,7 +40,7 @@ La mecánica se adapta al número de jugadores:
   uno, **sin saber de quién es cada dibujo** (el suyo no le sale).
 - Al acabar la ronda se ven los dibujos ordenados por estrellas y ya con su autor,
   de dos en dos (si hay muchos, se desliza). Tocando uno se ve en grande.
-- Se eligen de 2 a 6 rondas. Al final, **podio** con redoble: tercero, segundo y
+- Se eligen de 2 a 6 rondas. Al final, **podio**: tercero, segundo y
   ganador (los empates comparten puesto), y debajo el resto de la clasificación.
 
 ### Sala de pruebas
@@ -94,7 +94,7 @@ trazo, roce de goma, siseo de spray, chapoteo al rellenar…
 
 ## Más detalles
 
-- **Sonidos** en todo el juego, con botón para silenciarlos (🔊).
+- **Sonidos** discretos y suaves en todo el juego, con botón para silenciarlos (🔊).
 - **Aviso de tiempo:** en los últimos 10 segundos el borde parpadea en rojo, el
   móvil vibra y suena un tic-tac.
 - **Modo claro por defecto**, con botón 🌙/☀️ para pasar a oscuro (cada móvil lo
