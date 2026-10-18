@@ -330,6 +330,11 @@
     box.textContent += (box.textContent ? "\n" : "") + msg;
   }
   window.addEventListener("error", function (e) {
+    var t = e.target;
+    if (t && t !== window && (t.tagName === "SCRIPT" || t.tagName === "LINK" || t.tagName === "IMG")) {
+      var src = String(t.src || t.href || "");
+      if (/umami|fonts\.g/.test(src)) return; // estadísticas o fuentes bloqueadas: no es un fallo del juego
+    }
     show("Error: " + (e.message || e.type) + " (" + String(e.filename || (e.target && (e.target.src || e.target.href)) || "").split("/").pop() + ":" + (e.lineno || "") + ")");
   }, true);
   window.addEventListener("unhandledrejection", function (e) {
