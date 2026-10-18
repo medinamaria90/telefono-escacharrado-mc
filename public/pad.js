@@ -15,6 +15,7 @@
     constructor(host, opts = {}) {
       this.host = host;
       this.onChange = opts.onChange || (() => {});
+      this.onStroke = opts.onStroke || (() => {});
       this.stage = document.createElement("div");
       this.stage.className = "pad-stage";
       this.inner = document.createElement("div");
@@ -192,6 +193,7 @@
         if (this.stroke) {
           this.ctx.putImageData(this.undoStack.pop(), 0, 0);
           this.stroke = null;
+          this.onStroke("end");
           this.onChange();
         }
         this.pan = null;
@@ -225,8 +227,9 @@
         return;
       }
       this._snapshot();
-      this.stroke = { last: p, lastMid: p };
+      this.stroke = { last: p, lastMid: p, t: performance.now() };
       this._dot(p);
+      this.onStroke("start", this.tool);
       this.dirty = true;
     }
     _move(e) {
@@ -251,6 +254,7 @@
         return;
       }
       if (!this.stroke) return;
+      const from = this.stroke.last;
       const events = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
       for (const ev of events.length ? events : [e]) {
         const p = this._pt(ev);
@@ -264,6 +268,10 @@
         this.stroke.last = p;
         this.stroke.lastMid = mid;
       }
+      const now = performance.now();
+      const dist = Math.hypot(this.stroke.last.x - from.x, this.stroke.last.y - from.y);
+      this.onStroke("move", dist / Math.max(4, now - this.stroke.t));
+      this.stroke.t = now;
     }
     _up(e) {
       this.pointers.delete(e.pointerId);
@@ -275,6 +283,7 @@
         this.ctx.lineTo(s.last.x, s.last.y);
         this.ctx.stroke();
         this.stroke = null;
+        this.onStroke("end");
         this.onChange();
       }
       if (this.pointers.size < 2) this.gesture = null;

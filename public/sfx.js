@@ -85,7 +85,75 @@
     end: () => [523, 659, 784, 659, 784, 1047].forEach((f, i) => tone(f, i * 0.11, 0.2, { type: "triangle", vol: 0.15 })),
   };
 
+  // Trazo continuo: rasgueo de lápiz (o roce de goma) que sigue la velocidad del dedo
+  let strokeNode = null;
+  function strokeStart(kind) {
+    const a = ac();
+    if (!a || muted) return;
+    strokeStop();
+    const len = a.sampleRate * 2;
+    const buf = a.createBuffer(1, len, a.sampleRate);
+    const d = buf.getChannelData(0);
+    let last = 0;
+    for (let i = 0; i < len; i++) {
+      // ruido con "grano", como el papel
+      const w = Math.random() * 2 - 1;
+      last = kind === "eraser" ? last * 0.85 + w * 0.15 : w;
+      d[i] = last * (Math.random() < 0.02 ? 2.2 : 1);
+    }
+    const src = a.createBufferSource();
+    src.buffer = buf;
+    src.loop = true;
+    const hp = a.createBiquadFilter();
+    hp.type = "highpass";
+    hp.frequency.value = kind === "eraser" ? 300 : 1800;
+    const bp = a.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = kind === "eraser" ? 900 : 4200;
+    bp.Q.value = kind === "eraser" ? 0.6 : 0.9;
+    const g = a.createGain();
+    g.gain.value = 0;
+    src.connect(hp).connect(bp).connect(g).connect(a.destination);
+    src.start();
+    strokeNode = { src, g, bp, kind, max: kind === "eraser" ? 0.22 : 0.16 };
+  }
+  function strokeMove(speed) {
+    if (!strokeNode || !ctx) return;
+    // speed: píxeles del lienzo por milisegundo
+    const v = Math.min(1, speed / 1.6);
+    const t = ctx.currentTime;
+    strokeNode.g.gain.setTargetAtTime(strokeNode.max * (0.15 + 0.85 * v), t, 0.03);
+    strokeNode.bp.frequency.setTargetAtTime((strokeNode.kind === "eraser" ? 700 : 3400) + v * 1800, t, 0.05);
+    clearTimeout(strokeNode.idle);
+    strokeNode.idle = setTimeout(() => strokeNode && strokeNode.g.gain.setTargetAtTime(0, ctx.currentTime, 0.04), 70);
+  }
+  function strokeStop() {
+    if (!strokeNode || !ctx) return;
+    const n = strokeNode;
+    strokeNode = null;
+    clearTimeout(n.idle);
+    n.g.gain.setTargetAtTime(0, ctx.currentTime, 0.03);
+    try {
+      n.src.stop(ctx.currentTime + 0.2);
+    } catch (_) {}
+  }
+
   window.SFX = {
+    strokeStart(kind) {
+      try {
+        strokeStart(kind);
+      } catch (_) {}
+    },
+    strokeMove(speed) {
+      try {
+        strokeMove(speed);
+      } catch (_) {}
+    },
+    strokeStop() {
+      try {
+        strokeStop();
+      } catch (_) {}
+    },
     play(name) {
       try {
         SOUNDS[name] && SOUNDS[name]();

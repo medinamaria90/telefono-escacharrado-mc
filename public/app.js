@@ -653,7 +653,14 @@
   const sizePx = (i) => Math.round(4 + (i * 22) / (SIZES.length - 1));
   function ensurePad() {
     if (pad) return;
-    pad = new Pad($("pad"), { onChange: updateToolbar });
+    pad = new Pad($("pad"), {
+      onChange: updateToolbar,
+      onStroke: (kind, v) => {
+        if (kind === "start") SFX.strokeStart(v);
+        else if (kind === "move") SFX.strokeMove(v);
+        else SFX.strokeStop();
+      },
+    });
     const badge = el("span", "zoom-badge");
     badge.id = "zoomBadge";
     badge.hidden = true;
