@@ -1,6 +1,49 @@
 // Dibulíos: lógica del navegador.
 (function () {
   const $ = (id) => document.getElementById(id);
+
+  // ---------- estadísticas anónimas (Umami) ----------
+  // Cada pantalla cuenta como una "página" y las acciones clave como eventos.
+  const SCREEN_PATH = {
+    "s-home": ["/inicio", "Inicio"],
+    "s-lobby": ["/sala", "Sala de espera"],
+    "s-text": ["/escribir-adivinar", "Escribir o adivinar"],
+    "s-draw": ["/dibujar", "Dibujar"],
+    "s-wait": ["/esperando", "Esperando"],
+    "s-result": ["/resultado-duo", "Resultado dúo"],
+    "s-reveal": ["/revelacion", "Revelación"],
+    "s-end": ["/final", "Final"],
+    "s-book": ["/cuaderno", "Mi cuaderno"],
+  };
+  const pending = [];
+  function umamiCall(fn) {
+    if (window.umami && typeof window.umami.track === "function") {
+      try {
+        fn(window.umami);
+      } catch (_) {}
+    } else if (pending.length < 30) pending.push(fn);
+  }
+  // El script carga en diferido: lo que pase antes se envía al llegar
+  const flush = setInterval(() => {
+    if (window.umami && typeof window.umami.track === "function") {
+      clearInterval(flush);
+      pending.splice(0).forEach(umamiCall);
+    }
+  }, 500);
+  setTimeout(() => clearInterval(flush), 30000);
+  function track(name, data) {
+    umamiCall((u) => u.track(name, data));
+  }
+  let lastTracked = null;
+  function trackScreen(id) {
+    let key = id;
+    if (id === "s-draw" && soloMode) key = "solo";
+    if (key === lastTracked) return;
+    lastTracked = key;
+    const [url, title] = key === "solo" ? ["/dibujo-libre", "Dibujo libre"] : SCREEN_PATH[id] || ["/" + id, id];
+    umamiCall((u) => u.track((props) => ({ ...props, url, title: "Dibulíos · " + title })));
+  }
+
   const EMOJIS = AVATARS.ids;
   const COLORS = [
     "#1b1b1f", "#4a4d57", "#8a8e99", "#c7cad1", "#ffffff",
@@ -256,7 +299,7 @@
     store.set("tg-install-hidden", "1");
     $("installCard").hidden = true;
   });
-  if (installed) track("abierta_como_app", { sistema: isIOS ? "ios" : "android" });
+  if (installed) setTimeout(() => track("abierta_como_app", { sistema: isIOS ? "ios" : "android" }), 0);
   if (!installed) {
     if (isIOS) showInstall("ios");
     // Navegadores sin botón de instalar: indicación manual tras unos segundos
@@ -272,48 +315,6 @@
     show("s-home");
     renderChrome();
   });
-
-  // ---------- estadísticas anónimas (Umami) ----------
-  // Cada pantalla cuenta como una "página" y las acciones clave como eventos.
-  const SCREEN_PATH = {
-    "s-home": ["/inicio", "Inicio"],
-    "s-lobby": ["/sala", "Sala de espera"],
-    "s-text": ["/escribir-adivinar", "Escribir o adivinar"],
-    "s-draw": ["/dibujar", "Dibujar"],
-    "s-wait": ["/esperando", "Esperando"],
-    "s-result": ["/resultado-duo", "Resultado dúo"],
-    "s-reveal": ["/revelacion", "Revelación"],
-    "s-end": ["/final", "Final"],
-    "s-book": ["/cuaderno", "Mi cuaderno"],
-  };
-  const pending = [];
-  function umamiCall(fn) {
-    if (window.umami && typeof window.umami.track === "function") {
-      try {
-        fn(window.umami);
-      } catch (_) {}
-    } else if (pending.length < 30) pending.push(fn);
-  }
-  // El script carga en diferido: lo que pase antes se envía al llegar
-  const flush = setInterval(() => {
-    if (window.umami && typeof window.umami.track === "function") {
-      clearInterval(flush);
-      pending.splice(0).forEach(umamiCall);
-    }
-  }, 500);
-  setTimeout(() => clearInterval(flush), 30000);
-  function track(name, data) {
-    umamiCall((u) => u.track(name, data));
-  }
-  let lastTracked = null;
-  function trackScreen(id) {
-    let key = id;
-    if (id === "s-draw" && soloMode) key = "solo";
-    if (key === lastTracked) return;
-    lastTracked = key;
-    const [url, title] = key === "solo" ? ["/dibujo-libre", "Dibujo libre"] : SCREEN_PATH[id] || ["/" + id, id];
-    umamiCall((u) => u.track((props) => ({ ...props, url, title: "Dibulíos · " + title })));
-  }
 
   // ---------- utilidades de interfaz ----------
   const screens = ["s-home", "s-lobby", "s-text", "s-draw", "s-wait", "s-result", "s-reveal", "s-end", "s-book"];
