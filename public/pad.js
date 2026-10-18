@@ -16,6 +16,9 @@
       this.host = host;
       this.onChange = opts.onChange || (() => {});
       this.onStroke = opts.onStroke || (() => {});
+      this.onOrient = opts.onOrient || (() => {});
+      this.blank = true; // lienzo sin tocar: su orientación sigue a la del móvil
+      this.screenLandscape = false;
       this.stage = document.createElement("div");
       this.stage.className = "pad-stage";
       this.inner = document.createElement("div");
@@ -54,19 +57,34 @@
       this._ro.observe(this.stage);
     }
 
-    // ---- tamaño y zoom ----
-    // Girado (móvil en horizontal): el lienzo sigue siendo vertical por dentro, pero se
-    // enseña tumbado para aprovechar todo el ancho. El dibujo se guarda tal cual, en vertical.
-    setRotated(r) {
+    // ---- orientación ----
+    // Por dentro el lienzo siempre mide 600x900. Un dibujo horizontal se guarda girado
+    // ahí dentro (rotated) y se enseña tumbado; al enviarlo se endereza (900x600).
+    // Mientras el lienzo está en blanco sigue la orientación del móvil; desde el primer
+    // trazo, el dibujo se queda con la suya aunque se gire el móvil.
+    get orient() {
+      return this.rotated ? "h" : "v";
+    }
+    setScreenLandscape(l) {
+      this.screenLandscape = !!l;
+      if (this.blank) this._setRotated(this.screenLandscape);
+      this.onOrient(this.rotated !== this.screenLandscape);
+    }
+    _setRotated(r) {
       r = !!r;
       if (r === !!this.rotated) return;
       this.rotated = r;
+      // Lo deshecho se pintó en la otra orientación: ya no vale
+      this.undoStack = [];
+      this.redoStack = [];
       this.zoom = 1;
       this.layout();
       this.stage.scrollLeft = 0;
       this.stage.scrollTop = 0;
       this.onChange();
     }
+
+    // ---- tamaño y zoom ----
     baseWidth() {
       const sw = this.stage.clientWidth - 2;
       const sh = this.stage.clientHeight - 2;
@@ -137,6 +155,7 @@
 
     // ---- historial ----
     _snapshot() {
+      this.blank = false;
       this.undoStack.push(this.ctx.getImageData(0, 0, W, H));
       if (this.undoStack.length > MAX_UNDO) this.undoStack.shift();
       this.redoStack = [];
@@ -146,6 +165,7 @@
       this.redoStack.push(this.ctx.getImageData(0, 0, W, H));
       this.ctx.putImageData(this.undoStack.pop(), 0, 0);
       this.dirty = true;
+      this.blank = false;
       this.onChange();
     }
     redo() {
@@ -153,6 +173,7 @@
       this.undoStack.push(this.ctx.getImageData(0, 0, W, H));
       this.ctx.putImageData(this.redoStack.pop(), 0, 0);
       this.dirty = true;
+      this.blank = false;
       this.onChange();
     }
     clear(record = true) {
@@ -163,6 +184,12 @@
       this.ctx.fillRect(0, 0, W, H);
       this.ctx.restore();
       if (record) this.dirty = true;
+      this.blank = true;
+      // Lienzo vacío otra vez: vuelve a seguir la orientación del móvil
+      if (record && !!this.rotated !== this.screenLandscape) {
+        this._setRotated(this.screenLandscape);
+        this.onOrient(false);
+      }
       this.onChange();
     }
     reset() {
@@ -171,6 +198,8 @@
       this.redoStack = [];
       this.clear(false);
       this.dirty = false;
+      this.blank = true;
+      this.rotated = this.screenLandscape;
       this.zoom = 1;
       this.tool = "pen";
       this.layout();
@@ -183,8 +212,20 @@
       const img = new Image();
       img.onload = () => {
         this.reset();
-        this.ctx.drawImage(img, 0, 0, W, H);
+        const landscape = img.naturalWidth > img.naturalHeight;
+        this.rotated = landscape;
+        this.layout();
+        if (landscape) {
+          // Dibujo horizontal: se guarda girado dentro del lienzo vertical
+          this.ctx.save();
+          this.ctx.translate(W, 0);
+          this.ctx.rotate(Math.PI / 2);
+          this.ctx.drawImage(img, 0, 0, H, W);
+          this.ctx.restore();
+        } else this.ctx.drawImage(img, 0, 0, W, H);
         this.dirty = false;
+        this.blank = false;
+        this.onOrient(this.rotated !== this.screenLandscape);
         this.onChange();
         done && done(true);
       };
@@ -197,8 +238,17 @@
     canRedo() {
       return this.redoStack.length > 0;
     }
-    toDataURL() {
-      return this.canvas.toDataURL("image/png");
+    /** Imagen tal y como la ve quien dibuja: vertical (600x900) u horizontal (900x600) */
+    toDataURL(type = "image/png", quality) {
+      if (!this.rotated) return this.canvas.toDataURL(type, quality);
+      const out = document.createElement("canvas");
+      out.width = H;
+      out.height = W;
+      const c = out.getContext("2d");
+      c.translate(0, W);
+      c.rotate(-Math.PI / 2);
+      c.drawImage(this.canvas, 0, 0);
+      return out.toDataURL(type, quality);
     }
 
     // ---- entrada ----

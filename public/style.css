@@ -683,3 +683,4 @@ body.vote-end .end-center { gap: 8px; }
   .mode-card .seg button { font-size: .8rem; padding-inline: 2px; }
   #copyBtn { font-size: .9rem; padding-inline: 10px; }
 }
+.book-item img { object-fit: contain; }

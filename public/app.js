@@ -807,6 +807,7 @@
   });
 
   function sendDrawing() {
+    if (pad.orient === "h") track("dibujo_horizontal", { modo: modeName(state && state.mode) });
     socket.emit("submit", { stepKey: currentStepKey, content: pad.toDataURL() });
     SFX.play("send");
   }
@@ -918,6 +919,10 @@
         if (kind === "start") SFX.strokeStart(v);
         else if (kind === "move") SFX.strokeMove(v);
         else SFX.strokeStop();
+      },
+      // El dibujo ya tiene orientación y el móvil está girado al revés: se avisa
+      onOrient: (mismatch) => {
+        if (mismatch && !$("s-draw").hidden) toast(pad.orient === "h" ? "Este dibujo es horizontal: gira el móvil para verlo en grande." : "Este dibujo es vertical: gira el móvil para verlo en grande.");
       },
     });
     const badge = el("span", "zoom-badge");
@@ -1032,16 +1037,16 @@
     shadeKnob.style.left = "50%";
     // Tocar el lienzo cierra los desplegables; el cubo de pintura chapotea
     $("pad").addEventListener("pointerdown", () => closePops(), true);
-    // Móvil en horizontal: el lienzo se tumba para ocupar todo el ancho
+    // Pantalla en horizontal: el lienzo en blanco pasa a ser horizontal
     try {
-      const mq = window.matchMedia(LANDSCAPE_PHONE);
-      const apply = () => pad.setRotated(mq.matches);
+      const mq = window.matchMedia(LANDSCAPE);
+      const apply = () => pad.setScreenLandscape(mq.matches);
       apply();
       if (mq.addEventListener) mq.addEventListener("change", apply);
       else if (mq.addListener) mq.addListener(apply);
     } catch (_) {}
   }
-  const LANDSCAPE_PHONE = "(orientation: landscape) and (max-height: 540px)";
+  const LANDSCAPE = "(orientation: landscape)";
   const POPS = [["sizes", "sizeToggle"], ["colors", "colorToggle"]];
   function togglePop(popId, open) {
     for (const [pid, bid] of POPS) {
@@ -1556,7 +1561,7 @@
       const list = readBook();
       const item = list.find((x) => x.id === editingId);
       if (item && pad.dirty) {
-        item.img = pad.canvas.toDataURL("image/jpeg", 0.85);
+        item.img = pad.toDataURL("image/jpeg", 0.85);
         item.date = new Date().toISOString();
         if (!writeBook(list)) return toast("No queda espacio en este móvil para guardar los cambios.");
         SFX.play("point");
@@ -1570,7 +1575,7 @@
     }
     if (!pad.dirty) return toast("Dibuja algo antes de guardarlo.");
     const list = readBook();
-    list.unshift({ id: Date.now(), prompt: $("drawWhat").textContent, date: new Date().toISOString(), img: pad.canvas.toDataURL("image/jpeg", 0.85) });
+    list.unshift({ id: Date.now(), prompt: $("drawWhat").textContent, date: new Date().toISOString(), img: pad.toDataURL("image/jpeg", 0.85) });
     if (list.length > BOOK_MAX) list.length = BOOK_MAX;
     if (!writeBook(list)) return toast("No queda espacio en este móvil para guardar más dibujos.");
     SFX.play("point");

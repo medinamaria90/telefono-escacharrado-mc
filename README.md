@@ -72,6 +72,11 @@ Lienzo vertical que aprovecha toda la pantalla. Herramientas:
 - **34 colores** y una barra de arcoíris para elegir **cualquier color**, con otra
   barra para hacerlo más claro u oscuro.
 - **Zoom y desplazamiento con dos dedos** (en ordenador, Ctrl + rueda del ratón).
+- **Vertical u horizontal:** el lienzo se pone según tengas el móvil. El primer
+  trazo decide la orientación de ese dibujo; si después giras el móvil, el dibujo
+  sigue derecho (más pequeño) y avisa de que lo gires para verlo en grande. Con la
+  papelera vuelve a quedar libre. Cada dibujo se enseña a todos tal y como se pintó,
+  así que en una partida puede haber dibujos verticales y horizontales.
 
 Cada herramienta tiene su sonido: rasgueo de lápiz que sigue la velocidad del
 trazo, roce de goma, siseo de spray, chapoteo al rellenar…
@@ -101,9 +106,8 @@ trazo, roce de goma, siseo de spray, chapoteo al rellenar…
   algo, aparece un aviso con el botón «Actualizar».
 - Pensado para móvil: cada pantalla cabe sin deslizar. En **tableta** los botones
   son más grandes y, en horizontal, las herramientas pasan a un lateral.
-- **Móvil en horizontal:** el inicio se reparte en dos columnas y, al dibujar, el
-  lienzo se tumba para ocupar todo el ancho, con las herramientas a un lado. El
-  dibujo se guarda en vertical (girado), como todos.
+- **Móvil en horizontal:** el inicio y la sala se reparten en dos columnas y, al
+  dibujar, las herramientas pasan a un lado.
 
 ## Privacidad y datos
 
