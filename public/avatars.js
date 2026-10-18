@@ -327,44 +327,35 @@
         `<ellipse cx="50" cy="58" rx="32" ry="30" fill="#7ad19a" ${S}/>` + `<circle cx="38" cy="50" r="7" fill="#fff" ${S}/><circle cx="62" cy="50" r="7" fill="#fff" ${S}/><circle cx="39" cy="51" r="3.4" fill="${O}"/><circle cx="63" cy="51" r="3.4" fill="${O}"/>` +
         `<path d="M32 68 q18 12 36 0 z" fill="#fff" ${S}/><path d="M38 68 l3 4 l3 -4 l3 4 l3 -4 l3 4 l3 -4 l3 4 l3 -4" fill="none" stroke="${O}" stroke-width="2"/>` + `<circle cx="44" cy="62" r="1.4" fill="${O}"/><circle cx="56" cy="62" r="1.4" fill="${O}"/>`,
     },
-    sombrero: {
-      label: "Señor sonriente",
-      svg: bg("#7fbf6a") +
-        // jardín: flores rosas detrás
-        [[14,22,"#ff6b9a"],[24,12,"#ff9ab8"],[84,18,"#ff6b9a"],[90,32,"#ffb36b"],[10,40,"#ff9ab8"],[78,8,"#ff9ab8"],[92,48,"#ff6b9a"]].map(([x,y,c]) => `<circle cx="${x}" cy="${y}" r="4.2" fill="${c}"/><circle cx="${x}" cy="${y}" r="1.3" fill="#ffe27a"/>`).join("") +
-        // polo crema con cuello abierto y gafas de pasta colgadas
-        `<path d="M8 100 q4 -24 42 -27 q38 3 42 27z" fill="#f4e4b2" ${S}/>` +
-        `<path d="M43 73 l7 15 l7 -15z" fill="#dc9e7a" stroke="${O}" stroke-width="2.4" stroke-linejoin="round"/>` +
-        `<path d="M34 74 l9 -2 l7 16 l-12 -4z M66 74 l-9 -2 l-7 16 l12 -4z" fill="#fbf0cc" ${S}/>` +
-        `<g transform="rotate(-12 60 92)"><rect x="56" y="84" width="7" height="8" rx="2" fill="#ffffff44" stroke="#7a4a24" stroke-width="2.4"/><rect x="56" y="93.5" width="7" height="8" rx="2" fill="#ffffff44" stroke="#7a4a24" stroke-width="2.4"/></g>` +
-        `<rect x="43" y="64" width="14" height="10" fill="#dc9e7a" ${S}/>` +
-        // pelo ondulado, castaño canoso, por detrás (pegado a la cabeza)
-        `<path d="M25 61 q-6 -6 -5 -16 q-3 -12 6 -20 q8 -8 22 -9 q15 -1 23 8 q8 8 6 20 q2 8 -4 16 q-1 -9 -4 -14 q-22 -9 -42 1 q-1 7 -2 14z" fill="#9b8f7c" ${S}/>` +
-        `<path d="M76 56 q5 1 6 -4 M23 56 q-4 0 -5 -4" fill="none" stroke="#9b8f7c" stroke-width="3.5" stroke-linecap="round"/>` +
-        // cara morena y sonrosada
-        `<circle cx="25" cy="55" r="5.5" fill="#dc9e7a" ${S}/><circle cx="75" cy="55" r="5.5" fill="#dc9e7a" ${S}/>` +
-        `<ellipse cx="50" cy="52" rx="23.5" ry="26.5" fill="#dc9e7a" ${S}/>` +
-        // flequillo despeinado barrido hacia un lado, con canas
-        `<path d="M27 44 q-1 -15 13 -19 q14 -4 26 3 q8 5 7 14 q-4 -5 -9 -5 q2 4 1 8 q-5 -7 -12 -8 q-7 -1 -12 3 q-1 -3 1 -5 q-7 2 -15 9z" fill="#9b8f7c" ${S}/>` +
-        `<path d="M64 36 q7 1 9 8 q-4 -2 -6 -1z" fill="#9b8f7c" ${S}/>` +
-        `<path d="M55 37 q4 4 2 9" fill="none" stroke="#9b8f7c" stroke-width="3.2" stroke-linecap="round"/><path d="M55 37 q4 4 2 9" fill="none" stroke="#e0d8ca" stroke-width="1.2" stroke-linecap="round"/>` +
-        `<path d="M35 31 q8 -5 18 -3 M48 28 q9 0 15 5 M33 37 q5 -3 9 -4" fill="none" stroke="#e0d8ca" stroke-width="2.3" stroke-linecap="round"/>` +
-        `<path d="M24 49 q-3 -6 1 -11 M76 49 q3 -6 -1 -11" fill="none" stroke="#e0d8ca" stroke-width="2" stroke-linecap="round"/>` +
-        // cejas, ojos achinados de sonreír y arruguitas
-        `<path d="M34 44 q5 -3 10 -1 M56 43 q5 -2 10 1" fill="none" stroke="#5c4a3a" stroke-width="2.6" stroke-linecap="round"/>` +
-        `<circle cx="39" cy="51" r="2.7" fill="${O}"/><circle cx="61" cy="51" r="2.7" fill="${O}"/><circle cx="39.8" cy="50.2" r=".8" fill="#fff"/><circle cx="61.8" cy="50.2" r=".8" fill="#fff"/>` +
-        `<path d="M35 54.5 q4 2.2 8 0 M57 54.5 q4 2.2 8 0" fill="none" stroke="#b5735a" stroke-width="1.6" stroke-linecap="round"/>` +
-        `<path d="M31 50 l-3 -1.5 M31 53 l-3 0.8 M69 50 l3 -1.5 M69 53 l3 0.8" stroke="#b5735a" stroke-width="1.5" stroke-linecap="round"/>` +
-        // nariz, mofletes y sonrisa grande cerrada con sus líneas
-        `<path d="M50 50 q-3 7 0 9 q2 1 4 -1" fill="none" stroke="#b5735a" stroke-width="2.2" stroke-linecap="round"/>` +
-        `<ellipse cx="33" cy="60" rx="5" ry="3.2" fill="#f08a8a" opacity=".55"/><ellipse cx="67" cy="60" rx="5" ry="3.2" fill="#f08a8a" opacity=".55"/>` +
-        `<path d="M38 61 q12 11 24 0" fill="none" stroke="${O}" stroke-width="2.8" stroke-linecap="round"/>` +
-        `<path d="M36 58 q-1 3 1 5 M64 58 q1 3 -1 5" fill="none" stroke="#b5735a" stroke-width="1.6" stroke-linecap="round"/>`,
+    bodeguero: {
+      label: "Perrito bodeguero",
+      svg: bg("#ffe27a") +
+        // orejas de pico, negras con interior rosado
+        `<path d="M27 40 l-6 -24 l18 13z" fill="#1b1b1f" ${S}/><path d="M73 40 l6 -24 l-18 13z" fill="#1b1b1f" ${S}/>` +
+        `<path d="M27 33 l-3 -11 l9 7z M73 33 l3 -11 l-9 7z" fill="#f2a6a6"/>` +
+        // cabeza blanca
+        `<ellipse cx="50" cy="56" rx="27" ry="27" fill="#ffffff" ${S}/>` +
+        // manchas negras con fuego a los lados de la cara
+        `<path d="M24 52 q0 -20 18 -24 q4 10 2 22 q-6 10 -18 10 q-2 -4 -2 -8z" fill="#1b1b1f"/>` +
+        `<path d="M76 52 q0 -20 -18 -24 q-4 10 -2 22 q6 10 18 10 q2 -4 2 -8z" fill="#1b1b1f"/>` +
+        `<path d="M27 58 q6 6 14 2 q-1 6 -8 8 q-5 -2 -6 -10z M73 58 q-6 6 -14 2 q1 6 8 8 q5 -2 6 -10z" fill="#c98a4b"/>` +
+        // cejas canela
+        `<ellipse cx="38" cy="43" rx="4" ry="2.4" fill="#c98a4b"/><ellipse cx="62" cy="43" rx="4" ry="2.4" fill="#c98a4b"/>` +
+        // ojos brillantes
+        `<circle cx="39" cy="50" r="4.2" fill="#1b1b1f" stroke="#fff" stroke-width="1.2"/><circle cx="61" cy="50" r="4.2" fill="#1b1b1f" stroke="#fff" stroke-width="1.2"/>` +
+        `<circle cx="40.4" cy="48.6" r="1.3" fill="#fff"/><circle cx="62.4" cy="48.6" r="1.3" fill="#fff"/>` +
+        // hocico blanco, nariz y boquita con lengua
+        `<ellipse cx="50" cy="66" rx="12" ry="9" fill="#ffffff" ${S}/>` +
+        `<ellipse cx="50" cy="61.5" rx="5" ry="3.6" fill="#1b1b1f"/><ellipse cx="48.6" cy="60.6" rx="1.4" ry=".8" fill="#ffffff99"/>` +
+        `<path d="M50 65 v3 M44 68 q6 4 12 0" fill="none" stroke="${O}" stroke-width="2.4" stroke-linecap="round"/>` +
+        `<path d="M47.5 70 q2.5 6 5 0" fill="#ff8fb8" stroke="${O}" stroke-width="1.8"/>` +
+        // collar rojo
+        `<path d="M30 80 q20 10 40 0" fill="none" stroke="#e5252a" stroke-width="5" stroke-linecap="round"/><circle cx="50" cy="87" r="3.4" fill="#ffd21f" stroke="${O}" stroke-width="1.6"/>`,
     },
   };
 
-  const IDS = Object.keys(A).filter((k) => k !== "sombrero");
-  IDS.splice(10, 0, "sombrero");
+  const IDS = Object.keys(A).filter((k) => k !== "bodeguero");
+  IDS.splice(10, 0, "bodeguero");
   function svgFor(id) {
     const a = A[id];
     if (!a) return null;
