@@ -33,15 +33,15 @@
   const session = {
     get() {
       try {
-        return JSON.parse(sessionStorage.getItem("tg-session") || "null");
+        return JSON.parse(localStorage.getItem("tg-session") || "null");
       } catch (_) {
         return null;
       }
     },
     set(v) {
       try {
-        if (v) sessionStorage.setItem("tg-session", JSON.stringify(v));
-        else sessionStorage.removeItem("tg-session");
+        if (v) localStorage.setItem("tg-session", JSON.stringify(v));
+        else localStorage.removeItem("tg-session");
       } catch (_) {}
     },
   };
@@ -66,7 +66,7 @@
   socket.on("connect", () => {
     $("offline").hidden = true;
     const s = session.get();
-    if (s && s.code && s.token) {
+    if (s && s.code && s.token && (!inviteCode || inviteCode === s.code)) {
       socket.emit("join", { code: s.code, token: s.token, rejoinOnly: true }, (res) => {
         if (!res.ok) {
           session.set(null);
@@ -85,6 +85,7 @@
   socket.on("state", (s) => {
     clockOffset = s.now - Date.now();
     playCues(state, s);
+    if (!state) guardBack();
     state = s;
     if (s.phase !== "end") {
       gallery = null;
@@ -107,10 +108,18 @@
       else if (b < a) SFX.play("leave");
       return;
     }
-    if (next.phase === "reveal" && prev.reveal && next.reveal && (prev.reveal.book !== next.reveal.book || prev.reveal.entry !== next.reveal.entry)) return SFX.play("page");
+    if (next.phase === "reveal" && prev.reveal && next.reveal && (prev.reveal.book !== next.reveal.book || prev.reveal.entry !== next.reveal.entry)) {
+      const last = next.reveal.entry === next.reveal.totalEntries - 1 && next.reveal.entry > prev.reveal.entry;
+      return SFX.play(last ? "drum" : "page");
+    }
     if (next.phase === "playing") {
       if (next.result && !prev.result) return SFX.play(next.result.cards.some((c) => c.points > 0) ? "point" : "page");
       if (next.result && prev.result && next.result.teamScore > prev.result.teamScore) return SFX.play("point");
+      if (next.task && prev.task && next.task.stepKey === prev.task.stepKey) {
+        const a = prev.players.filter((p) => p.done).length;
+        const b = next.players.filter((p) => p.done).length;
+        if (b > a && next.task.submitted) SFX.play("blip");
+      }
       if (next.task && prev.task && next.task.stepKey !== prev.task.stepKey) {
         SFX.play("turn");
         SFX.vibrate(60);
@@ -196,6 +205,7 @@
         store.set("tg-emoji", e);
         for (const x of g.children) x.setAttribute("aria-checked", String(x.dataset.id === e));
         paintCurrentAvatar();
+        SFX.play("pop");
         $("emojiSheet").hidden = true;
       });
       g.appendChild(b);
@@ -222,7 +232,10 @@
     node.appendChild(who(p, suffix));
   }
   const nameOf = (p, fallback) => (p ? p.name : fallback);
-  $("emojiBtn").addEventListener("click", () => ($("emojiSheet").hidden = false));
+  $("emojiBtn").addEventListener("click", () => {
+    SFX.play("click");
+    $("emojiSheet").hidden = false;
+  });
   $("emojiSheet").addEventListener("click", (e) => {
     if (e.target === $("emojiSheet")) $("emojiSheet").hidden = true;
   });
@@ -250,7 +263,11 @@
       return;
     }
     session.set({ code: res.code, token: res.token });
-    history.replaceState(null, "", "/?sala=" + res.code);
+    try {
+      history.replaceState(null, "", "/?sala=" + res.code);
+    } catch (_) {}
+    guardBack();
+    SFX.play("pop");
     keepAwake();
   }
   $("createBtn").addEventListener("click", () => {
@@ -279,19 +296,52 @@
     $("homeActions").classList.add("invited");
   }
 
-  // ---------- salir ----------
-  $("leaveBtn").addEventListener("click", () => ($("leaveSheet").hidden = false));
-  $("leaveNo").addEventListener("click", () => ($("leaveSheet").hidden = true));
+  // ---------- salir, logo y botón atrás ----------
+  function askLeave(fromLogo) {
+    SFX.play("click");
+    $("leaveTitle").textContent = fromLogo ? "¿Volver al inicio?" : "¿Salir de la sala?";
+    $("leaveText").textContent =
+      state && state.phase !== "lobby" ? "Saldrás de la partida y tus turnos se saltarán." : "Saldrás de la sala. Puedes volver a entrar con el código.";
+    $("leaveSheet").hidden = false;
+  }
+  $("leaveBtn").addEventListener("click", () => askLeave(false));
+  $("brandBtn").addEventListener("click", () => {
+    if (state) askLeave(true);
+    else show("s-home");
+  });
+  $("leaveNo").addEventListener("click", () => {
+    SFX.play("click");
+    $("leaveSheet").hidden = true;
+  });
   $("leaveYes").addEventListener("click", () => {
     $("leaveSheet").hidden = true;
+    SFX.play("leave");
     socket.emit("leave");
     session.set(null);
     state = null;
     gallery = null;
-    history.replaceState(null, "", "/");
+    try {
+      history.replaceState(null, "", "/");
+    } catch (_) {}
     $("joinInvite").hidden = true;
     show("s-home");
     renderChrome();
+  });
+  // El botón «Atrás» del móvil no saca de la partida: pregunta antes
+  let backGuarded = false;
+  function guardBack() {
+    if (backGuarded) return;
+    try {
+      history.pushState({ dibulios: 1 }, "");
+      backGuarded = true;
+    } catch (_) {}
+  }
+  window.addEventListener("popstate", () => {
+    backGuarded = false;
+    if (state) {
+      guardBack();
+      askLeave(false);
+    }
   });
 
   // ---------- render principal ----------
@@ -366,11 +416,17 @@
   }
   $("timeSeg").addEventListener("click", (e) => {
     const v = e.target.dataset && e.target.dataset.v;
-    if (v && isHost()) socket.emit("settings", { time: v });
+    if (v && isHost()) {
+      SFX.play("click");
+      socket.emit("settings", { time: v });
+    }
   });
   $("roundsSeg").addEventListener("click", (e) => {
     const v = e.target.dataset && e.target.dataset.v;
-    if (v && isHost()) socket.emit("settings", { duoRounds: Number(v) });
+    if (v && isHost()) {
+      SFX.play("click");
+      socket.emit("settings", { duoRounds: Number(v) });
+    }
   });
   $("startBtn").addEventListener("click", () => {
     keepAwake();
@@ -380,6 +436,7 @@
     const v = $("shareLink").value;
     try {
       await navigator.clipboard.writeText(v);
+      SFX.play("pop");
       toast("Enlace copiado");
     } catch (_) {
       $("shareLink").hidden = false;
@@ -492,12 +549,8 @@
     const ul = $("waitPlayers");
     ul.innerHTML = "";
     state.players.forEach((p) => ul.appendChild(playerItem(p, { status: true })));
-    const pending = state.players.filter((p) => !p.done && !p.left);
-    const stuck = pending.some((p) => !p.connected) || !task.deadline;
-    $("skipBtn").hidden = !(isHost() && pending.length > 0 && stuck);
   }
   $("unsubmitBtn").addEventListener("click", () => socket.emit("unsubmit"));
-  $("skipBtn").addEventListener("click", () => socket.emit("skip"));
 
   // Reloj: cuenta atrás y envío automático al acabarse el tiempo
   let lastSec = null;
@@ -584,6 +637,7 @@
       dot.style.width = dot.style.height = sizePx(i) + "px";
       b.appendChild(dot);
       b.addEventListener("click", () => {
+        SFX.play("click");
         pad.size = s;
         if (pad.tool === "fill" || pad.tool === "hand") pad.tool = "pen";
         updateToolbar();
@@ -601,6 +655,7 @@
       b.dataset.color = c;
       b.setAttribute("aria-label", "Color " + c);
       b.addEventListener("click", () => {
+        SFX.play("color");
         pad.color = c;
         if (pad.tool === "eraser" || pad.tool === "hand") pad.tool = "pen";
         updateToolbar();
@@ -624,8 +679,11 @@
     input.addEventListener("change", () => closePops());
     custom.appendChild(input);
     cs.appendChild(custom);
-    // Tocar el lienzo cierra los desplegables
-    $("pad").addEventListener("pointerdown", () => closePops(), true);
+    // Tocar el lienzo cierra los desplegables; el cubo de pintura chapotea
+    $("pad").addEventListener("pointerdown", () => {
+      closePops();
+      if (pad.tool === "fill") setTimeout(() => SFX.play("splash"), 0);
+    }, true);
   }
   const POPS = [["sizes", "sizeToggle"], ["colors", "colorToggle"]];
   function togglePop(popId, open) {
@@ -643,8 +701,14 @@
   function toggleColors(open) {
     togglePop("colors", open);
   }
-  $("colorToggle").addEventListener("click", () => togglePop("colors"));
-  $("sizeToggle").addEventListener("click", () => togglePop("sizes"));
+  $("colorToggle").addEventListener("click", () => {
+    SFX.play("click");
+    togglePop("colors");
+  });
+  $("sizeToggle").addEventListener("click", () => {
+    SFX.play("click");
+    togglePop("sizes");
+  });
   let badgeTimer;
   function updateToolbar() {
     if (!pad) return;
@@ -676,14 +740,27 @@
   }
   document.querySelectorAll("[data-tool]").forEach((b) =>
     b.addEventListener("click", () => {
+      SFX.play("click");
       pad.tool = b.dataset.tool;
       updateToolbar();
     })
   );
-  $("undoBtn").addEventListener("click", () => pad.undo());
-  $("redoBtn").addEventListener("click", () => pad.redo());
-  $("zoomInBtn").addEventListener("click", () => pad.zoomIn());
-  $("zoomOutBtn").addEventListener("click", () => pad.zoomOut());
+  $("undoBtn").addEventListener("click", () => {
+    SFX.play("undo");
+    pad.undo();
+  });
+  $("redoBtn").addEventListener("click", () => {
+    SFX.play("undo");
+    pad.redo();
+  });
+  $("zoomInBtn").addEventListener("click", () => {
+    SFX.play("click");
+    pad.zoomIn();
+  });
+  $("zoomOutBtn").addEventListener("click", () => {
+    SFX.play("click");
+    pad.zoomOut();
+  });
   let clearArmed = null;
   $("clearBtn").addEventListener("click", () => {
     if (clearArmed) {
@@ -691,6 +768,7 @@
       clearArmed = null;
       $("clearBtn").classList.remove("armed");
       pad.clear();
+      SFX.play("crumple");
       toast("Lienzo borrado. Puedes deshacerlo.");
       return;
     }

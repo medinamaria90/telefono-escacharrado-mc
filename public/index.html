@@ -18,7 +18,7 @@
 <div class="app">
 
   <header class="topbar" id="topbar">
-    <div class="brand"><img class="brand-logo" src="logo.svg" alt="" width="36" height="36"><span class="brand-name">Dibulíos</span></div>
+    <button class="brand" id="brandBtn" type="button" aria-label="Ir al inicio"><img class="brand-logo" src="logo.svg" alt="" width="36" height="36"><span class="brand-name">Dibulíos</span></button>
     <div class="topbar-right">
       <button class="btn-ghost small icon-btn" id="muteBtn" type="button" aria-label="Silenciar sonidos" title="Sonido">🔊</button>
       <span class="room-chip" id="roomChip" hidden></span>
@@ -177,7 +177,6 @@
     <ul class="chips grow" id="waitPlayers"></ul>
     <div class="wait-actions">
       <button class="btn secondary" id="unsubmitBtn" type="button">Cambiar lo mío</button>
-      <button class="btn-ghost" id="skipBtn" type="button" hidden>Seguir sin esperar</button>
     </div>
   </main>
 
@@ -237,7 +236,7 @@
   <div class="sheet-backdrop" id="leaveSheet" hidden>
     <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="leaveTitle">
       <h2 class="h2" id="leaveTitle">¿Salir de la sala?</h2>
-      <p>Si la partida está en marcha, tus turnos se saltarán.</p>
+      <p id="leaveText">Si la partida está en marcha, tus turnos se saltarán.</p>
       <div class="sheet-actions">
         <button class="btn secondary" id="leaveNo" type="button">Seguir jugando</button>
         <button class="btn danger-btn" id="leaveYes" type="button">Salir</button>

@@ -558,7 +558,18 @@ io.on("connection", (socket) => {
       return;
     }
     if (data?.rejoinOnly) return ack({ ok: false, error: "Ya no estás en esa sala." });
-    if (r.phase !== "lobby") return ack({ ok: false, error: "Esa sala está en mitad de una partida. Espera a que acabe y vuelve a entrar." });
+    // Desde otro móvil o pestaña: si hay una plaza libre con el mismo nombre, es esa persona
+    const wanted = cleanName(data?.name).toLocaleLowerCase("es");
+    const sameName = [...r.players.values()].find((p) => !p.connected && !p.left && p.name.toLocaleLowerCase("es") === wanted);
+    if (sameName) {
+      sameName.emoji = cleanEmoji(data?.emoji) || sameName.emoji;
+      attach(r, sameName);
+      ack({ ok: true, code: r.code, playerId: sameName.id, token: sameName.token });
+      broadcast(r);
+      if (r.phase === "end") sendGallery(r, socket);
+      return;
+    }
+    if (r.phase !== "lobby") return ack({ ok: false, error: "La partida ya ha empezado. Si estabas jugando, escribe exactamente el mismo nombre que usaste. Si no, espera a que acabe." });
     const active = [...r.players.values()].filter((p) => !p.left);
     if (active.length >= MAX_PLAYERS) return ack({ ok: false, error: `La sala está llena (máximo ${MAX_PLAYERS}).` });
     const p = makePlayer(data?.name, data?.emoji);
@@ -696,6 +707,27 @@ io.on("connection", (socket) => {
     broadcast(r);
   });
 });
+
+// Quien lleva más de un minuto desconectado no bloquea la partida: su turno se salta
+const AUTO_SKIP_MS = 60 * 1000;
+setInterval(() => {
+  const now = Date.now();
+  for (const r of rooms.values()) {
+    const g = r.game;
+    if (!g || r.phase !== "playing" || g.stepType === "result") continue;
+    let changed = false;
+    for (const id of g.order) {
+      const p = r.players.get(id);
+      if (!p || p.connected || g.submissions.get(id)?.done) continue;
+      const since = Math.max(p.droppedAt || 0, g.stepStartedAt || 0);
+      if (now - since > AUTO_SKIP_MS) {
+        g.submissions.set(id, { content: null, done: true });
+        changed = true;
+      }
+    }
+    if (changed) maybeFinish(r);
+  }
+}, 5000).unref();
 
 // Barrido de seguridad: ninguna sala vive más de 8 horas
 setInterval(() => {

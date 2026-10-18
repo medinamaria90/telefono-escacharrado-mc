@@ -442,3 +442,4 @@ body.hurry::after {
 .wordmark span:nth-child(8) { color: #ffb000; transform: rotate(-4deg) translateY(3px); }
 .tagline { margin: 6px 0 0; font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
 @media (max-height: 700px) { .home-logo { width: 56px; height: 56px; } .wordmark { font-size: clamp(2rem, 9vw, 2.6rem); } }
+button.brand { background: none; border: 0; padding: 0; cursor: pointer; color: inherit; }
