@@ -1,60 +1,114 @@
 # Dibulíos
 
-Teléfono escacharrado con dibujos para jugar en familia, cada uno desde su móvil.
-Sin cuentas, sin anuncios y sin guardar nada: todo vive en la memoria del servidor
-y se borra al acabar.
+**Dibuja · adivina · pásalo.** El teléfono escacharrado con dibujos para jugar en
+familia, cada uno desde su móvil. Sin cuentas, sin anuncios y sin guardar las
+partidas: todo vive en la memoria del servidor y se borra al acabar.
+
+👉 **https://dibulios.onrender.com**
+
+---
 
 ## Cómo se juega
 
-- Uno crea la sala y comparte el enlace (o el código de 5 letras) por WhatsApp.
-- Cada persona escribe su nombre y elige una de las 22 caritas del juego.
-- **2 jugadores (modo Dúo):** en cada ronda los dos dibujáis a la vez una frase
-  secreta y después adivináis el dibujo del otro. Puntuáis en equipo (3 por
-  acierto, 1 por casi). Quien dibujó puede dar por buena una respuesta.
-- **3 jugadores:** cada historia tiene 5 pasos (frase → dibujo → adivinanza →
-  dibujo → adivinanza) para que dé tiempo a que se líe.
-- **4 o más (hasta 12):** cada historia pasa una vez por cada jugador.
-- Al final el anfitrión va enseñando las historias paso a paso en todos los móviles.
+1. Una persona pulsa **Crear una sala** y comparte el enlace (o el código de 5
+   letras) por WhatsApp.
+2. Cada uno escribe su nombre y elige su carita entre las 45 disponibles.
+3. El anfitrión elige el tiempo por turno (rápido, normal, relajado o sin límite)
+   y pulsa **Empezar partida**.
 
-Herramientas de dibujo: 7 tamaños de pincel y 34 colores más un selector libre (en botones desplegables para dejar más sitio al lienzo),
-goma, cubo de relleno, mover, acercar/alejar (botones o pellizcando con dos
-dedos), deshacer, rehacer y borrar todo.
+La mecánica se adapta al número de jugadores:
 
-## Qué se borra y cuándo
+| Jugadores | Modo | Cómo funciona |
+|---|---|---|
+| 2 | **Dúo** | En cada ronda los dos dibujáis a la vez una frase secreta y después adivináis el dibujo del otro. Puntuáis en equipo (3 por acierto, 1 por casi). Quien dibujó puede dar por buena una respuesta. Se eligen de 2 a 6 rondas. |
+| 3 | **Teléfono** | Cada historia tiene 5 pasos (frase → dibujo → adivina → dibujo → adivina), para que dé tiempo a que se líe. |
+| 4 a 12 | **Teléfono** | Cada uno empieza con una frase y las historias pasan una vez por cada jugador, alternando dibujo y adivinanza. |
 
-- Al volver a la sala tras una partida, se borran sus frases y dibujos.
-- Si una sala se queda sin nadie conectado, desaparece a los 10 minutos.
-- Ninguna sala dura más de 8 horas.
-- No hay base de datos ni ficheros: si el servidor se reinicia o se duerme, no queda nada.
+- Mientras se juega **no se ve quién hizo cada cosa**: se descubre al final.
+- Al terminar, el anfitrión va enseñando las historias **paso a paso, en todos los
+  móviles a la vez**. Al adivinar un dibujo se ve el dibujo en grande con la
+  respuesta debajo, y antes del último paso suena un redoble.
+- Desde la pantalla final se pueden volver a ver las historias tranquilamente.
 
-## Subirlo gratis a Render (recomendado)
+### Si alguien se va o se queda sin tiempo
 
-Render tiene un plan gratuito para servidores Node con conexiones en tiempo real.
-Se duerme tras 15 minutos sin uso; la primera persona que entre esperará cerca de
-un minuto a que despierte. Durante la partida se mantiene despierto.
+- **Se acaba el tiempo:** se envía lo que se lleve hecho. Si alguien no llegó a
+  dibujar, el siguiente recibe un «lienzo en blanco» y se inventa qué quería dibujar.
+- **Alguien se sale con 3 o más jugadores:** se le ignora y la partida sigue. Si
+  lleva más de un minuto desconectado, su turno se salta solo.
+- **Solo queda una persona** (por ejemplo, en el modo Dúo): la partida se pone en
+  pausa hasta que vuelva. El anfitrión puede terminarla y ver lo que haya.
+- **Volver a entrar:** si te sales sin querer, al abrir el enlace otra vez vuelves
+  donde ibas. Desde otro móvil basta con escribir exactamente el mismo nombre.
+- El botón **Atrás** del móvil pregunta antes de sacarte de la sala.
 
-1. Crea una cuenta gratuita en GitHub y sube esta carpeta como repositorio
-   (en github.com: «New repository» → «uploading an existing file» y arrastra
-   todos los ficheros, menos la carpeta `node_modules` si existe).
-2. Crea una cuenta gratuita en https://render.com (puedes entrar con GitHub).
-3. En Render: **New → Web Service** → elige el repositorio.
-4. Rellena:
-   - Runtime: **Node**
-   - Build Command: `npm install`
-   - Start Command: `npm start`
-   - Instance Type: **Free**
-5. Pulsa **Create Web Service**. En un par de minutos tendrás una dirección tipo
-   `https://dibulios.onrender.com`. Esa es la web que compartes.
+## Dibujar
 
-Truco: abre la web unos minutos antes de jugar para que esté despierta.
+Lienzo vertical que aprovecha toda la pantalla. Herramientas:
 
-### Si prefieres que nunca se duerma (de pago)
+- **Lápiz**, **rotulador** (semitransparente, deja ver lo de debajo) y **spray**
+  (se va cargando de color cuanto más insistes).
+- **Cubo** para rellenar una zona de golpe (con un toque; al pellizcar no pinta).
+- **Goma**, **deshacer**, **rehacer** y **borrar todo** (pide confirmación).
+- **7 tamaños** de pincel.
+- **34 colores** y una barra de arcoíris para elegir **cualquier color**, con otra
+  barra para hacerlo más claro u oscuro.
+- **Zoom y desplazamiento con dos dedos** (en ordenador, Ctrl + rueda del ratón).
 
-En el mismo servicio de Render, cambia el *Instance Type* de **Free** a **Starter**
-(7 $ al mes, unos 6,5 €). Ya no se duerme y la web abre al instante. Se puede
-volver a Free cuando quieras. Para jugar en familia, el plan gratuito suele bastar.
+Cada herramienta tiene su sonido: rasgueo de lápiz que sigue la velocidad del
+trazo, roce de goma, siseo de spray, chapoteo al rellenar…
 
-## Probarlo en tu ordenador
+## Dibujar yo solo y Mi cuaderno
+
+- **Dibujar yo solo** (desde el inicio, o en la sala mientras esperas): dibujo
+  libre con ideas para inspirarse y el botón «Otra idea».
+- **Guardar** lleva el dibujo a **Mi cuaderno**, donde se pueden ver, **editar** y
+  borrar (papelera pequeña con confirmación).
+- Los dibujos del cuaderno se guardan **solo en ese móvil**, en el navegador. Se
+  borran si se borra el historial o los datos del navegador. Caben unos 40; al
+  llenarse se borra el más antiguo.
+
+## Más detalles
+
+- **Sonidos** en todo el juego, con botón para silenciarlos (🔊).
+- **Aviso de tiempo:** en los últimos 10 segundos el borde parpadea en rojo, el
+  móvil vibra y suena un tic-tac.
+- **Modo claro por defecto**, con botón 🌙/☀️ para pasar a oscuro (cada móvil lo
+  recuerda).
+- Se puede **añadir a la pantalla de inicio** y se ve con su logo, como una app.
+- Pensado para móvil: cada pantalla cabe sin deslizar.
+
+## Privacidad y datos
+
+- **No hay base de datos ni cuentas.** Las frases y dibujos de una partida solo
+  existen en la memoria del servidor mientras se juega.
+- Se borran al volver a la sala para otra partida, cuando la sala se queda vacía
+  10 minutos o si el servidor se reinicia. Ninguna sala dura más de 8 horas.
+- Para conservar un dibujo de una partida: mantener el dedo encima → «Guardar imagen».
+
+---
+
+## Alojamiento (Render)
+
+El juego está publicado en Render, plan gratuito, región Fráncfort.
+
+- **Plan Free:** se duerme tras 15 minutos sin uso y la primera visita tarda
+  alrededor de un minuto en despertarlo. 750 horas al mes por cuenta y 5 GB de
+  tráfico (una partida familiar mueve entre 10 y 30 MB).
+- **Plan Starter (7 $/mes):** no se duerme. Se cambia en el panel de Render, en el
+  tipo de instancia del servicio.
+- **Actualizar:** tras subir cambios a este repositorio, lanzar un *Manual Deploy*
+  en Render (no se despliega solo con cada cambio).
+- Cada despliegue obliga a los móviles a descargar los archivos nuevos, para que
+  no se mezclen versiones guardadas en caché.
+
+### Configuración del servicio
+
+- Runtime: **Node**
+- Build Command: `npm install`
+- Start Command: `npm start`
+
+## Probarlo en local
 
 Necesitas Node 18 o superior.
 
@@ -65,3 +119,16 @@ npm start
 
 Abre http://localhost:3000. Para jugar desde móviles en la misma wifi, usa la IP
 del ordenador, por ejemplo http://192.168.1.20:3000.
+
+## Estructura
+
+| Archivo | Qué hace |
+|---|---|
+| `server.js` | Servidor (Express + Socket.IO): salas, turnos, pausas, revelación. Todo en memoria. |
+| `public/index.html` | Pantallas de la app. |
+| `public/app.js` | Lógica del navegador: pantallas, turnos, cuaderno, sonidos. |
+| `public/pad.js` | Lienzo de dibujo y herramientas. |
+| `public/avatars.js` | Las caritas, dibujadas en SVG. |
+| `public/sfx.js` | Sonidos generados con Web Audio (sin archivos de audio). |
+| `public/frases.js` | Ideas para dibujar. |
+| `public/style.css` | Estilos (modo claro y oscuro). |

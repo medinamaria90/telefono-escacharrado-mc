@@ -1,7 +1,7 @@
 {
   "name": "telefono-escacharrado-mc",
   "version": "1.0.0",
-  "description": "Juego de teléfono escacharrado con dibujos, para jugar en familia desde el móvil. Sin registros ni publicidad.",
+  "description": "Dibulíos: dibuja, adivina y pásalo. Teléfono escacharrado con dibujos para jugar en familia desde el móvil, sin registros ni publicidad.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
