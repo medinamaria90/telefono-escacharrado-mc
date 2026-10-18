@@ -654,8 +654,8 @@
   const ICONS = {
     pen: '<path d="M4 20l4-1 11-11-3-3L5 16l-1 4z"/><path d="M14 6l3 3"/>',
     eraser: '<path d="M8 20h12"/><path d="M5 15l8-9 6 6-7 8H9z"/><path d="M9 11l5 5"/>',
-    fill: '<path d="M5 11l7-7 7 7-7 7z"/><path d="M5 11h14"/><path d="M20 15s2 2.5 2 4a2 2 0 01-4 0c0-1.5 2-4 2-4z"/>',
-    hand: '<path d="M8 13V6a1.5 1.5 0 013 0v5"/><path d="M11 11V4.5a1.5 1.5 0 013 0V11"/><path d="M14 11V6a1.5 1.5 0 013 0v7c0 4-2.5 7-6 7-2.5 0-4-1-5.5-3L3 13.5a1.5 1.5 0 012.3-1.9L8 14"/>',
+    fill: '<path d="M3.5 10.5l6.5-6.5 7 7-6.5 6.5a1.5 1.5 0 01-2.1 0L3.5 12.6a1.5 1.5 0 010-2.1z" fill="var(--paint)" fill-opacity=".9"/><path d="M8 5.5L6 3.5"/><path d="M19 13.5s2.5 3 2.5 4.8a2.5 2.5 0 01-5 0c0-1.8 2.5-4.8 2.5-4.8z" fill="var(--paint)"/>',
+    spray: '<rect x="4" y="9" width="8" height="12" rx="2" fill="var(--paint)" fill-opacity=".9"/><path d="M6 9V6h4v3"/><path d="M8 6V4h3"/><circle cx="16" cy="4" r=".9" fill="currentColor" stroke="none"/><circle cx="19" cy="6" r=".9" fill="currentColor" stroke="none"/><circle cx="16.5" cy="8" r=".9" fill="currentColor" stroke="none"/><circle cx="20" cy="9.5" r=".9" fill="currentColor" stroke="none"/><circle cx="18" cy="11.5" r=".9" fill="currentColor" stroke="none"/>',
     undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 010 10h-3"/>',
     redo: '<path d="M15 14l5-5-5-5"/><path d="M20 9H9a5 5 0 000 10h3"/>',
     zoomIn: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4M8 11h6M11 8v6"/>',
@@ -699,7 +699,7 @@
       b.addEventListener("click", () => {
         SFX.play("click");
         pad.size = s;
-        if (pad.tool === "fill" || pad.tool === "hand") pad.tool = "pen";
+        if (pad.tool === "fill") pad.tool = "pen";
         updateToolbar();
         closePops();
       });
@@ -717,7 +717,7 @@
       b.addEventListener("click", () => {
         SFX.play("color");
         pad.color = c;
-        if (pad.tool === "eraser" || pad.tool === "hand") pad.tool = "pen";
+        if (pad.tool === "eraser") pad.tool = "pen";
         updateToolbar();
         closePops();
       });
@@ -753,7 +753,7 @@
       shadeBar.style.setProperty("--h", hue);
       hueKnob.style.left = (hue / 360) * 100 + "%";
       shadeKnob.style.left = (1 - light / 100) * 100 + "%";
-      if (pad.tool === "eraser" || pad.tool === "hand") pad.tool = "pen";
+      if (pad.tool === "eraser") pad.tool = "pen";
       updateToolbar();
     }
     function dragBar(bar, onX) {
@@ -833,6 +833,7 @@
     $("zoomOutBtn").disabled = pad.zoom <= 1;
     $("zoomInBtn").disabled = pad.zoom >= 5;
     $("colorSwatch").style.background = pad.color;
+    $("toolbar").style.setProperty("--paint", pad.color);
     const idx = Math.max(0, SIZES.indexOf(pad.size));
     const prev = $("sizePreview");
     prev.style.width = prev.style.height = Math.min(22, sizePx(idx)) + "px";
@@ -1243,7 +1244,8 @@
     viewing = d;
     $("bookImg").src = d.img;
     $("bookPrompt").textContent = d.prompt + " · " + new Date(d.date).toLocaleDateString("es-ES", { day: "numeric", month: "short" });
-    $("bookDel").textContent = "Borrar";
+    $("bookDelText").textContent = "";
+    $("bookDel").classList.remove("armed");
     $("bookView").hidden = false;
   }
   $("bookClose").addEventListener("click", () => ($("bookView").hidden = true));
@@ -1256,10 +1258,13 @@
   });
   $("bookDel").addEventListener("click", () => {
     if (!delArmed) {
-      $("bookDel").textContent = "¿Seguro? Pulsa otra vez";
+      SFX.play("click");
+      $("bookDelText").textContent = "¿Borrar?";
+      $("bookDel").classList.add("armed");
       delArmed = setTimeout(() => {
         delArmed = null;
-        $("bookDel").textContent = "Borrar";
+        $("bookDelText").textContent = "";
+        $("bookDel").classList.remove("armed");
       }, 3000);
       return;
     }

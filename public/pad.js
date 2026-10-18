@@ -204,6 +204,7 @@
       if (this.pointers.size === 2) {
         // Dos dedos: cancelar el trazo y pasar a mover/ampliar
         if (this.stroke) {
+          clearInterval(this.sprayTimer);
           this.ctx.putImageData(this.undoStack.pop(), 0, 0);
           this.stroke = null;
           this.onStroke("end");
@@ -241,7 +242,11 @@
       }
       this._snapshot();
       this.stroke = { last: p, lastMid: p, t: performance.now() };
-      this._dot(p);
+      if (this.tool === "spray") {
+        this._spray(p, 2);
+        clearInterval(this.sprayTimer);
+        this.sprayTimer = setInterval(() => this.stroke && this._spray(this.stroke.last, 0.6), 45);
+      } else this._dot(p);
       this.onStroke("start", this.tool);
       this.dirty = true;
     }
@@ -271,6 +276,18 @@
       const events = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
       for (const ev of events.length ? events : [e]) {
         const p = this._pt(ev);
+        if (this.tool === "spray") {
+          // rociar a lo largo del recorrido
+          const d = Math.hypot(p.x - this.stroke.last.x, p.y - this.stroke.last.y);
+          const step = Math.max(2, this.size * 0.25);
+          for (let t = step; t <= d; t += step) {
+            this._spray({ x: this.stroke.last.x + ((p.x - this.stroke.last.x) * t) / d, y: this.stroke.last.y + ((p.y - this.stroke.last.y) * t) / d }, 1);
+          }
+          this._spray(p, 1);
+          this.stroke.last = p;
+          this.stroke.lastMid = p;
+          continue;
+        }
         const mid = { x: (this.stroke.last.x + p.x) / 2, y: (this.stroke.last.y + p.y) / 2 };
         const ctx = this.ctx;
         this._style();
@@ -288,6 +305,12 @@
     }
     _up(e) {
       this.pointers.delete(e.pointerId);
+      if (this.stroke && this.tool === "spray") {
+        clearInterval(this.sprayTimer);
+        this.stroke = null;
+        this.onStroke("end");
+        this.onChange();
+      }
       if (this.stroke) {
         const s = this.stroke;
         this._style();
@@ -309,6 +332,20 @@
       ctx.lineWidth = this.size;
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
+    }
+    _spray(p, amount) {
+      const ctx = this.ctx;
+      const r = Math.max(9, this.size * 1.2);
+      const n = Math.round((14 + this.size * 2.6) * amount);
+      const dot = Math.max(2, Math.round(this.size / 9));
+      ctx.globalCompositeOperation = "source-over";
+      ctx.fillStyle = this.color;
+      for (let i = 0; i < n; i++) {
+        const a = Math.random() * Math.PI * 2;
+        // más denso en el centro, como un aerosol de verdad
+        const rr = r * Math.pow(Math.random(), 0.8);
+        ctx.fillRect(Math.round(p.x + Math.cos(a) * rr), Math.round(p.y + Math.sin(a) * rr), dot, dot);
+      }
     }
     _dot(p) {
       const ctx = this.ctx;

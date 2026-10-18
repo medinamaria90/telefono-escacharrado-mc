@@ -495,3 +495,10 @@ body.solo .draw-prompt { order: 2; flex-basis: 100%; }
 .bar-knob { position: absolute; top: 50%; width: 22px; height: 22px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 0 1.5px #1d2747, 0 2px 6px #0005; transform: translate(-50%, -50%); pointer-events: none; }
 .book-note { font-size: .8rem; line-height: 1.35; }
 .book-sheet .sheet-actions { flex-wrap: wrap; } .book-sheet .sheet-actions .btn { flex: 1 1 30%; padding-inline: 8px; }
+.toolbar { --paint: #1b1b1f; }
+.pad[data-tool="spray"] .pad-stage { cursor: crosshair; }
+.book-sheet-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.book-sheet-head .book-prompt { flex: 1; min-width: 0; }
+.trash-btn { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; height: 32px; min-width: 32px; padding: 0 7px; border-radius: 10px; border: 1.5px solid var(--line); background: var(--bg); color: var(--muted); cursor: pointer; font-weight: 700; font-size: .8rem; }
+.trash-btn.armed { background: var(--accent); border-color: var(--accent); color: #fff; }
+.book-sheet .sheet-actions .btn { flex: 1 1 0; }

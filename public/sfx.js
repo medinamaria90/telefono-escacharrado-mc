@@ -106,22 +106,27 @@
     src.loop = true;
     const hp = a.createBiquadFilter();
     hp.type = "highpass";
-    hp.frequency.value = kind === "eraser" ? 300 : 1800;
+    hp.frequency.value = kind === "eraser" ? 300 : kind === "spray" ? 3500 : 1800;
     const bp = a.createBiquadFilter();
     bp.type = "bandpass";
-    bp.frequency.value = kind === "eraser" ? 900 : 4200;
-    bp.Q.value = kind === "eraser" ? 0.6 : 0.9;
+    bp.frequency.value = kind === "eraser" ? 900 : kind === "spray" ? 6500 : 4200;
+    bp.Q.value = kind === "eraser" ? 0.6 : kind === "spray" ? 0.4 : 0.9;
     const g = a.createGain();
     g.gain.value = 0;
     src.connect(hp).connect(bp).connect(g).connect(a.destination);
     src.start();
-    strokeNode = { src, g, bp, kind, max: kind === "eraser" ? 0.22 : 0.16 };
+    strokeNode = { src, g, bp, kind, max: kind === "eraser" ? 0.22 : kind === "spray" ? 0.12 : 0.16 };
+    if (kind === "spray") g.gain.setTargetAtTime(0.1, a.currentTime, 0.02);
   }
   function strokeMove(speed) {
     if (!strokeNode || !ctx) return;
     // speed: píxeles del lienzo por milisegundo
     const v = Math.min(1, speed / 1.6);
     const t = ctx.currentTime;
+    if (strokeNode.kind === "spray") {
+      strokeNode.g.gain.setTargetAtTime(strokeNode.max * (0.75 + 0.25 * v), t, 0.03);
+      return; // el spray sisea aunque el dedo esté quieto
+    }
     strokeNode.g.gain.setTargetAtTime(strokeNode.max * (0.15 + 0.85 * v), t, 0.03);
     strokeNode.bp.frequency.setTargetAtTime((strokeNode.kind === "eraser" ? 700 : 3400) + v * 1800, t, 0.05);
     clearTimeout(strokeNode.idle);
