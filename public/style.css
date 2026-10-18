@@ -542,3 +542,4 @@ body.solo .draw-head-right #soloExitBtn { margin-right: 0; }
   .pop { left: auto; right: calc(100% + 10px); bottom: auto; top: 0; width: 340px; }
   .size-pop { flex-wrap: wrap; justify-content: center; }
 }
+.book-note { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
