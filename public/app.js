@@ -334,7 +334,14 @@
     e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
   });
 
+  // Guarda en el móvil el nombre tal y como esté en la casilla (también si lo autocompletó el teclado)
+  function syncName() {
+    me.name = $("nameInput").value.trim();
+    store.set("tg-name", me.name);
+  }
+  ["change", "blur"].forEach((ev) => $("nameInput").addEventListener(ev, syncName));
   function needName() {
+    syncName();
     if (!me.name.trim()) {
       $("homeError").textContent = "Escribe tu nombre para que los demás sepan quién eres.";
       $("nameInput").focus();
