@@ -327,9 +327,40 @@
         `<ellipse cx="50" cy="58" rx="32" ry="30" fill="#7ad19a" ${S}/>` + `<circle cx="38" cy="50" r="7" fill="#fff" ${S}/><circle cx="62" cy="50" r="7" fill="#fff" ${S}/><circle cx="39" cy="51" r="3.4" fill="${O}"/><circle cx="63" cy="51" r="3.4" fill="${O}"/>` +
         `<path d="M32 68 q18 12 36 0 z" fill="#fff" ${S}/><path d="M38 68 l3 4 l3 -4 l3 4 l3 -4 l3 4 l3 -4 l3 4 l3 -4" fill="none" stroke="${O}" stroke-width="2"/>` + `<circle cx="44" cy="62" r="1.4" fill="${O}"/><circle cx="56" cy="62" r="1.4" fill="${O}"/>`,
     },
+    sombrero: {
+      label: "Señor con sombrero",
+      svg: bg("#a8dcc8") +
+        // jersey naranja con camisa azul clara y gafas de sol colgadas
+        `<path d="M10 100 q4 -24 40 -26 q36 2 40 26z" fill="#d9732a" ${S}/>` +
+        `<path d="M37 75 l13 15 l13 -15 l-5 -2 l-8 9 l-8 -9z" fill="#a9cdf0" ${S}/>` +
+        `<rect x="43" y="67" width="14" height="10" fill="#dca07a" ${S}/>` +
+        `<ellipse cx="43.5" cy="92" rx="4.6" ry="3.6" fill="#2b2b33" stroke="${O}" stroke-width="2"/><ellipse cx="56.5" cy="92" rx="4.6" ry="3.6" fill="#2b2b33" stroke="${O}" stroke-width="2"/><path d="M48 91.5 h4" stroke="${O}" stroke-width="2"/><path d="M41.5 90.8 l2 -1" stroke="#ffffff99" stroke-width="1.4" stroke-linecap="round"/>` +
+        // cara morena
+        `<circle cx="24" cy="54" r="5.5" fill="#dca07a" ${S}/><circle cx="76" cy="54" r="5.5" fill="#dca07a" ${S}/>` +
+        `<ellipse cx="50" cy="52" rx="25" ry="24" fill="#dca07a" ${S}/>` +
+        // barba de pocos días, canosa
+        `<path d="M30 57 q20 23 40 0 q-4 15 -20 16 q-16 -1 -20 -16z" fill="#cbc7c4" opacity=".8"/>` +
+        `<circle cx="37" cy="64" r=".9" fill="#8a8e99"/><circle cx="43" cy="68" r=".9" fill="#8a8e99"/><circle cx="57" cy="68" r=".9" fill="#8a8e99"/><circle cx="63" cy="64" r=".9" fill="#8a8e99"/><circle cx="50" cy="70.5" r=".9" fill="#8a8e99"/><circle cx="47" cy="66" r=".8" fill="#8a8e99"/><circle cx="53" cy="66" r=".8" fill="#8a8e99"/>` +
+        // pelo canoso asomando bajo el sombrero
+        `<path d="M27 37 q-6 10 -3 22 q3 3 6 1 q-3 -7 0 -14 q-2 7 3 10 q-1 -10 2 -17z" fill="#e3e4e9" ${S}/>` +
+        `<path d="M73 37 q6 10 3 22 q-3 3 -6 1 q3 -7 0 -14 q2 7 -3 10 q1 -10 -2 -17z" fill="#e3e4e9" ${S}/>` +
+        // cejas canosas, ojos con arruguitas y media sonrisa serena
+        `<path d="M35 46.5 q4 -2 8 0 M57 46.5 q4 -2 8 0" fill="none" stroke="#a9adb8" stroke-width="2.6" stroke-linecap="round"/>` +
+        `<circle cx="39" cy="51.5" r="2.7" fill="${O}"/><circle cx="61" cy="51.5" r="2.7" fill="${O}"/>` +
+        `<path d="M32 51 l-3 -1.5 M32.5 54 l-3 0.5 M68 51 l3 -1.5 M67.5 54 l3 0.5" stroke="#b97b58" stroke-width="1.5" stroke-linecap="round"/>` +
+        `<path d="M50 52.5 q-2 5 1 7" fill="none" stroke="#b97b58" stroke-width="2" stroke-linecap="round"/>` +
+        `<path d="M43 63 q7 4 15 -0.5" fill="none" stroke="${O}" stroke-width="2.6" stroke-linecap="round"/>` +
+        // sombrero de ala caída, color camel con cinta oscura
+        `<g transform="translate(0 -6)">` +
+        `<path d="M15 42 q35 -10 70 0 l-3 6 q-32 7 -64 0z" fill="#c99a5b" ${S}/>` +
+        `<path d="M29 41 q-1 -25 21 -25 q22 0 21 25 q-21 5 -42 0z" fill="#d4a768" ${S}/>` +
+        `<path d="M29.4 34 q20.6 5 41.2 0 v5.2 q-20.6 5 -41.2 0z" fill="#5c4630"/>` +
+        `</g>`,
+    },
   };
 
-  const IDS = Object.keys(A);
+  const IDS = Object.keys(A).filter((k) => k !== "sombrero");
+  IDS.splice(10, 0, "sombrero");
   function svgFor(id) {
     const a = A[id];
     if (!a) return null;
