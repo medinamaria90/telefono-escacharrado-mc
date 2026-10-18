@@ -189,6 +189,11 @@
   });
   $("updateBtn").addEventListener("click", () => location.reload());
 
+  // Trabajador mínimo (sin caché) que algunos Chrome exigen para poder instalar
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
+  }
+
   // ---------- invitación a instalar ----------
   const installed = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
   const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);

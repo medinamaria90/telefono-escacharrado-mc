@@ -520,3 +520,25 @@ body.solo .draw-head-right { justify-content: flex-start; gap: 6px; }
 body.solo .draw-head-right .done-btn { margin-left: auto; }
 body.solo .draw-head-right #soloExitBtn { margin-right: 0; }
 @media (max-width: 380px) { .draw-head-right .btn-ghost { padding: 6px 8px; font-size: .85rem; } .draw-head-right .done-btn { padding-inline: 10px; font-size: .95rem; } }
+
+/* ---------- tabletas ---------- */
+@media (min-width: 700px) and (min-height: 600px) {
+  html { font-size: 18px; }
+  body { font-size: 18px; }
+  .home-screen { max-width: 520px; }
+  .home-logo { width: 88px; height: 88px; }
+  .tool { height: 52px; }
+  .tool svg { width: 24px; height: 24px; }
+  .swatch { width: 26px; height: 26px; }
+  .screen:not(.draw-screen):not(.home-screen) { max-width: 720px; }
+}
+/* tableta en horizontal: herramientas en un lateral para dar más altura al lienzo */
+@media (min-width: 900px) and (orientation: landscape) {
+  .draw-screen { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto minmax(0, 1fr); max-width: 1200px; column-gap: 12px; }
+  .draw-head { grid-column: 1 / -1; }
+  .pad { grid-column: 1; grid-row: 2; min-height: 0; }
+  .toolbar { grid-column: 2; grid-row: 2; align-self: center; }
+  .tool-row { grid-template-columns: repeat(2, 56px); gap: 6px; }
+  .pop { left: auto; right: calc(100% + 10px); bottom: auto; top: 0; width: 340px; }
+  .size-pop { flex-wrap: wrap; justify-content: center; }
+}

@@ -79,7 +79,8 @@ trazo, roce de goma, siseo de spray, chapoteo al rellenar…
 - **Se actualiza sola:** la app instalada carga siempre la última versión. Si se
   publica una nueva con la app abierta, se recarga sola o, si estás en mitad de
   algo, aparece un aviso con el botón «Actualizar».
-- Pensado para móvil: cada pantalla cabe sin deslizar.
+- Pensado para móvil: cada pantalla cabe sin deslizar. En **tableta** los botones
+  son más grandes y, en horizontal, las herramientas pasan a un lateral.
 
 ## Privacidad y datos
 
@@ -139,4 +140,6 @@ del ordenador, por ejemplo http://192.168.1.20:3000.
 | `public/avatars.js` | Las caritas, dibujadas en SVG. |
 | `public/sfx.js` | Sonidos generados con Web Audio (sin archivos de audio). |
 | `public/frases.js` | Ideas para dibujar. |
-| `public/style.css` | Estilos (modo claro y oscuro). |
+| `public/style.css` | Estilos (modo claro y oscuro, móvil y tableta). |
+| `public/sw.js` | Trabajador mínimo para poder instalar la app (sin caché). |
+| `public/manifest.webmanifest` | Nombre, icono y colores de la app instalada. |

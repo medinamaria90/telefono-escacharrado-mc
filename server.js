@@ -37,6 +37,11 @@ app.get(["/", "/index.html"], (_req, res) => {
   res.set("Cache-Control", "no-cache");
   res.type("html").send(INDEX);
 });
+// El trabajador de la app nunca se cachea, para que se actualice siempre
+app.get("/sw.js", (_req, res) => {
+  res.set("Cache-Control", "no-cache");
+  res.sendFile(path.join(__dirname, "public", "sw.js"));
+});
 app.use(express.static(path.join(__dirname, "public"), { maxAge: "7d", index: false }));
 app.get("/salud", (_req, res) => res.send("ok"));
 
