@@ -12,9 +12,9 @@ familia, cada uno desde su móvil. Sin crear cuenta y sin anuncios.
    letras, sin números) por WhatsApp.
 2. Cada uno escribe su nombre y elige su carita entre las 45 disponibles, o
    **dibuja la suya** (botón ✏️ al principio de la lista; se guarda en el móvil).
-3. El anfitrión elige el modo de juego (**Clásico** o **Votación**) y, con una barra,
+3. El anfitrión elige el modo de juego (**Clásico**, **Votación** o **Retratos**) y, con una barra,
    el **tiempo para dibujar** (de 30 segundos a 5 minutos, o sin límite; por defecto
-   1 minuto). Para escribir, adivinar y votar hay algo menos. Y pulsa **Empezar partida**.
+   1 minuto). Y pulsa **Empezar partida**.
 
 En el inicio, el enlace **¿Cómo se juega?** lo explica en cinco pasos para quien
 no lo conozca.
@@ -35,7 +35,7 @@ La mecánica se adapta al número de jugadores:
   respuesta debajo, y el último paso se anuncia con un «ta-chán» suave.
 - Desde la pantalla final se pueden volver a ver las historias tranquilamente.
 
-### Modo Votación (3 a 12 jugadores)
+### Modo Votación (2 a 12 jugadores)
 
 - En cada ronda todos dibujan **la misma frase** a la vez.
 - Después cada uno puntúa los dibujos de los demás **del 1 al 5 estrellas**, uno a
@@ -44,6 +44,16 @@ La mecánica se adapta al número de jugadores:
   de dos en dos (si hay muchos, se desliza). Tocando uno se ve en grande.
 - Se eligen de 2 a 6 rondas. Al final, **podio**: tercero, segundo y
   ganador (los empates comparten puesto), y debajo el resto de la clasificación.
+
+### Modo Retratos (2 a 12 jugadores)
+
+- A cada uno le toca **en secreto el nombre de otro jugador** («Retrata a Bea») y
+  tiene que retratarle. El reparto es al azar: nadie se dibuja a sí mismo y a todos
+  les retrata alguien.
+- Después todos puntúan **el parecido de cada retrato del 1 al 5** («😬 Ni de lejos»
+  … «🤩 ¡Clavado!»). Se sabe a quién retrata, pero **no quién lo dibujó**.
+- Al acabar la ronda se ve cada retrato con su autor y sus estrellas; al final,
+  podio. Se eligen de 2 a 6 rondas, con reparto nuevo en cada una.
 
 ### Sala de pruebas
 
@@ -69,6 +79,7 @@ partida de 4 sin tener a nadie más. Cada entrada crea una sala nueva.
 - **Invitaciones:** si el enlace de una sala falla, vuelve el inicio normal para
   escribir otro código, y siempre hay un «Usar otro código».
 - El botón **Atrás** del móvil pregunta antes de sacarte de la sala.
+- Si falta gente para empezar, lo dice el cuadro de **Jugadores**.
 - **Conexión lenta** (por ejemplo, jugando durante una videollamada): los dibujos se
   envían comprimidos para que suban rápido. Si un dibujo llega unos segundos tarde,
   se coloca igualmente en su sitio. Si un móvil se queda atascado, se reconecta solo,

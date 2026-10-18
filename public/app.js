@@ -152,15 +152,15 @@
     render();
   });
   // Sonidos según lo que cambia entre un estado y el siguiente
-  const modeName = (m) => (m === "duo" ? "duo" : m === "vote" ? "votacion" : "telefono");
+  const modeName = (m, kind) => (m === "duo" ? "duo" : m === "vote" ? (kind === "portrait" ? "retratos" : "votacion") : "telefono");
   function trackGame(prev, next) {
     if (!prev || prev.code !== next.code || next.hostId !== next.you) return;
     const n = next.players.filter((p) => !p.left).length;
     if (prev.phase === "lobby" && next.phase === "playing") {
-      track("partida_empezada", { jugadores: n, modo: modeName(next.mode), tiempo: String(next.settings.time), pruebas: !!next.practice });
+      track("partida_empezada", { jugadores: n, modo: modeName(next.mode, next.kind || (next.settings.mode === "retratos" ? "portrait" : "")), tiempo: String(next.settings.time), pruebas: !!next.practice });
     }
     if (prev.phase !== "end" && next.phase === "end") {
-      track("partida_terminada", { jugadores: n, modo: modeName(next.mode) });
+      track("partida_terminada", { jugadores: n, modo: modeName(next.mode, next.kind) });
     }
   }
   function playCues(prev, next) {
@@ -790,12 +790,14 @@
 
   // ---------- sala de espera ----------
   function modeCopy(n) {
+    if (state.settings.mode === "retratos") {
+      return [`Retratos · ${state.settings.duoRounds} rondas`, "Cada uno retrata en secreto a otro jugador y todos puntuáis el parecido del 1 al 5, sin saber quién dibujó."];
+    }
     const vote = state.settings.mode === "votacion";
     if (vote) {
-      if (n < 3) return ["Votación · hacen falta 3 jugadores", `Comparte el enlace: ${n < 2 ? "faltan 2 más" : "falta 1 más"} para poder votar.`];
       return [`Votación · ${state.settings.duoRounds} rondas`, "Todos dibujáis la misma frase y puntuáis los dibujos de los demás del 1 al 5, sin saber de quién son. Gana quien más estrellas sume."];
     }
-    if (n < 2) return ["Esperando a más gente", "Comparte el enlace. Hacen falta al menos 2 jugadores."];
+    if (n < 2) return ["Clásico", "Frase → dibujo → adivina… Los pasos se adaptan al número de jugadores; con 2 se juega en modo Dúo."];
     if (n === 2) return ["Modo Dúo", "Dibujáis a la vez una frase secreta y adivináis el dibujo del otro. Sumáis puntos en equipo."];
     const steps = n === 3 ? 5 : n;
     const seq = [];
@@ -809,6 +811,10 @@
     $("lobbyCode").textContent = state.code;
     $("shareLink").value = location.origin + "/?sala=" + state.code;
     $("playerCount").textContent = `${n} de ${state.maxPlayers}`;
+    // Cuánta gente falta para empezar: en el cuadro de jugadores
+    const needed = 2 - n;
+    $("playersNeed").hidden = needed <= 0;
+    if (needed > 0) $("playersNeed").textContent = "Falta 1 jugador · comparte el enlace";
     const ul = $("lobbyPlayers");
     ul.innerHTML = "";
     state.players.forEach((p) => ul.appendChild(playerItem(p)));
@@ -830,13 +836,13 @@
       b.setAttribute("aria-pressed", String(Number(b.dataset.v) === state.settings.duoRounds));
       b.disabled = !host;
     }
-    const voteMode = state.settings.mode === "votacion";
+    const voteMode = state.settings.mode === "votacion" || state.settings.mode === "retratos";
     $("duoRoundsSetting").hidden = !(voteMode || n === 2);
     $("lobbySoloBtn").hidden = n !== 1;
     const hostP = state.players.find((p) => p.id === state.hostId);
     $("notHostHint").textContent = host ? "" : `${nameOf(hostP, "El anfitrión")} elige las opciones y empieza la partida.`;
     $("startBtn").hidden = !host;
-    const need = voteMode ? 3 : 2;
+    const need = 2;
     $("startBtn").disabled = n < need;
     $("startBtn").textContent = n < need ? "Esperando jugadores…" : "Empezar partida";
   }
@@ -944,7 +950,9 @@
       closePops();
       updateToolbar();
       $("drawStep").textContent = stepLabel(task);
-      if (state.mode === "vote") {
+      if (state.mode === "vote" && task.kind === "portrait") {
+        $("drawStep").textContent = stepLabel(task) + " · Retrato secreto 🤫";
+      } else if (state.mode === "vote") {
         $("drawStep").textContent = stepLabel(task) + " · Todos dibujáis esto";
       } else if (task.secret != null) {
         $("drawStep").textContent = stepLabel(task) + " · Dibuja en secreto";
@@ -1498,11 +1506,13 @@
   let votes = {}; // dibujo -> estrellas
   let vIdx = 0;
   const STAR_TEXT = ["Toca las estrellas para puntuar", "😬 Mejorable", "🙂 Regular", "😊 Bien", "😃 ¡Muy bien!", "🤩 ¡Obra maestra!"];
+  const LIKE_TEXT = ["¿Cuánto se parece? Toca las estrellas", "😬 Ni de lejos", "🙂 Algo tiene", "😊 Se parece", "😃 ¡Muy parecido!", "🤩 ¡Clavado!"];
   function paintVote() {
     const task = state.task;
     const items = task.items || [];
-    $("voteStep").textContent = stepLabel(task) + " · Puntúa";
-    $("votePhrase").textContent = "«" + (task.phrase || "") + "»";
+    const portrait = task.kind === "portrait";
+    $("voteStep").textContent = stepLabel(task) + (portrait ? " · ¿Cuánto se parece?" : " · Puntúa");
+    if (!portrait) $("votePhrase").textContent = "«" + (task.phrase || "") + "»";
     const empty = !items.length;
     $("voteFig").hidden = empty;
     $("voteEmpty").hidden = !empty;
@@ -1517,14 +1527,15 @@
     vIdx = Math.min(vIdx, items.length - 1);
     const it = items[vIdx];
     if ($("voteImg").getAttribute("src") !== it.image) $("voteImg").src = it.image;
-    $("voteCount").textContent = `Dibujo ${vIdx + 1} de ${items.length} · ¿de quién será?`;
+    if (portrait) setWho($("votePhrase"), "Retrato de", it.target);
+    $("voteCount").textContent = portrait ? `Retrato ${vIdx + 1} de ${items.length} · ¿quién lo habrá dibujado?` : `Dibujo ${vIdx + 1} de ${items.length} · ¿de quién será?`;
     const mine = votes[it.k] || 0;
     for (const b of $("voteStars").children) {
       const n = Number(b.dataset.s);
       b.classList.toggle("on", n <= mine);
       b.setAttribute("aria-pressed", String(n === mine));
     }
-    $("starsLabel").textContent = STAR_TEXT[mine];
+    $("starsLabel").textContent = (portrait ? LIKE_TEXT : STAR_TEXT)[mine];
     const last = vIdx === items.length - 1;
     $("votePrev").disabled = vIdx === 0;
     $("voteNextBtn").textContent = last ? "Enviar puntos" : "Siguiente";
@@ -1583,7 +1594,7 @@
     const box = $("resultCards");
     box.innerHTML = "";
     box.className = "duo-cards grow vote-cards n" + Math.min(round.items.length, 12);
-    const ph = el("p", "secret vote-round-phrase", "«" + round.phrase + "»");
+    const ph = el("p", "secret vote-round-phrase", round.kind === "portrait" ? "🖼️ Retratos" : "«" + round.phrase + "»");
     box.appendChild(ph);
     let place = 0;
     round.items.forEach((it, i) => {
@@ -1593,6 +1604,12 @@
       head.appendChild(el("span", "vote-place", it.points > 0 && place < 3 ? MEDAL[place] : `${place + 1}.º`));
       head.appendChild(who(it.by));
       card.appendChild(head);
+      if (it.target) {
+        const t = el("div", "portrait-of");
+        t.appendChild(who(it.target, ""));
+        t.prepend(document.createTextNode("retrató a "));
+        card.appendChild(t);
+      }
       if (it.image) {
         const img = el("img", "duo-img");
         img.src = it.image;
@@ -1600,7 +1617,7 @@
         card.appendChild(img);
       } else card.appendChild(blankEl("grow-img"));
       card.appendChild(el("div", "pts vote-pts", `★ ${it.points}`));
-      if (it.image) card.addEventListener("click", () => zoomDrawing(it, round.phrase));
+      if (it.image) card.addEventListener("click", () => zoomDrawing(it, it.target ? "Retrato de " + it.target.name : round.phrase));
       box.appendChild(card);
     });
   }
@@ -2084,7 +2101,7 @@
     if (isVote) {
       const winners = state.ranking.filter((r) => r.place === 1);
       $("endTitle").textContent = winners.length > 1 ? "¡Empate en lo más alto!" : `¡Gana ${winners[0].name}!`;
-      $("endText").textContent = `${state.ranking[0].points} estrellas. ¿La revancha?`;
+      $("endText").textContent = `${state.ranking[0].points} estrellas${state.kind === "portrait" ? " por el parecido" : ""}. ¿La revancha?`;
       $("reviewBtn").textContent = "Volver a ver las rondas";
       paintPodium(state.ranking);
     } else if (state.mode === "duo") {

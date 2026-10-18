@@ -733,3 +733,6 @@ body.vote-end .end-center { gap: 8px; }
 .zoom-sheet .sheet-actions .btn { flex: 1; }
 .duo-img { cursor: zoom-in; }
 .other-code { align-self: center; margin-top: 2px; }
+.players-need { margin: 0; font-size: .88rem; font-weight: 700; color: var(--accent); }
+.portrait-of { font-size: .8rem; color: var(--muted); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#s-vote .vote-phrase .who { justify-content: center; }

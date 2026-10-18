@@ -109,6 +109,7 @@
         <h2 class="h2">Jugadores</h2>
         <span class="count" id="playerCount"></span>
       </div>
+      <p class="players-need" id="playersNeed" hidden></p>
       <ul class="chips" id="lobbyPlayers"></ul>
     </div>
 
@@ -118,14 +119,14 @@
         <div class="seg mode-seg" id="modeSeg" role="group" aria-label="Modo de juego">
           <button type="button" data-v="telefono">✏️ Clásico</button>
           <button type="button" data-v="votacion">⭐ Votación</button>
+          <button type="button" data-v="retratos">🖼️ Retratos</button>
         </div>
       </div>
       <h2 class="h3" id="modeTitle"></h2>
       <p class="mode-text" id="modeText"></p>
       <div class="setting">
         <div class="row-between"><label class="label" for="timeRange">Tiempo para dibujar</label><strong class="time-value" id="timeValue">1 min</strong></div>
-        <input type="range" class="time-range" id="timeRange" min="0" max="10" step="1" value="2" aria-describedby="timeHint">
-        <span class="time-hint" id="timeHint">Para escribir, adivinar y votar hay algo menos.</span>
+        <input type="range" class="time-range" id="timeRange" min="0" max="10" step="1" value="2" aria-label="Tiempo para dibujar">
       </div>
       <div class="setting" id="duoRoundsSetting">
         <span class="label">Rondas</span>

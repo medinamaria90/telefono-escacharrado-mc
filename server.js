@@ -224,7 +224,7 @@ function startGame(room) {
   const order = shuffle([...room.players.values()].filter((p) => !p.left).map((p) => p.id));
   const n = order.length;
   const game = {
-    mode: n === 2 ? "duo" : room.settings.mode === "votacion" ? "vote" : "chain",
+    mode: room.settings.mode === "votacion" || room.settings.mode === "retratos" ? "vote" : n === 2 ? "duo" : "chain",
     order,
     step: 0,
     stepType: null,
@@ -236,7 +236,11 @@ function startGame(room) {
     game.steps = chainLength(n);
     game.books = order.map((id) => ({ owner: id, entries: [] }));
   } else if (game.mode === "vote") {
-    // Votación: todos dibujan la misma frase, se puntúa del 1 al 5 sin saber de quién es cada dibujo
+    // Votación: todos dibujan la misma frase, se puntúa del 1 al 5 sin saber de quién es cada dibujo.
+    // Retratos: a cada uno le toca retratar en secreto a otro jugador, y todos puntúan el
+    // parecido de cada retrato del 1 al 5 (se sabe a quién retrata, no quién lo dibujó).
+    game.kind = room.settings.mode === "retratos" ? "portrait" : "stars";
+    game.targets = []; // retratos: por ronda, {dibujante: retratado}
     game.rounds = room.settings.duoRounds;
     game.round = 0;
     game.stage = "draw"; // draw -> vote -> result
@@ -276,6 +280,13 @@ function votableFor(game, playerId) {
   const list = game.drawings[game.round] || [];
   return (game.voteOrder[game.round] || []).filter((k) => list[k] && list[k].image && list[k].by !== playerId);
 }
+/** Reparto de retratos: una vuelta al azar, así nadie se dibuja a sí mismo y a todos les retratan */
+function assignTargets(game) {
+  const ring = shuffle(game.order);
+  const t = {};
+  ring.forEach((id, i) => (t[id] = ring[(i + 1) % ring.length]));
+  game.targets[game.round] = t;
+}
 
 function beginStep(room) {
   const game = room.game;
@@ -287,7 +298,13 @@ function beginStep(room) {
     game.deadline = null;
     return;
   }
-  if (game.mode === "vote" && game.stage === "draw") game.phrases[game.round] = freshPhrase(game);
+  if (game.mode === "vote" && game.stage === "draw") {
+    if (game.kind === "stars") game.phrases[game.round] = freshPhrase(game);
+    else {
+      game.phrases[game.round] = "Retratos";
+      assignTargets(game);
+    }
+  }
   if (game.mode === "duo" && game.duoStage === "draw") {
     game.secrets = new Map();
     for (const id of game.order) game.secrets.set(id, { phrase: freshPhrase(game), rerolls: 2 });
@@ -376,13 +393,20 @@ function taskFor(room, playerId) {
     base.round = game.round + 1;
     base.rounds = game.rounds;
     base.phrase = game.phrases[game.round];
+    base.kind = game.kind;
     if (game.stage === "draw") {
-      base.secret = base.phrase;
+      if (game.kind === "stars") base.secret = base.phrase;
+      else {
+        const target = who(room, game.targets[game.round][playerId]);
+        base.portraitOf = target;
+        base.secret = "Retrata a " + target.name;
+      }
       base.rerolls = 0;
     } else if (game.stage === "vote") {
       const list = game.drawings[game.round];
       // Sin autor: se descubre en el resultado de la ronda
-      base.items = votableFor(game, playerId).map((k) => ({ k, image: list[k].image }));
+      // Retratos: se dice a quién retrata (no quién lo dibujó)
+      base.items = votableFor(game, playerId).map((k) => ({ k, image: list[k].image, target: list[k].target ? who(room, list[k].target) : null }));
     }
     return base;
   }
@@ -412,8 +436,9 @@ function submit(room, playerId, content) {
     if (content && typeof content === "object") {
       for (const [k, v] of Object.entries(content)) {
         const key = Number(k);
+        if (!allowed.has(key)) continue;
         const stars = Number(v);
-        if (allowed.has(key) && Number.isInteger(stars) && stars >= 1 && stars <= 5) value[key] = stars;
+        if (Number.isInteger(stars) && stars >= 1 && stars <= 5) value[key] = stars;
       }
     }
   } else if (game.stepType === "draw") {
@@ -489,19 +514,20 @@ function finishStep(room) {
 
   if (game.mode === "vote") {
     if (game.stage === "draw") {
-      game.drawings[game.round] = game.order.map((id) => ({ by: id, image: contentOf(id), votes: {}, points: 0 }));
+      const targets = game.targets[game.round] || {};
+      game.drawings[game.round] = game.order.map((id) => ({ by: id, target: targets[id] || null, image: contentOf(id), votes: {}, points: 0 }));
       game.voteOrder[game.round] = shuffle(game.order.map((_, k) => k));
       game.stage = "vote";
     } else if (game.stage === "vote") {
       const list = game.drawings[game.round];
       for (const voter of game.order) {
         const v = contentOf(voter) || {};
-        for (const [k, stars] of Object.entries(v)) {
+        for (const [k, val] of Object.entries(v)) {
           const d = list[Number(k)];
           if (!d || d.by === voter) continue;
-          d.votes[voter] = stars;
-          d.points += stars;
-          game.totals.set(d.by, (game.totals.get(d.by) || 0) + stars);
+          d.votes[voter] = val;
+          d.points += val;
+          game.totals.set(d.by, (game.totals.get(d.by) || 0) + val);
         }
       }
       game.stage = "result";
@@ -585,8 +611,9 @@ function voteRound(room, r) {
   const list = game.drawings[r] || [];
   return {
     phrase: game.phrases[r],
+    kind: game.kind,
     items: list
-      .map((d) => ({ by: who(room, d.by), image: d.image, points: d.points, votes: Object.keys(d.votes).length }))
+      .map((d) => ({ by: who(room, d.by), target: d.target ? who(room, d.target) : null, image: d.image, points: d.points, votes: Object.keys(d.votes).length }))
       .sort((a, b) => b.points - a.points),
   };
 }
@@ -653,7 +680,7 @@ function galleryData(room) {
     };
   }
   if (game.mode === "vote") {
-    return { mode: "vote", rounds: game.drawings.map((_, r) => voteRound(room, r)), ranking: voteRanking(room) };
+    return { mode: "vote", kind: game.kind, rounds: game.drawings.map((_, r) => voteRound(room, r)), ranking: voteRanking(room) };
   }
   return {
     mode: "duo",
@@ -728,7 +755,7 @@ function stateFor(room, playerId) {
     hostId: room.hostId,
     phase: room.phase,
     settings: room.settings,
-    mode: game ? game.mode : players.length === 2 ? "duo" : room.settings.mode === "votacion" ? "vote" : "chain",
+    mode: game ? game.mode : room.settings.mode === "votacion" || room.settings.mode === "retratos" ? "vote" : players.length === 2 ? "duo" : "chain",
     chainSteps: chainLength(Math.max(players.length, 3)),
     players: players.map((p) => ({
       id: p.id,
@@ -779,6 +806,7 @@ function stateFor(room, playerId) {
     };
   }
   if (room.phase === "end" && game.mode === "vote") st.ranking = voteRanking(room);
+  if (game.mode === "vote") st.kind = game.kind;
   if (room.phase === "end" && game.mode === "duo") {
     st.teamScore = game.teamScore;
     st.maxScore = game.rounds * 6;
@@ -915,7 +943,7 @@ io.on("connection", (socket) => {
   socket.on("settings", (data) => {
     if (!isHost() || room.phase !== "lobby") return;
     if (data && DRAW_TIMES.includes(Number(data.time)) && data.time !== undefined && data.time !== null) room.settings.time = Number(data.time);
-    if (data && ["telefono", "votacion"].includes(data.mode)) room.settings.mode = data.mode;
+    if (data && ["telefono", "votacion", "retratos"].includes(data.mode)) room.settings.mode = data.mode;
     const dr = Number(data?.duoRounds);
     if ([2, 3, 4, 5, 6].includes(dr)) room.settings.duoRounds = dr;
     broadcast(room);
@@ -927,7 +955,6 @@ io.on("connection", (socket) => {
     // Antes de empezar, fuera quien no está conectado
     for (const [id, p] of room.players) if (!p.connected) room.players.delete(id);
     if (active.length < 2) return socket.emit("toast", "Hacen falta al menos 2 jugadores.");
-    if (room.settings.mode === "votacion" && active.length < 3) return socket.emit("toast", "La votación necesita al menos 3 jugadores.");
     startGame(room);
     broadcast(room);
   });
