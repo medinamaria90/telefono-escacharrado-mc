@@ -38,7 +38,8 @@ La mecánica se adapta al número de jugadores:
 - En cada ronda todos dibujan **la misma frase** a la vez.
 - Después cada uno puntúa los dibujos de los demás **del 1 al 5 estrellas**, uno a
   uno, **sin saber de quién es cada dibujo** (el suyo no le sale).
-- Al acabar la ronda se ven los dibujos ordenados por estrellas y ya con su autor.
+- Al acabar la ronda se ven los dibujos ordenados por estrellas y ya con su autor,
+  de dos en dos (si hay muchos, se desliza). Tocando uno se ve en grande.
 - Se eligen de 2 a 6 rondas. Al final, **podio** con redoble: tercero, segundo y
   ganador (los empates comparten puesto), y debajo el resto de la clasificación.
 
@@ -167,7 +168,7 @@ del ordenador, por ejemplo http://192.168.1.20:3000.
 | `public/pad.js` | Lienzo de dibujo y herramientas. |
 | `public/avatars.js` | Las caritas, dibujadas en SVG. |
 | `public/sfx.js` | Sonidos generados con Web Audio (sin archivos de audio). |
-| `public/frases.js` | Ideas para dibujar. |
+| `public/frases.js` | Unas 480 ideas para dibujar: paisajes, monumentos, objetos, personajes, comida, deportes, oficios, escenas y alguna graciosa. |
 | `public/style.css` | Estilos (modo claro y oscuro, móvil y tableta). |
 | `public/sw.js` | Trabajador mínimo para poder instalar la app (sin caché). |
 | `public/manifest.webmanifest` | Nombre, icono y colores de la app instalada. |

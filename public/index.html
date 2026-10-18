@@ -341,6 +341,15 @@
     </div>
   </div>
 
+  <!-- Ver un dibujo en grande -->
+  <div class="sheet-backdrop" id="zoomSheet" hidden>
+    <div class="sheet zoom-sheet" role="dialog" aria-modal="true" aria-label="Dibujo ampliado">
+      <div class="zoom-cap"><span id="zoomWho"></span><span class="pts vote-pts" id="zoomPts"></span></div>
+      <img id="zoomImg" alt="Dibujo ampliado">
+      <div class="sheet-actions"><button class="btn secondary" id="zoomClose" type="button">Cerrar</button></div>
+    </div>
+  </div>
+
   <!-- Confirmar terminar partida -->
   <div class="sheet-backdrop" id="endSheet" hidden>
     <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="endSheetTitle">

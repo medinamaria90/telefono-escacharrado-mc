@@ -325,6 +325,7 @@
   const screens = ["s-home", "s-lobby", "s-text", "s-draw", "s-vote", "s-wait", "s-result", "s-reveal", "s-end", "s-book"];
   function show(id) {
     for (const s of screens) $(s).hidden = s !== id;
+    if (id !== "s-result") $("zoomSheet").hidden = true;
     document.body.dataset.screen = id;
     trackScreen(id);
     if (id === "s-draw" && pad) requestAnimationFrame(() => pad.layout());
@@ -1312,9 +1313,23 @@
         card.appendChild(img);
       } else card.appendChild(blankEl("grow-img"));
       card.appendChild(el("div", "pts vote-pts", `★ ${it.points}`));
+      if (it.image) card.addEventListener("click", () => zoomDrawing(it));
       box.appendChild(card);
     });
   }
+  function zoomDrawing(it) {
+    SFX.play("page");
+    $("zoomImg").src = it.image;
+    const w = $("zoomWho");
+    w.innerHTML = "";
+    w.appendChild(who(it.by, "dibujó"));
+    $("zoomPts").textContent = `★ ${it.points}`;
+    $("zoomSheet").hidden = false;
+  }
+  $("zoomClose").addEventListener("click", () => ($("zoomSheet").hidden = true));
+  $("zoomSheet").addEventListener("click", (e) => {
+    if (e.target === $("zoomSheet") || e.target === $("zoomImg")) $("zoomSheet").hidden = true;
+  });
   function renderVoteResult() {
     currentStepKey = "voteResult";
     const r = state.voteResult;
