@@ -18,7 +18,8 @@ const ROOM_IDLE_MS = 10 * 60 * 1000; // sala vacía: se borra a los 10 min
 const ROOM_MAX_AGE_MS = 8 * 60 * 60 * 1000;
 const LOBBY_DROP_MS = 90 * 1000; // en la sala de espera, quien se va 90 s sale de la lista
 const HOST_HANDOVER_MS = 25 * 1000;
-const GRACE_MS = 4000; // margen tras agotarse el tiempo
+const GRACE_MS = 6000; // margen tras agotarse el tiempo (para conexiones lentas)
+const LATE_DRAWING_MS = 45000; // un dibujo que llega tarde aún se coloca en su sitio
 
 const TIMES = {
   rapido: { write: 40, draw: 70, guess: 30, vote: 45 },
@@ -354,7 +355,7 @@ function taskFor(room, playerId) {
     type: game.stepType,
     deadline: game.deadline,
     submitted: !!(sub && sub.done),
-    stepKey: `${game.mode}-${game.mode === "chain" ? game.step : game.round + "-" + (game.mode === "vote" ? game.stage : game.duoStage)}`,
+    stepKey: stepKeyOf(game),
   };
   if (game.mode === "chain") {
     base.stepNumber = game.step + 1;
@@ -431,10 +432,38 @@ function maybeFinish(room) {
   else broadcast(room);
 }
 
+/** Clave del paso actual (la misma que recibe cada móvil) */
+function stepKeyOf(game) {
+  return `${game.mode}-${game.mode === "chain" ? game.step : game.round + "-" + (game.mode === "vote" ? game.stage : game.duoStage)}`;
+}
+/** Un dibujo que llega tarde (conexión lenta): si en su sitio quedó un lienzo en blanco, se pone */
+function lateDrawing(room, playerId, stepKey, content) {
+  const game = room.game;
+  const last = game && game.lastDraw;
+  if (!last || last.key !== stepKey || Date.now() - last.at > LATE_DRAWING_MS || !isImage(content)) return false;
+  let spot = null;
+  if (game.mode === "chain") {
+    const book = game.books.find((b) => b.entries[last.step] && b.entries[last.step].by === playerId);
+    spot = book && book.entries[last.step];
+    if (spot && !spot.content) spot.content = content;
+    else spot = null;
+  } else if (game.mode === "vote") {
+    spot = (game.drawings[last.round] || []).find((d) => d.by === playerId && !d.image);
+    if (spot) spot.image = content;
+  } else if (game.mode === "duo") {
+    spot = (game.cards[last.round] || []).find((c) => c.drawer === playerId && !c.image);
+    if (spot) spot.image = content;
+  }
+  if (!spot) return false;
+  broadcast(room);
+  return true;
+}
+
 function finishStep(room) {
   const game = room.game;
   if (!game || room.phase !== "playing" || game.stepType === "result") return;
   clearTimeout(room.stepTimer);
+  if (game.stepType === "draw") game.lastDraw = { key: stepKeyOf(game), at: Date.now(), step: game.step, round: game.round };
   const contentOf = (id) => {
     const s = game.submissions.get(id);
     return s ? s.content : null;
@@ -885,10 +914,15 @@ io.on("connection", (socket) => {
     broadcast(room);
   });
 
-  socket.on("submit", (data) => {
-    if (!room || !player) return;
-    if (data?.stepKey && room.game && data.stepKey !== taskFor(room, player.id)?.stepKey) return;
+  socket.on("submit", (data, ack) => {
+    const reply = typeof ack === "function" ? ack : () => {};
+    if (!room || !player) return reply({ ok: false });
+    if (data?.stepKey && room.game && data.stepKey !== taskFor(room, player.id)?.stepKey) {
+      // Llegó tarde: si era un dibujo, se aprovecha
+      return reply({ ok: lateDrawing(room, player.id, data.stepKey, data?.content), late: true });
+    }
     submit(room, player.id, data?.content);
+    reply({ ok: true });
   });
 
   socket.on("unsubmit", () => {

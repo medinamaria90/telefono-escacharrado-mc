@@ -112,6 +112,13 @@
     const s = session.get();
     if (s && s.code && s.token && (!inviteCode || inviteCode === s.code)) {
       socket.emit("join", { code: s.code, token: s.token, rejoinOnly: true }, (res) => {
+        if (res.ok && pendingDrawing) {
+          const pd = pendingDrawing;
+          socket.emit("submit", { stepKey: pd.key, content: pd.content }, (r) => {
+            if (pendingDrawing === pd) pendingDrawing = null;
+            if (r && r.late && r.ok) toast("Tu dibujo ha llegado un pelín tarde, pero ya está en su sitio.");
+          });
+        }
         if (!res.ok) {
           session.set(null);
           state = null;
@@ -727,6 +734,13 @@
       prepareTask(task);
     }
     if (task.submitted) return renderWait(task);
+    // Un dibujo que llegó tarde: en vez del lienzo en blanco, se enseña
+    if (!isNew && task.type === "guess" && task.prompt && task.prompt.kind === "image" && task.prompt.value && $("textPromptFig").hidden) {
+      $("textPromptImg").src = task.prompt.value;
+      $("textPromptFig").hidden = false;
+      $("textPromptEmpty").hidden = true;
+      $("textSpacer").hidden = true;
+    }
     if (task.type === "draw") {
       show("s-draw");
       $("drawWhat").textContent = task.secret != null ? task.secret : task.prompt ? (task.prompt.value || "(sin respuesta)") : "";
@@ -740,6 +754,9 @@
 
   function prepareTask(task) {
     const prompt = task.prompt;
+    sending = null;
+    $("drawDone").disabled = false;
+    if (!soloMode) $("drawDone").textContent = "¡Listo!";
     if (task.type === "draw") {
       ensurePad();
       pad.reset();
@@ -807,10 +824,57 @@
     $("textInput").value = FRASES[Math.floor(Math.random() * FRASES.length)];
   });
 
+  // Imagen ligera para que suba rápido aunque la conexión vaya justa (p. ej. con videollamada)
+  function drawingData() {
+    try {
+      const webp = pad.toDataURL("image/webp", 0.85);
+      if (webp.indexOf("data:image/webp") === 0) return webp;
+    } catch (_) {}
+    return pad.toDataURL("image/jpeg", 0.88);
+  }
+  let sending = null;
+  let pendingDrawing = null; // dibujo enviado sin confirmar: se reenvía al reconectar
   function sendDrawing() {
     if (pad.orient === "h") track("dibujo_horizontal", { modo: modeName(state && state.mode) });
-    socket.emit("submit", { stepKey: currentStepKey, content: pad.toDataURL() });
+    const key = currentStepKey;
+    const t0 = Date.now();
+    sending = key;
+    $("drawDone").disabled = true;
+    $("drawDone").textContent = "Enviando…";
+    const slow = setTimeout(() => {
+      if (sending !== key) return;
+      sending = null;
+      // Se puede volver a pulsar «¡Listo!» cuando vuelva la conexión
+      $("drawDone").disabled = false;
+      $("drawDone").textContent = "¡Listo!";
+      toast("La conexión va lenta. Si no avanza, pulsa otra vez «¡Listo!».");
+      reconnect();
+    }, 9000);
+    const content = drawingData();
+    pendingDrawing = { key, content };
+    socket.emit("submit", { stepKey: key, content }, (res) => {
+      clearTimeout(slow);
+      if (pendingDrawing && pendingDrawing.key === key) pendingDrawing = null;
+      if (sending === key) sending = null;
+      $("drawDone").disabled = false;
+      $("drawDone").textContent = soloMode ? "Guardar" : "¡Listo!";
+      if (res && res.late) {
+        if (res.ok) toast("Tu dibujo ha llegado un pelín tarde, pero ya está en su sitio.");
+        else toast("El tiempo ya había terminado y tu dibujo no llegó a tiempo.");
+      }
+      if (Date.now() - t0 > 4000) track("envio_lento", { segundos: Math.round((Date.now() - t0) / 1000) });
+    });
     SFX.play("send");
+  }
+  // Fuerza una conexión nueva: al volver, el servidor manda cómo va la partida
+  let lastReconnect = 0;
+  function reconnect() {
+    if (Date.now() - lastReconnect < 8000) return;
+    lastReconnect = Date.now();
+    try {
+      socket.disconnect();
+      socket.connect();
+    } catch (_) {}
   }
   $("drawDone").addEventListener("click", () => {
     if (soloMode) return saveToBook();
@@ -838,6 +902,7 @@
 
   // Reloj: cuenta atrás y envío automático al acabarse el tiempo
   let lastSec = null;
+  let watchdogKey = null;
   function fmt(ms) {
     const s = Math.max(0, Math.ceil(ms / 1000));
     return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
@@ -862,6 +927,12 @@
       return;
     }
     const left = task.deadline - now();
+    // Tiempo agotado hace rato y la partida no avanza en este móvil: conexión atascada
+    if (left < -12000 && watchdogKey !== currentStepKey) {
+      watchdogKey = currentStepKey;
+      track("reconexion_atasco");
+      reconnect();
+    }
     timers.forEach((t) => {
       t.textContent = fmt(left);
       t.classList.toggle("urgent", left < 10000);

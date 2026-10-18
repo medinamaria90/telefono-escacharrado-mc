@@ -60,6 +60,10 @@ partida de 4 sin tener a nadie más. Cada entrada crea una sala nueva.
 - **Volver a entrar:** si te sales sin querer, al abrir el enlace otra vez vuelves
   donde ibas. Desde otro móvil basta con escribir exactamente el mismo nombre.
 - El botón **Atrás** del móvil pregunta antes de sacarte de la sala.
+- **Conexión lenta** (por ejemplo, jugando durante una videollamada): los dibujos se
+  envían comprimidos para que suban rápido. Si un dibujo llega unos segundos tarde,
+  se coloca igualmente en su sitio. Si un móvil se queda atascado, se reconecta solo,
+  reenvía su dibujo y vuelve a donde va la partida.
 
 ## Dibujar
 
