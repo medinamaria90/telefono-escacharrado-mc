@@ -445,6 +445,7 @@
     ensurePad();
     pad.forcePortrait = true;
     pad.reset();
+    pad.fillClip = { cx: FACE_BOX.x + FACE_BOX.s / 2, cy: FACE_BOX.y + FACE_BOX.s / 2, r: FACE_BOX.s / 2 };
     closePops();
     let guide = $("faceGuide");
     if (!guide) {
@@ -510,6 +511,7 @@
     document.body.classList.remove("face-mode");
     if (pad) {
       pad.forcePortrait = false;
+      pad.fillClip = null;
       try {
         pad.setScreenLandscape(window.matchMedia(LANDSCAPE).matches);
       } catch (_) {}

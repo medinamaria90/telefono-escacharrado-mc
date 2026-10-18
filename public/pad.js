@@ -20,6 +20,7 @@
       this.blank = true; // lienzo sin tocar: su orientación sigue a la del móvil
       this.screenLandscape = false;
       this.forcePortrait = false; // p. ej. al dibujar la carita: siempre vertical
+      this.fillClip = null; // {cx, cy, r}: el cubo no pasa de este círculo (carita)
       this.stage = document.createElement("div");
       this.stage.className = "pad-stage";
       this.inner = document.createElement("div");
@@ -480,6 +481,16 @@
       const TOL = 70; // suma de diferencias por canal
       const diff = (i) => Math.abs(d[i] - tr) + Math.abs(d[i + 1] - tg) + Math.abs(d[i + 2] - tb);
       const mask = new Uint8Array(W * H);
+      // Fuera del círculo de la carita cuenta como borde: el relleno no lo cruza
+      const clip = this.fillClip;
+      if (clip) {
+        if ((x0 - clip.cx) ** 2 + (y0 - clip.cy) ** 2 > clip.r * clip.r) return;
+        const r2 = clip.r * clip.r;
+        for (let y = 0; y < H; y++) {
+          const dy = (y - clip.cy) ** 2;
+          for (let x = 0; x < W; x++) if ((x - clip.cx) ** 2 + dy > r2) mask[y * W + x] = 2;
+        }
+      }
       const stack = [x0, y0];
       while (stack.length) {
         const y = stack.pop();
@@ -516,12 +527,13 @@
         }
       }
       // Ampliar 1 px sobre los bordes suavizados para que no quede halo
-      const paint = new Uint8Array(mask);
+      const paint = new Uint8Array(W * H);
+      for (let p = 0; p < W * H; p++) paint[p] = mask[p] === 1 ? 1 : 0;
       for (let y = 0; y < H; y++) {
         for (let x = 0; x < W; x++) {
           const p = y * W + x;
           if (mask[p]) continue;
-          if ((x > 0 && mask[p - 1]) || (x < W - 1 && mask[p + 1]) || (y > 0 && mask[p - W]) || (y < H - 1 && mask[p + W])) {
+          if ((x > 0 && mask[p - 1] === 1) || (x < W - 1 && mask[p + 1] === 1) || (y > 0 && mask[p - W] === 1) || (y < H - 1 && mask[p + W] === 1)) {
             if (diff(p * 4) < 420) paint[p] = 1;
           }
         }
