@@ -1353,6 +1353,30 @@
     badge.hidden = true;
     badge.textContent = "100%";
     $("pad").appendChild(badge);
+    // Botón para elegir lienzo vertical u horizontal
+    const ob = el("button", "orient-btn");
+    ob.id = "orientBtn";
+    ob.type = "button";
+    $("pad").appendChild(ob);
+    let orientArmed = null;
+    ob.addEventListener("click", () => {
+      if (!pad.blank && !orientArmed) {
+        SFX.play("click");
+        toast("Se borrará lo que llevas. Toca otra vez para girar el lienzo.");
+        ob.classList.add("armed");
+        orientArmed = setTimeout(() => {
+          orientArmed = null;
+          ob.classList.remove("armed");
+        }, 3000);
+        return;
+      }
+      clearTimeout(orientArmed);
+      orientArmed = null;
+      ob.classList.remove("armed");
+      SFX.play("page");
+      pad.setOrient(pad.orient !== "h");
+      track("lienzo_girado", { a: pad.orient === "h" ? "horizontal" : "vertical" });
+    });
     // tamaños (desplegable)
     const sz = $("sizes");
     SIZES.forEach((s, i) => {
@@ -1583,6 +1607,16 @@
     prev.style.background = ink;
     document.querySelectorAll(".size-dot").forEach((d) => (d.style.background = ink));
     $("pad").dataset.tool = pad.tool;
+    const ob = $("orientBtn");
+    ob.hidden = !!pad.forcePortrait || !pad.blank; // solo antes de empezar a dibujar
+    const toH = pad.orient !== "h";
+    if (ob.dataset.to !== String(toH)) {
+      ob.dataset.to = String(toH);
+      ob.innerHTML = (toH
+        ? '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="11" rx="2"/></svg>'
+        : '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><rect x="6.5" y="3" width="11" height="18" rx="2"/></svg>') + "<span>" + (toH ? "Horizontal" : "Vertical") + "</span>";
+      ob.setAttribute("aria-label", toH ? "Cambiar a lienzo horizontal" : "Cambiar a lienzo vertical");
+    }
     const badge = $("zoomBadge");
     const label = Math.round(pad.zoom * 100) + "%";
     if (badge && badge.textContent !== label) {

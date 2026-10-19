@@ -107,8 +107,17 @@
     setScreenLandscape(l) {
       this.screenLandscape = !!l;
       if (this.forcePortrait) return this._setRotated(false);
-      if (this.blank) this._setRotated(this.screenLandscape);
+      if (this.blank && this.userOrient == null) this._setRotated(this.screenLandscape);
       this.onOrient(this.rotated !== this.screenLandscape);
+    }
+    /** El jugador elige el lienzo (vertical u horizontal); si ya había dibujo, se empieza de cero */
+    setOrient(h) {
+      if (this.forcePortrait) return;
+      this.userOrient = !!h;
+      if (!this.blank) this.clear(true);
+      this._setRotated(this.userOrient);
+      this.dirty = false;
+      this.onChange();
     }
     _setRotated(r) {
       r = !!r;
@@ -228,8 +237,9 @@
       this.blank = true;
       this.lineUsed = false;
       // Lienzo vacío otra vez: vuelve a seguir la orientación del móvil
-      if (record && !this.forcePortrait && !!this.rotated !== this.screenLandscape) {
-        this._setRotated(this.screenLandscape);
+      const want = this.userOrient != null ? this.userOrient : this.screenLandscape;
+      if (record && !this.forcePortrait && !!this.rotated !== want) {
+        this._setRotated(want);
         this.onOrient(false);
       }
       this.onChange();
@@ -241,6 +251,7 @@
       this.clear(false);
       this.dirty = false;
       this.blank = true;
+      this.userOrient = null;
       this.rotated = this.forcePortrait ? false : this.screenLandscape;
       this.zoom = 1;
       this.tool = "pen";

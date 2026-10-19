@@ -825,3 +825,7 @@ body.face-mode .pad-inner { overflow: hidden; }
 /* sala de espera: dibujar solo / ver el cuaderno */
 .lobby-extra { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 14px; }
 .lobby-extra .btn-ghost { white-space: nowrap; }
+
+/* elegir lienzo vertical / horizontal */
+.orient-btn { position: absolute; top: 8px; left: 8px; z-index: 5; display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px 4px 7px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--card); color: var(--ink); font: inherit; font-weight: 700; font-size: .78rem; box-shadow: 0 4px 12px -6px #0006; cursor: pointer; touch-action: manipulation; opacity: .92; }
+.orient-btn.armed { background: var(--accent); border-color: var(--accent); color: #fff; }
