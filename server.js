@@ -236,8 +236,8 @@ function typeForChainStep(k, variant) {
   if (k === 0) return "write";
   return k % 2 === 1 ? "draw" : "guess";
 }
-// Degradado: el primero se inventa un dibujo en 2 min; luego se ve 10 s y se copia de memoria en 1 min, 30 s y 15 s
-const DEGRADE_TIMES = [120, 60, 30, 15];
+// Degradado: el primero se inventa un dibujo en 3 min; luego se ve 10 s y se copia de memoria en 1 min, 30 s y 15 s
+const DEGRADE_TIMES = [180, 60, 30, 15];
 const DEGRADE_VIEW_MS = 10000;
 const degradeSteps = (n) => Math.min(6, Math.max(4, n));
 // Dibujo extremo: limitaciones al azar

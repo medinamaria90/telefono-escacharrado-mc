@@ -797,7 +797,7 @@
     { v: "telefono", emoji: "✏️", name: "Clásico", desc: "Frase → dibujo → adivina… y al final se ve cómo ha cambiado cada historia. Con 2 se juega en Dúo." },
     { v: "votacion", emoji: "⭐", name: "Votación", desc: "Todos dibujáis la misma frase y puntuáis los dibujos de los demás del 1 al 5." },
     { v: "retratos", emoji: "🖼️", name: "Retratos", desc: "Te toca retratar en secreto a otro jugador; todos puntúan el parecido." },
-    { v: "degradado", emoji: "🌀", name: "Degradado", desc: "Uno se inventa un dibujo en 2 min; los siguientes lo ven 10 s y lo copian de memoria en 1 min, 30 s y 15 s." },
+    { v: "degradado", emoji: "🌀", name: "Degradado", desc: "Uno se inventa un dibujo en 3 min; los siguientes lo ven 10 s y lo copian de memoria en 1 min, 30 s y 15 s." },
     { v: "extremo", emoji: "🔥", name: "Dibujo extremo", desc: "Como el clásico, pero en cada vuelta de dibujo toca una limitación: solo círculos, solo cuadrados o sin levantar el lápiz." },
   ];
   const modeInfo = (v) => MODES.find((m) => m.v === v) || MODES[0];
@@ -835,7 +835,7 @@
   });
   function modeCopy(n) {
     if (state.settings.mode === "degradado") {
-      return ["Degradado", "El primero se inventa un dibujo en 2 min; los demás lo ven 10 s y lo copian de memoria cada vez más rápido."];
+      return ["Degradado", "El primero se inventa un dibujo en 3 min; los demás lo ven 10 s y lo copian de memoria cada vez más rápido."];
     }
     if (state.settings.mode === "extremo") {
       const steps = n === 2 ? 4 : n === 3 ? 5 : Math.max(n, 2);

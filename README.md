@@ -60,7 +60,7 @@ La mecánica se adapta al número de jugadores:
 
 ### Modo Degradado (2 a 12 jugadores)
 
-- No hay frase: el primero **se inventa un dibujo**, lo que quiera, en **2 minutos**.
+- No hay frase: el primero **se inventa un dibujo**, lo que quiera, en **3 minutos** (para hacerlo con calma y bonito).
 - El siguiente ve ese dibujo **10 segundos** («👀 Memorízalo»), desaparece, y lo
   tiene que **copiar de memoria en 1 minuto**. Los siguientes, en **30 segundos** y
   luego en **15 segundos**.
