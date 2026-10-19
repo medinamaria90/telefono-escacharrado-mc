@@ -480,6 +480,8 @@ body.solo .draw-prompt { order: 2; flex-basis: 100%; }
 #colorToggle.active { border-color: var(--ink); background: conic-gradient(from 0deg, #ff3b3b, #ffb000, #ffd21f, #2aa84a, #3fc8ef, #2563eb, #9b5de5, #d946ef, #ff3b3b); }
 
 /* color libre */
+.recent-colors { display: contents; }
+.recent-colors[hidden] { display: none; }
 .free-color { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 10px; padding-top: 6px; border-top: 1.5px solid var(--line); margin-top: 2px; }
 .free-label { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
 .hue-bar, .shade-bar { position: relative; height: 30px; border-radius: 999px; border: 2px solid #0002; touch-action: none; cursor: pointer; }

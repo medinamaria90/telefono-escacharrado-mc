@@ -1334,6 +1334,7 @@
       onChange: updateToolbar,
       onBlocked: () => toast("¡Sin levantar el lápiz! Si quieres empezar otra vez, pulsa deshacer ↩."),
       onStroke: (kind, v) => {
+        if ((kind === "start" || kind === "fill") && pad.tool !== "eraser") addRecent(pad.color);
         if (kind === "fill") return SFX.play("splash");
         if (kind === "start") SFX.strokeStart(v);
         else if (kind === "move") SFX.strokeMove(v);
@@ -1387,6 +1388,31 @@
       });
       cs.appendChild(b);
     });
+    // Colores propios ya usados (fuera de la paleta): se añaden al final
+    const recentBox = el("div", "recent-colors");
+    cs.appendChild(recentBox);
+    renderRecent = () => {
+      recentBox.innerHTML = "";
+      recentBox.hidden = !recentColors.length;
+      recentColors.forEach((c) => {
+        const b = el("button", "color-btn");
+        b.type = "button";
+        b.style.setProperty("--c", c);
+        b.dataset.color = c;
+        b.setAttribute("aria-label", "Color " + c);
+        b.addEventListener("click", () => {
+          SFX.play("color");
+          pad.color = c;
+          if (pad.tool === "eraser") pad.tool = "pen";
+          syncFree(c);
+          updateToolbar();
+          closePops();
+        });
+        recentBox.appendChild(b);
+      });
+      updateToolbar();
+    };
+    renderRecent();
     // Color libre: barra de arcoíris (saturación al máximo) + barra de luz
     const free = el("div", "free-color");
     const hueBar = el("div", "hue-bar");
@@ -1493,6 +1519,15 @@
   }
   const LANDSCAPE = "(orientation: landscape)";
   let syncFree = () => {};
+  // Colores propios usados al dibujar (máx. 6, el más reciente primero)
+  const RECENT_MAX = 6;
+  let recentColors = [];
+  let renderRecent = () => {};
+  function addRecent(c) {
+    if (!c || COLORS.includes(c) || recentColors[0] === c) return;
+    recentColors = [c].concat(recentColors.filter((x) => x !== c)).slice(0, RECENT_MAX);
+    renderRecent();
+  }
   const POPS = [["sizes", "sizeToggle"], ["colors", "colorToggle"]];
   function togglePop(popId, open) {
     for (const [pid, bid] of POPS) {
