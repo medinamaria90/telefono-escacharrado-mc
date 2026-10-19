@@ -410,16 +410,17 @@ function startGame(room) {
 }
 
 // Frases salidas hace poco (en todas las salas): no se repiten hasta que han pasado muchas
-const RECENT_MAX = 2500;
+const RECENT_MAX = 700;
 const recentPhrases = [];
 const recentSet = new Set();
 // Qué tipo de frase pide cada modo
 function poolFor(game) {
   const r = crypto.randomInt(100);
-  if (game.mode === "vote") return r < 55 ? FRASES.bonitas : FRASES.graciosas; // votación: que luzca
-  if (game.mode === "duo") return r < 45 ? FRASES.sencillas : FRASES.graciosas; // dúo: que se pueda acertar
+  // Sobre todo escenas normales (lo gracioso es cómo se dibujan); alguna loca de vez en cuando
+  if (game.mode === "vote") return r < 45 ? FRASES.bonitas : r < 82 ? FRASES.cotidianas : FRASES.graciosas; // votación: que luzca
+  if (game.mode === "duo") return r < 45 ? FRASES.sencillas : r < 87 ? FRASES.cotidianas : FRASES.graciosas; // dúo: que se pueda acertar
   if (game.variant === "extreme") return FRASES.sencillas; // con limitaciones: cosas simples
-  return r < 75 ? FRASES.graciosas : FRASES.bonitas; // clásico: cuanto más loca, mejor historia
+  return r < 55 ? FRASES.cotidianas : r < 80 ? FRASES.bonitas : FRASES.graciosas; // clásico
 }
 function freshPhrase(game) {
   let f = null;

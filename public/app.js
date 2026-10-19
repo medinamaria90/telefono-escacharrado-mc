@@ -95,8 +95,8 @@
   function ideaPool(kind) {
     const r = Math.random();
     if (kind === "extreme") return FRASES.sencillas;
-    if (kind === "classic") return r < 0.75 ? FRASES.graciosas : FRASES.bonitas;
-    return r < 0.55 ? FRASES.bonitas : r < 0.85 ? FRASES.graciosas : FRASES.sencillas; // dibujo libre
+    if (kind === "classic") return r < 0.55 ? FRASES.cotidianas : r < 0.8 ? FRASES.bonitas : FRASES.graciosas;
+    return r < 0.45 ? FRASES.bonitas : r < 0.83 ? FRASES.cotidianas : r < 0.93 ? FRASES.graciosas : FRASES.sencillas; // dibujo libre
   }
   function idea(kind) {
     const LIST = ideaPool(kind);

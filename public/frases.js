@@ -389,7 +389,19 @@ const FRASES_SENCILLAS = [
  "Un dragón",
  "Un unicornio",
  "Una sirena",
- "Un robot gigante"
+ "Un robot gigante",
+ // graciosas pero posibles: lo divertido es dibujarlas
+ "Una abuela en moto", "Un abuelo bailando en una boda", "Una abuela con gafas de realidad virtual", "Una abuela haciendo pesas",
+ "Un perro robando una salchicha de la mesa", "Un gato tirando un vaso de la mesa", "Un gato metido en una caja demasiado pequeña",
+ "Un gato durmiendo en un sitio imposible", "Un perro con un cono en la cabeza", "Un perro que no quiere bañarse", "Un perro mojado sacudiéndose",
+ "Un perro comiéndose los deberes", "Un pez escapándose de la pecera", "Una gaviota robando un bocadillo", "Un mono robando unas gafas",
+ "Un oso asomado a una tienda de campaña", "Una vaca mirando pasar un tren", "Un hombre persiguiendo el autobús",
+ "Una mujer con el paraguas dado la vuelta por el viento", "Un turista perdido con un mapa enorme", "Un ciclista empapado por un charco",
+ "Un señor resbalando con una piel de plátano", "Un hombre al que se le vuela el sombrero", "Un niño con la cara llena de chocolate",
+ "Un niño enterrado en la arena", "Un niño escondido debajo de la cama", "Un niño subido a hombros de su padre",
+ "Un padre dormido en el sofá con el bebé encima", "Una familia apretada en un coche pequeño", "Un abuelo con un pez enorme",
+ "Una tarta de cumpleaños cayéndose al suelo", "Un muñeco de nieve derritiéndose al sol", "Una cola enorme para entrar al baño",
+ "Un perro tirando de un trineo", "Un gato mirando una pecera con hambre", "Un hombre enfadado en un atasco"
 ];
 const FRASES_BONITAS = [
  "Un elefante refrescándose con agua",
@@ -779,53 +791,115 @@ const FRASES_GRACIOSAS = [
  "Un dragón",
  "Un unicornio",
  "Una sirena",
- "Un robot gigante"
+ "Un robot gigante",
+ // graciosas pero posibles: lo divertido es dibujarlas
+ "Una abuela en moto", "Un abuelo bailando en una boda", "Una abuela con gafas de realidad virtual", "Una abuela haciendo pesas",
+ "Un perro robando una salchicha de la mesa", "Un gato tirando un vaso de la mesa", "Un gato metido en una caja demasiado pequeña",
+ "Un gato durmiendo en un sitio imposible", "Un perro con un cono en la cabeza", "Un perro que no quiere bañarse", "Un perro mojado sacudiéndose",
+ "Un perro comiéndose los deberes", "Un pez escapándose de la pecera", "Una gaviota robando un bocadillo", "Un mono robando unas gafas",
+ "Un oso asomado a una tienda de campaña", "Una vaca mirando pasar un tren", "Un hombre persiguiendo el autobús",
+ "Una mujer con el paraguas dado la vuelta por el viento", "Un turista perdido con un mapa enorme", "Un ciclista empapado por un charco",
+ "Un señor resbalando con una piel de plátano", "Un hombre al que se le vuela el sombrero", "Un niño con la cara llena de chocolate",
+ "Un niño enterrado en la arena", "Un niño escondido debajo de la cama", "Un niño subido a hombros de su padre",
+ "Un padre dormido en el sofá con el bebé encima", "Una familia apretada en un coche pequeño", "Un abuelo con un pez enorme",
+ "Una tarta de cumpleaños cayéndose al suelo", "Un muñeco de nieve derritiéndose al sol", "Una cola enorme para entrar al baño",
+ "Un perro tirando de un trineo", "Un gato mirando una pecera con hambre", "Un hombre enfadado en un atasco"
 ];
 const FRASES = [];
 
-// Combinaciones: personaje o animal + situación. Todas se pueden dibujar y reconocer,
-// y así hay miles de ideas distintas (casi nunca se repiten).
+// Escenas cotidianas: combinaciones que tienen sentido (lo gracioso es cómo se dibujan).
+// Cada persona o animal solo va con lo que de verdad podría estar haciendo.
+const FRASES_COTIDIANAS = [];
 (function () {
-  const QUIEN = [
-    "Un perro", "Un gato", "Una vaca", "Un cerdo", "Una oveja", "Un caballo", "Un burro", "Una gallina", "Un pato", "Un conejo",
-    "Un ratón", "Un elefante", "Una jirafa", "Un león", "Un tigre", "Una cebra", "Un mono", "Un gorila", "Un oso", "Un oso panda",
-    "Un koala", "Un canguro", "Un hipopótamo", "Un cocodrilo", "Una tortuga", "Una serpiente", "Una rana", "Un pingüino", "Un búho", "Un loro",
-    "Un flamenco", "Un pulpo", "Un tiburón", "Una ballena", "Un delfín", "Un cangrejo", "Un caracol", "Una abeja", "Una mariquita", "Una araña",
-    "Un camello", "Un erizo", "Una ardilla", "Un zorro", "Un lobo", "Un mapache", "Un perezoso", "Un dinosaurio", "Un dragón", "Un unicornio",
-    "Un abuelo", "Una abuela", "Un bebé", "Un niño", "Una niña", "Un pirata", "Un astronauta", "Un robot", "Un fantasma", "Una bruja",
-    "Un vampiro", "Una momia", "Un payaso", "Un cocinero", "Un bombero", "Un policía", "Una doctora", "Un rey", "Una reina", "Una princesa",
-    "Un caballero", "Una sirena", "Un extraterrestre", "Un muñeco de nieve", "Un superhéroe", "Un mago", "Un vaquero", "Una bailarina", "Un futbolista", "Una científica",
-    "Un monstruo peludo", "Un esqueleto", "Un hada", "Un duende", "Un gigante", "Papá Noel", "Un cartero", "Una profesora", "Un jardinero", "Un buzo",
-  ];
-  const QUE = [
-    "en la playa", "en el espacio", "bajo la lluvia", "en la bañera", "en lo alto de una montaña", "dentro de una tienda de campaña", "en una isla desierta",
-    "en la nieve", "en un globo aerostático", "en un barco pirata", "en una montaña rusa", "en el dentista", "en el supermercado", "en una fiesta de cumpleaños",
-    "comiendo un helado", "comiendo pizza", "comiendo espaguetis", "bebiendo un batido", "leyendo un libro", "durmiendo la siesta", "tocando la guitarra",
-    "tocando el piano", "tocando la batería", "jugando al fútbol", "jugando al ajedrez", "haciendo surf", "esquiando", "patinando sobre hielo",
-    "montando en bici", "conduciendo un coche", "pilotando un avión", "pescando", "cocinando", "bailando", "cantando en un concierto", "pintando un cuadro",
-    "haciendo yoga", "levantando pesas", "saltando a la comba", "volando una cometa", "con gafas de sol", "con un paraguas", "con sombrero de copa",
-    "con una corona", "con capa de superhéroe", "con un globo", "con una mochila enorme", "con un ramo de flores", "regando las plantas", "lavando los platos",
-    "haciendo un muñeco de nieve", "en un columpio", "en un tobogán", "en la ducha", "haciéndose un selfi", "llevando una tarta", "tomando el sol",
-    "en un castillo", "subido a un árbol", "saltando en una cama elástica", "barriendo", "en una hamaca", "con patines", "en un monopatín",
-    "en el cine con palomitas", "en una piscina con flotador", "en un tren", "en un cohete", "dentro de una caja", "en una boda", "jugando a los bolos",
-    "haciendo una tarta", "en el gimnasio", "en clase", "escribiendo una carta", "con un telescopio", "persiguiendo una mariposa", "en un atasco",
-    "construyendo un castillo de arena", "en una canoa", "en un iglú", "plantando un árbol", "con un bigote enorme", "con un traje de astronauta",
-  ];
-  const seen = new Set(FRASES_GRACIOSAS);
-  for (const a of QUIEN) for (const b of QUE) {
-    const f = a + " " + b;
-    if (!seen.has(f)) {
-      seen.add(f);
-      FRASES_GRACIOSAS.push(f);
-    }
-  }
+  const add = (f) => FRASES_COTIDIANAS.includes(f) || FRASES_COTIDIANAS.push(f);
+  const combine = (who, what) => who.forEach((a) => what.forEach((b) => add(a + " " + b)));
+
+  // Personas: lo que puede hacer cualquiera (también niños)
+  const TODOS = ["Un abuelo", "Una abuela", "Un hombre", "Una mujer", "Un niño", "Una niña", "Un chico", "Una chica"];
+  const ADULTOS = ["Un abuelo", "Una abuela", "Un hombre", "Una mujer"];
+  const NINOS = ["Un niño", "Una niña"];
+  combine(TODOS, [
+    "en la playa", "bajo la lluvia", "comiendo un helado", "comiendo pizza", "comiendo espaguetis", "leyendo un libro", "durmiendo la siesta",
+    "tocando la guitarra", "tocando el piano", "jugando al fútbol", "jugando al ajedrez", "montando en bici", "pescando en un lago", "cocinando",
+    "bailando", "pintando un cuadro", "haciendo yoga", "volando una cometa", "con un paraguas", "con un ramo de flores", "regando las plantas",
+    "haciendo un muñeco de nieve", "haciéndose un selfi", "llevando una tarta", "tomando el sol", "en una hamaca", "en el cine con palomitas",
+    "en una piscina con flotador", "en un tren", "en una boda", "jugando a los bolos", "escribiendo una carta", "mirando por un telescopio",
+    "construyendo un castillo de arena", "remando en una canoa", "plantando un árbol", "paseando al perro", "dando de comer a las palomas",
+    "esquiando", "patinando sobre hielo", "corriendo una carrera", "nadando en el mar", "acampando junto a una tienda de campaña",
+    "subiendo una montaña", "soplando las velas de una tarta", "con un globo", "abrazando a un oso de peluche", "en la ducha", "cantando en la ducha",
+    "estornudando", "bostezando", "haciendo una foto", "jugando con su gato", "en un tobogán acuático", "en una noria", "en una montaña rusa",
+  ]);
+  combine(ADULTOS, [
+    "conduciendo un coche", "tocando el claxon en un atasco", "leyendo el periódico", "tomando un café", "trabajando con el ordenador",
+    "cortando leña", "pintando la pared", "haciendo la compra", "planchando", "tendiendo la ropa", "levantando pesas", "lavando el coche",
+    "hablando por teléfono", "cortando el césped", "haciendo una barbacoa", "tejiendo una bufanda", "arreglando un grifo", "barriendo la casa",
+    "esperando el autobús", "con muchas bolsas de la compra", "durmiendo en el sofá con la tele puesta",
+  ]);
+  combine(NINOS, [
+    "en un columpio", "en un tobogán", "haciendo los deberes", "haciendo pompas de jabón", "saltando en los charcos", "jugando con un perro",
+    "en una cama elástica", "trepando a un árbol", "con un disfraz de pirata", "con un disfraz de dinosaurio", "jugando con bloques",
+    "en el primer día de colegio", "con la cara pintada", "comiendo algodón de azúcar", "en un carrusel", "haciendo una pataleta",
+  ]);
+  [
+    "Un bebé jugando con un sonajero", "Un bebé gateando", "Un bebé durmiendo en la cuna", "Un bebé con chupete", "Un bebé comiendo papilla",
+    "Un bebé en la bañera con un patito", "Un bebé llorando", "Un bebé dando sus primeros pasos", "Un bebé en el carrito", "Un bebé con babero lleno de comida",
+    "Un bebé riéndose", "Un bebé con un globo", "Un bebé en brazos de su abuela", "Un bebé jugando con cubos de colores", "Un bebé con gorrito de lana",
+  ].forEach(add);
+
+  // Oficios y personajes, cada uno con lo suyo
+  [
+    "Un cocinero probando la sopa", "Un cocinero haciendo una tarta", "Un cocinero con un gorro enorme", "Un pizzero lanzando la masa al aire",
+    "Un bombero apagando un fuego", "Un bombero rescatando a un gato de un árbol", "Un bombero subiendo por una escalera",
+    "Un policía dirigiendo el tráfico", "Un policía poniendo una multa", "Una doctora curando a un niño", "Un dentista mirando una boca",
+    "Un pirata buscando un tesoro", "Un pirata con un loro en el hombro", "Un pirata mirando con su catalejo",
+    "Un astronauta pisando la Luna", "Un astronauta flotando en el espacio", "Un futbolista marcando un gol", "Un portero parando un penalti",
+    "Una bailarina bailando ballet", "Un cartero repartiendo cartas", "Un jardinero cortando el césped", "Un pescador en su barca",
+    "Un mago sacando un conejo de la chistera", "Un payaso haciendo malabares", "Un payaso con la nariz roja", "Un rey sentado en su trono",
+    "Una reina con su corona", "Una princesa en la torre de su castillo", "Un caballero luchando contra un dragón", "Un vaquero montando a caballo",
+    "Un buzo nadando entre peces", "Una científica mirando por un microscopio", "Una profesora escribiendo en la pizarra",
+    "Papá Noel bajando por la chimenea", "Papá Noel en su trineo", "Un pintor pintando un retrato", "Un fotógrafo haciendo una foto",
+    "Un camarero llevando una bandeja", "Un peluquero cortando el pelo", "Un granjero ordeñando una vaca", "Un granjero conduciendo un tractor",
+    "Un socorrista vigilando la playa", "Un escalador subiendo una montaña", "Un tenista sacando", "Un ciclista en una carrera",
+    "Un esquiador bajando una pista", "Un surfista en una ola gigante", "Un músico tocando la trompeta", "Un director de orquesta",
+    "Un explorador en la selva", "Un detective con una lupa", "Una bruja volando en su escoba", "Un hada con su varita mágica",
+    "Un fantasma en una casa encantada", "Un vampiro en su castillo", "Un robot limpiando la casa", "Un extraterrestre bajando de su nave",
+    "Un muñeco de nieve con bufanda", "Un espantapájaros en un campo de trigo", "Una sirena sentada en una roca",
+  ].forEach(add);
+
+  // Animales: cada tipo con lo que hacen los de su tipo
+  combine(["Un perro", "Un gato", "Un conejo", "Un hámster", "Un cachorro", "Un gatito"], [
+    "durmiendo en el sofá", "jugando con una pelota", "comiendo de su cuenco", "durmiendo en su cesta", "mirando por la ventana",
+    "bajo la lluvia", "en la nieve", "con un lazo", "bostezando", "tomando el sol", "escondido en una caja",
+  ]);
+  combine(["Un perro", "Un cachorro"], ["persiguiendo su cola", "paseando con correa", "enterrando un hueso", "con un palo en la boca", "sacando la cabeza por la ventanilla del coche", "esperando en la puerta"]);
+  combine(["Un gato", "Un gatito"], ["jugando con un ovillo de lana", "persiguiendo un ratón", "afilándose las uñas", "subido a una estantería", "durmiendo sobre el teclado"]);
+  combine(["Una vaca", "Una oveja", "Un caballo", "Un burro", "Una cabra"], ["comiendo hierba en el prado", "en el establo", "junto a la valla", "con su cría", "bajo un árbol", "bajo la lluvia"]);
+  combine(["Una gallina", "Un pato", "Un gallo"], ["en la granja", "con sus pollitos", "picoteando el suelo"]);
+  ["Un cerdo revolcándose en el barro", "Un gallo cantando al amanecer", "Un pato nadando en el estanque", "Una gallina poniendo un huevo",
+   "Una oveja recién esquilada", "Un caballo galopando", "Un burro cargando sacos", "Una vaca con un cencerro"].forEach(add);
+  combine(["Un león", "Un tigre", "Un elefante", "Una jirafa", "Una cebra", "Un hipopótamo", "Un rinoceronte", "Un oso", "Un gorila"], [
+    "bebiendo en el río", "durmiendo bajo un árbol", "con su cría", "bostezando", "en la sabana", "en el zoo", "bajo la lluvia",
+  ]);
+  ["Un elefante echándose agua con la trompa", "Una jirafa comiendo hojas de un árbol alto", "Un mono colgado de una rama", "Un mono comiendo un plátano",
+   "Un oso pescando un salmón", "Un oso panda comiendo bambú", "Un koala abrazado a un árbol", "Un canguro saltando", "Un canguro con su cría en la bolsa",
+   "Un cocodrilo tomando el sol en la orilla", "Un hipopótamo con la boca abierta", "Un león con una gran melena", "Un lobo aullando a la luna",
+   "Un zorro en el bosque", "Una ardilla comiendo una bellota", "Un erizo hecho una bola", "Un mapache rebuscando en la basura",
+   "Un perezoso colgado de una rama", "Una serpiente enroscada en un árbol", "Un camello en el desierto", "Un pingüino deslizándose sobre la tripa",
+   "Unos pingüinos en el hielo", "Un oso polar sobre un trozo de hielo", "Una foca con una pelota", "Un búho en una rama de noche",
+   "Un loro de colores", "Un flamenco a la pata coja", "Un pavo real con la cola abierta", "Un águila volando", "Un pájaro en su nido",
+   "Una tortuga caminando despacio", "Una rana sobre un nenúfar", "Una rana cazando una mosca", "Un caracol después de la lluvia",
+   "Una abeja en una flor", "Una mariquita en una hoja", "Una araña tejiendo su tela", "Una mariposa en una flor", "Unas hormigas en fila",
+   "Un pulpo en el fondo del mar", "Un tiburón nadando", "Una ballena echando agua", "Un delfín saltando sobre las olas", "Un cangrejo en la arena",
+   "Un pez payaso entre anémonas", "Una medusa flotando", "Una tortuga marina nadando", "Un caballito de mar", "Una estrella de mar en la playa",
+  ].forEach(add);
 })();
 
 (function () {
-  const all = new Set([...FRASES_SENCILLAS, ...FRASES_BONITAS, ...FRASES_GRACIOSAS]);
+  const all = new Set([...FRASES_SENCILLAS, ...FRASES_BONITAS, ...FRASES_COTIDIANAS, ...FRASES_GRACIOSAS]);
   all.forEach((f) => FRASES.push(f));
   FRASES.sencillas = FRASES_SENCILLAS;
   FRASES.bonitas = FRASES_BONITAS;
-  FRASES.graciosas = FRASES_GRACIOSAS;
+  FRASES.cotidianas = FRASES_COTIDIANAS;
+  FRASES.graciosas = FRASES_GRACIOSAS; // las locas (escritas a mano): de vez en cuando
 })();
 if (typeof module !== "undefined") module.exports = FRASES;
