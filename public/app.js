@@ -1010,6 +1010,7 @@
       pad.reset();
       // Cada dibujo nuevo empieza con lápiz negro y tamaño estándar
       pad.tool = "pen";
+      lastBrush = "pen";
       pad.color = COLORS[0];
       pad.size = SIZES[2];
       syncFree(COLORS[0]);
@@ -1101,8 +1102,9 @@
 
   // ---------- dibujo extremo: limitaciones ----------
   const RULE_LABEL = { circles: "⭕ Solo círculos", squares: "⬛ Solo cuadrados", oneline: "〰️ Sin levantar el lápiz" };
-  const RULE_TOOLS = { circles: ["pen", "fill"], squares: ["pen", "fill"], oneline: ["pen", "marker"] };
+  const RULE_TOOLS = { circles: ["pen", "fill"], squares: ["pen", "fill"], oneline: ["pen"] };
   function applyRuleToolbar(rule) {
+    brushLocked = rule === "circles" || rule === "squares";
     document.querySelectorAll(".tool[data-tool]").forEach((b) => (b.hidden = !!rule && !RULE_TOOLS[rule].includes(b.dataset.tool)));
     const pen = document.querySelector("[data-tool=pen]");
     if (pen) pen.title = rule === "circles" ? "Círculo" : rule === "squares" ? "Cuadrado" : "Lápiz";
@@ -1314,6 +1316,7 @@
     eraser: '<path d="M8 20h12"/><path d="M5 15l8-9 6 6-7 8H9z"/><path d="M9 11l5 5"/>',
     fill: '<path d="M3.5 10.5l6.5-6.5 7 7-6.5 6.5a1.5 1.5 0 01-2.1 0L3.5 12.6a1.5 1.5 0 010-2.1z" fill="var(--paint)" fill-opacity=".9"/><path d="M8 5.5L6 3.5"/><path d="M19 13.5s2.5 3 2.5 4.8a2.5 2.5 0 01-5 0c0-1.8 2.5-4.8 2.5-4.8z" fill="var(--paint)"/>',
     marker: '<path d="M14.5 4.5l5 5-8 8-5-5z" fill="var(--paint)" fill-opacity=".55"/><path d="M6.5 12.5l-2 6 1 1 6-2"/><path d="M4.5 18.5l-1.5 1.5"/>',
+    water: '<path d="M14 4l6 6-7 7-6-6z"/><path d="M7 11c-2 1-3 3-3 5 0 1.5-.8 2.5-2 3 3 1 7 .5 8.5-1.5" fill="var(--paint)" fill-opacity=".45"/>',
     spray: '<rect x="4" y="9" width="8" height="12" rx="2" fill="var(--paint)" fill-opacity=".9"/><path d="M6 9V6h4v3"/><path d="M8 6V4h3"/><circle cx="16" cy="4" r=".9" fill="currentColor" stroke="none"/><circle cx="19" cy="6" r=".9" fill="currentColor" stroke="none"/><circle cx="16.5" cy="8" r=".9" fill="currentColor" stroke="none"/><circle cx="20" cy="9.5" r=".9" fill="currentColor" stroke="none"/><circle cx="18" cy="11.5" r=".9" fill="currentColor" stroke="none"/>',
     undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 010 10h-3"/>',
     redo: '<path d="M15 14l5-5-5-5"/><path d="M20 9H9a5 5 0 000 10h3"/>',
@@ -1528,14 +1531,14 @@
     recentColors = [c].concat(recentColors.filter((x) => x !== c)).slice(0, RECENT_MAX);
     renderRecent();
   }
-  const POPS = [["sizes", "sizeToggle"], ["colors", "colorToggle"]];
+  const POPS = [["brushes", "brushBtn"], ["sizes", "sizeToggle"], ["colors", "colorToggle"]];
   function togglePop(popId, open) {
     for (const [pid, bid] of POPS) {
       const pop = $(pid);
       const next = pid === popId ? (open == null ? pop.hidden : open) : false;
       pop.hidden = !next;
       $(bid).setAttribute("aria-expanded", String(next));
-      $(bid).classList.toggle("active", next);
+      if (bid !== "brushBtn") $(bid).classList.toggle("active", next);
     }
   }
   function closePops() {
@@ -1556,7 +1559,18 @@
   function updateToolbar() {
     if (!pad) return;
     const ink = pad.tool === "eraser" ? "#ffffff" : pad.color;
-    document.querySelectorAll("[data-tool]").forEach((b) => b.classList.toggle("active", b.dataset.tool === pad.tool));
+    document.querySelectorAll("[data-tool]").forEach((b) => b.classList.toggle("active", b.id === "brushBtn" ? isBrush(pad.tool) : b.dataset.tool === pad.tool));
+    if (isBrush(pad.tool)) lastBrush = pad.tool;
+    const bb = $("brushBtn");
+    if (bb.dataset.shown !== lastBrush) {
+      bb.dataset.shown = lastBrush;
+      bb.innerHTML = svg(ICONS[lastBrush]);
+      const nm = BRUSHES.find((x) => x.k === lastBrush).name;
+      bb.title = nm;
+      bb.setAttribute("aria-label", nm + " (toca otra vez para cambiar el trazo)");
+    }
+    bb.classList.toggle("no-menu", brushLocked);
+    document.querySelectorAll(".brush-opt").forEach((b) => b.classList.toggle("active", b.dataset.brush === pad.tool));
     document.querySelectorAll(".size-btn").forEach((b) => b.classList.toggle("active", Number(b.dataset.size) === pad.size));
     document.querySelectorAll(".color-btn[data-color]").forEach((b) => b.classList.toggle("active", b.dataset.color === pad.color && pad.tool !== "eraser"));
     $("undoBtn").disabled = !pad.canUndo();
@@ -1578,13 +1592,46 @@
       badgeTimer = setTimeout(() => (badge.hidden = pad.zoom === 1), 1200);
     }
   }
-  document.querySelectorAll("[data-tool]").forEach((b) =>
+  document.querySelectorAll("[data-tool]").forEach((b) => {
+    if (b.id === "brushBtn") return;
     b.addEventListener("click", () => {
       SFX.play("click");
       pad.tool = b.dataset.tool;
       updateToolbar();
-    })
-  );
+    });
+  });
+  // Lápiz: tocarlo cuando ya está elegido abre los tipos de trazo
+  const BRUSHES = [
+    { k: "pen", name: "Lápiz", sample: '<path d="M4 16C12 4 22 22 36 8" stroke-width="3"/>' },
+    { k: "marker", name: "Subrayador", sample: '<path d="M4 16C12 4 22 22 36 8" stroke-width="9" stroke-opacity=".5"/>' },
+    { k: "water", name: "Acuarela", sample: '<path d="M4 16C12 4 22 22 36 8" stroke-width="8" stroke-opacity=".45" filter="url(#wblur)"/>' },
+  ];
+  const isBrush = (t) => BRUSHES.some((x) => x.k === t);
+  let brushLocked = false; // en «solo círculos / cuadrados» el lápiz no cambia
+  BRUSHES.forEach((br) => {
+    const b = el("button", "brush-opt");
+    b.type = "button";
+    b.dataset.brush = br.k;
+    b.innerHTML = `<svg viewBox="0 0 40 24" width="40" height="24" fill="none" stroke="var(--paint)" stroke-linecap="round" aria-hidden="true"><defs><filter id="wblur" x="-20%" y="-50%" width="140%" height="200%"><feGaussianBlur stdDeviation="1.6"/></filter></defs>${br.sample}</svg>`;
+    b.appendChild(el("span", "", br.name));
+    b.addEventListener("click", () => {
+      SFX.play("click");
+      pad.tool = br.k;
+      closePops();
+      updateToolbar();
+    });
+    $("brushes").appendChild(b);
+  });
+  $("brushBtn").addEventListener("click", () => {
+    SFX.play("click");
+    if (isBrush(pad.tool) && !brushLocked) togglePop("brushes");
+    else {
+      pad.tool = brushLocked ? "pen" : lastBrush;
+      closePops();
+    }
+    updateToolbar();
+  });
+  let lastBrush = "pen";
   $("undoBtn").addEventListener("click", () => {
     SFX.play("undo");
     pad.undo();

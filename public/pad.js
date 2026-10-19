@@ -382,6 +382,7 @@
         return;
       }
       this._snapshot();
+      this.over.style.opacity = this.tool === "water" ? ".45" : "";
       this.stroke = { last: p, lastMid: p, t: performance.now() };
       if (this.tool === "spray") {
         this._spray(p, 1);
@@ -440,7 +441,7 @@
           continue;
         }
         const mid = { x: (this.stroke.last.x + p.x) / 2, y: (this.stroke.last.y + p.y) / 2 };
-        const ctx = this.tool === "marker" ? this.octx : this.ctx;
+        const ctx = this._soft() ? this.octx : this.ctx;
         this._style(ctx);
         ctx.beginPath();
         ctx.moveTo(this.stroke.lastMid.x, this.stroke.lastMid.y);
@@ -483,13 +484,13 @@
       }
       if (this.stroke) {
         const s = this.stroke;
-        const c = this.tool === "marker" ? this.octx : this.ctx;
+        const c = this._soft() ? this.octx : this.ctx;
         this._style(c);
         c.beginPath();
         c.moveTo(s.lastMid.x, s.lastMid.y);
         c.lineTo(s.last.x, s.last.y);
         c.stroke();
-        if (this.tool === "marker") this._commitMarker();
+        if (this._soft()) this._commitMarker();
         this.stroke = null;
         this.onStroke("end");
         this.onChange();
@@ -497,12 +498,24 @@
       if (this.pointers.size < 2) this.gesture = null;
       if (this.pointers.size === 0) this.pan = null;
     }
+    /** Subrayador y acuarela se pintan primero en la capa de encima y luego se funden, transparentes */
+    _soft() {
+      return this.tool === "marker" || this.tool === "water";
+    }
+    _width() {
+      if (this.tool === "marker") return Math.max(6, this.size * 1.6);
+      if (this.tool === "water") return Math.max(6, this.size * 1.3);
+      return this.size;
+    }
     _style(ctx = this.ctx) {
       ctx.globalCompositeOperation = "source-over";
       ctx.strokeStyle = this.tool === "eraser" ? "#ffffff" : this.color;
-      ctx.lineWidth = this.tool === "marker" ? Math.max(6, this.size * 1.6) : this.size;
+      ctx.lineWidth = this._width();
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
+      // Acuarela: bordes difuminados
+      ctx.shadowColor = this.color;
+      ctx.shadowBlur = this.tool === "water" ? Math.max(6, this.size * 0.9) : 0;
     }
     _spray(p, amount) {
       const ctx = this.ctx;
@@ -519,23 +532,24 @@
       }
     }
     _dot(p) {
-      const marker = this.tool === "marker";
-      const ctx = marker ? this.octx : this.ctx;
-      ctx.globalCompositeOperation = "source-over";
+      const ctx = this._soft() ? this.octx : this.ctx;
+      this._style(ctx);
       ctx.fillStyle = this.tool === "eraser" ? "#ffffff" : this.color;
       ctx.beginPath();
-      ctx.arc(p.x, p.y, (marker ? Math.max(6, this.size * 1.6) : this.size) / 2, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, this._width() / 2, 0, Math.PI * 2);
       ctx.fill();
     }
     _commitMarker() {
       // Semitransparente y en modo "multiplicar": deja ver las líneas de debajo
       const ctx = this.ctx;
       ctx.save();
-      ctx.globalAlpha = 0.5;
+      ctx.shadowBlur = 0;
+      ctx.globalAlpha = this.tool === "water" ? 0.45 : 0.5;
       ctx.globalCompositeOperation = "multiply";
       ctx.drawImage(this.over, 0, 0);
       ctx.restore();
       this.octx.clearRect(0, 0, W, H);
+      this.octx.shadowBlur = 0;
     }
 
     // ---- relleno por zonas (cubo de pintura) ----

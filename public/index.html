@@ -217,11 +217,11 @@
     </div>
     <div class="pad" id="pad"></div>
     <div class="toolbar" id="toolbar">
+      <div class="pop brush-pop" id="brushes" aria-label="Tipo de trazo" hidden></div>
       <div class="pop size-pop" id="sizes" aria-label="Tamaño del pincel" hidden></div>
       <div class="pop color-pop" id="colors" aria-label="Colores" hidden></div>
       <div class="tool-row">
-        <button class="tool active" data-tool="pen" type="button" aria-label="Lápiz" title="Lápiz"></button>
-        <button class="tool" data-tool="marker" type="button" aria-label="Rotulador" title="Rotulador"></button>
+        <button class="tool active brush-btn" id="brushBtn" data-tool="pen" type="button" aria-label="Lápiz (toca otra vez para cambiar el trazo)" aria-expanded="false" aria-controls="brushes" title="Lápiz"></button>
         <button class="tool" data-tool="spray" type="button" aria-label="Spray" title="Spray"></button>
         <button class="tool" data-tool="fill" type="button" aria-label="Rellenar zona" title="Rellenar zona"></button>
         <button class="tool" data-tool="eraser" type="button" aria-label="Goma" title="Goma"></button>
