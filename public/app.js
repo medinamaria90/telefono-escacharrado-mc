@@ -138,6 +138,7 @@
     const s = session.get();
     if (s && s.code && s.token && (!inviteCode || inviteCode === s.code)) {
       socket.emit("join", { code: s.code, token: s.token, rejoinOnly: true, name: me.name, emoji: me.emoji }, (res) => {
+        if (res.ok) setTimeout(pairResync, 300);
         if (res.ok && pendingDrawing) {
           const pd = pendingDrawing;
           socket.emit("submit", { stepKey: pd.key, content: pd.content }, (r) => {
@@ -178,7 +179,7 @@
   });
   // Sonidos según lo que cambia entre un estado y el siguiente
   const modeName = (m, kind, variant) =>
-    m === "duo" ? "duo" : m === "vote" ? (kind === "portrait" ? "retratos" : "votacion") : variant === "degrade" ? "degradado" : variant === "extreme" ? "extremo" : "telefono";
+    m === "duo" ? "duo" : m === "vote" ? (kind === "portrait" ? "retratos" : kind === "pairs" ? "parejas" : "votacion") : variant === "degrade" ? "degradado" : variant === "extreme" ? "extremo" : "telefono";
   function trackGame(prev, next) {
     if (!prev || prev.code !== next.code || next.hostId !== next.you) return;
     const n = next.players.filter((p) => !p.left).length;
@@ -468,7 +469,9 @@
     bookOpen = false;
     editingId = null;
     document.body.classList.add("solo", "face-mode");
+    document.body.classList.remove("pairs-draw");
     ensurePad();
+    pad.shared = false;
     pad.forcePortrait = true;
     pad.reset();
     pad.setRule(null);
@@ -797,6 +800,7 @@
     { v: "telefono", emoji: "✏️", name: "Clásico", desc: "Frase → dibujo → adivina… y al final se ve cómo ha cambiado cada historia. Con 2 se juega en Dúo." },
     { v: "votacion", emoji: "⭐", name: "Votación", desc: "Todos dibujáis la misma frase y puntuáis los dibujos de los demás del 1 al 5." },
     { v: "retratos", emoji: "🖼️", name: "Retratos", desc: "Te toca retratar en secreto a otro jugador; todos puntúan el parecido." },
+    { v: "parejas", emoji: "👯", name: "Por parejas", desc: "Por parejas que cambian cada ronda, los dos a la vez en el mismo lienzo. Luego todos puntúan del 1 al 5. Desde 4 jugadores." },
     { v: "degradado", emoji: "🌀", name: "Degradado", desc: "Uno se inventa un dibujo en 3 min; los siguientes lo ven 10 s y lo copian de memoria con cada vez menos tiempo, hasta 15 s." },
     { v: "extremo", emoji: "🔥", name: "Dibujo extremo", desc: "Como el clásico, pero en cada vuelta de dibujo toca una limitación: solo círculos, solo cuadrados o sin levantar el lápiz." },
   ];
@@ -843,6 +847,9 @@
       const txt = rule === "mix" ? "Como el clásico, pero cada vuelta de dibujo con una limitación distinta: ⭕ círculos, ⬛ cuadrados o 〰️ de un trazo." : rule === "circles" ? "Como el clásico, pero dibujando solo con círculos." : rule === "squares" ? "Como el clásico, pero dibujando solo con cuadrados." : "Como el clásico, pero cada dibujo de un solo trazo, sin levantar el lápiz.";
       return [`Dibujo extremo · ${steps} pasos por historia`, txt];
     }
+    if (state.settings.mode === "parejas") {
+      return [`Por parejas · ${state.settings.duoRounds} rondas`, "Uno elige qué dibujar y cada pareja lo dibuja a la vez en un lienzo compartido. Todos puntuáis del 1 al 5; los puntos son de cada uno y las parejas cambian cada ronda."];
+    }
     if (state.settings.mode === "retratos") {
       return [`Retratos · ${state.settings.duoRounds} rondas`, "Cada uno retrata en secreto a otro jugador y todos puntuáis el parecido del 1 al 5, sin saber quién dibujó."];
     }
@@ -865,9 +872,10 @@
     $("shareLink").value = location.origin + "/?sala=" + state.code;
     $("playerCount").textContent = `${n} de ${state.maxPlayers}`;
     // Cuánta gente falta para empezar: en el cuadro de jugadores
-    const needed = 2 - n;
+    const minP = state.settings.mode === "parejas" ? 4 : 2;
+    const needed = minP - n;
     $("playersNeed").hidden = needed <= 0;
-    if (needed > 0) $("playersNeed").textContent = "Falta 1 jugador · comparte el enlace";
+    if (needed > 0) $("playersNeed").textContent = (needed === 1 ? "Falta 1 jugador" : `Faltan ${needed} jugadores`) + " · comparte el enlace";
     const ul = $("lobbyPlayers");
     ul.innerHTML = "";
     state.players.forEach((p) => ul.appendChild(playerItem(p)));
@@ -896,13 +904,13 @@
       b.setAttribute("aria-pressed", String(Number(b.dataset.v) === state.settings.duoRounds));
       b.disabled = !host;
     }
-    const voteMode = ["votacion", "retratos"].includes(state.settings.mode);
+    const voteMode = ["votacion", "retratos", "parejas"].includes(state.settings.mode);
     $("duoRoundsSetting").hidden = !(voteMode || (n === 2 && state.settings.mode === "telefono"));
     $("lobbySoloBtn").hidden = n !== 1;
     const hostP = state.players.find((p) => p.id === state.hostId);
     $("notHostHint").textContent = host ? "" : `${nameOf(hostP, "El anfitrión")} elige las opciones y empieza la partida.`;
     $("startBtn").hidden = !host;
-    const need = 2;
+    const need = minP;
     $("startBtn").disabled = n < need;
     $("startBtn").textContent = n < need ? "Esperando jugadores…" : "Empezar partida";
   }
@@ -964,6 +972,7 @@
 
   // ---------- turnos ----------
   function stepLabel(task) {
+    if (task.tiebreak) return "Ronda de desempate";
     if (state.mode === "duo" || state.mode === "vote") return `Ronda ${task.round} de ${task.rounds}`;
     return `Paso ${task.stepNumber} de ${task.totalSteps}`;
   }
@@ -1007,6 +1016,12 @@
     if (!soloMode) $("drawDone").textContent = "¡Listo!";
     if (task.type === "draw") {
       ensurePad();
+      // Por parejas: lienzo compartido, siempre vertical y sin deshacer (deshacer borraría lo del otro)
+      const pairs = task.kind === "pairs";
+      pad.shared = pairs;
+      pad.forcePortrait = pairs;
+      pad.remote = {};
+      document.body.classList.toggle("pairs-draw", pairs);
       pad.reset();
       // Cada dibujo nuevo empieza con lápiz negro y tamaño estándar
       pad.tool = "pen";
@@ -1027,6 +1042,11 @@
         $("drawStep").textContent = stepLabel(task) + " · " + RULE_LABEL[task.rule];
       } else if (state.mode === "vote" && task.kind === "extreme") {
         $("drawStep").textContent = stepLabel(task) + " · " + RULE_LABEL[task.rule];
+      } else if (task.kind === "pairs") {
+        $("drawStep").textContent = stepLabel(task) + (task.partners && task.partners.length ? " · Con " + task.partners.map((p) => p.name).join(" y ") : "");
+        pairSeen = -1;
+        pairFresh = true;
+        pairResync();
       } else if (state.mode === "vote" && task.kind === "portrait") {
         $("drawStep").textContent = stepLabel(task) + " · Retrato secreto 🤫";
       } else if (state.mode === "vote") {
@@ -1050,7 +1070,12 @@
     $("textPromptFig").hidden = true;
     $("textPromptEmpty").hidden = true;
     $("textSpacer").hidden = false;
-    if (task.type === "write" && task.nextRule) {
+    if (task.type === "write" && task.kind === "pairs") {
+      $("textTitle").textContent = "Te toca elegir qué vais a dibujar todos";
+      $("textInput").placeholder = "Ej.: Una nave espacial volando";
+      $("textStep").textContent = stepLabel(task) + (task.partners && task.partners.length ? " · Esta ronda vas con " + task.partners.map((p) => p.name).join(" y ") : "");
+      $("diceBtn").hidden = false;
+    } else if (task.type === "write" && task.nextRule) {
       // Dibujo extremo: se avisa de la limitación con la que se dibujará
       $("textTitle").innerHTML = "";
       $("textTitle").appendChild(document.createTextNode("Se dibujará "));
@@ -1242,6 +1267,13 @@
 
   function renderWait(task) {
     show("s-wait");
+    const choosing = task.kind === "pairs" && task.type === "write" && !task.isChooser;
+    $("waitTitle").textContent = choosing
+      ? `${task.chooser ? task.chooser.name : "Alguien"} está eligiendo qué vais a dibujar…` + (task.partners && task.partners.length ? ` Esta ronda vas con ${task.partners.map((p) => p.name).join(" y ")}.` : "")
+      : "¡Hecho! Esperando a los demás…";
+    $("unsubmitBtn").hidden = choosing;
+    $("waitBadge").textContent = choosing ? "⏳" : "✔";
+    $("waitBadge").classList.toggle("thinking", choosing);
     const ul = $("waitPlayers");
     ul.innerHTML = "";
     state.players.forEach((p) => ul.appendChild(playerItem(p, { status: true })));
@@ -1310,6 +1342,51 @@
     }
   }, 250);
 
+  // ---------- por parejas: lienzo compartido ----------
+  let opQueue = [];
+  let opTimer = null;
+  let pairSeen = -1; // último trozo del equipo ya pintado
+  let pairFresh = true; // lienzo recién empezado (sin trazos propios)
+  function queueOp(op) {
+    pairFresh = false;
+    const last = opQueue[opQueue.length - 1];
+    // los puntos seguidos van juntos en un mismo paquete
+    if (op.t === "m" && last && last.t === "m" && last.p.length < 600) last.p.push(...op.p.map((v) => Math.round(v * 10) / 10));
+    else opQueue.push(op.t === "m" ? { t: "m", p: op.p.map((v) => Math.round(v * 10) / 10) } : op);
+    if (!opTimer) opTimer = setTimeout(flushOps, 50);
+  }
+  function flushOps() {
+    opTimer = null;
+    if (!opQueue.length) return;
+    const ops = opQueue;
+    opQueue = [];
+    socket.emit("pairOps", { key: currentStepKey, ops });
+  }
+  const pairDrawing = () => state && state.phase === "playing" && state.task && state.task.kind === "pairs" && state.task.type === "draw" && pad;
+  socket.on("pairOps", (d) => {
+    if (!pairDrawing() || !d || d.key !== currentStepKey) return;
+    if (typeof d.i === "number") {
+      if (d.i <= pairSeen) return;
+      pairSeen = d.i;
+    }
+    pad.applyRemote(d.from, d.ops || []);
+  });
+  /** Al empezar o al volver de una desconexión: lo que el equipo lleva pintado */
+  function pairResync() {
+    if (!pairDrawing()) return;
+    const key = currentStepKey;
+    socket.emit("pairSync", {}, (res) => {
+      if (!res || !res.ok || res.key !== key || key !== currentStepKey || !pad) return;
+      const fresh = pairFresh;
+      (res.log || []).forEach((entry, i) => {
+        if (i <= pairSeen) return;
+        // lo mío solo hace falta si este lienzo está vacío (p. ej. tras recargar la página)
+        if (entry.from !== state.you || fresh) pad.applyRemote(entry.from, entry.ops);
+      });
+      pairSeen = Math.max(pairSeen, (res.log || []).length - 1);
+    });
+  }
+
   // ---------- lienzo y herramientas ----------
   const ICONS = {
     pen: '<path d="M4 20l4-1 11-11-3-3L5 16l-1 4z"/><path d="M14 6l3 3"/>',
@@ -1336,6 +1413,7 @@
     pad = new Pad($("pad"), {
       onChange: updateToolbar,
       onBlocked: () => toast("¡Sin levantar el lápiz! Si quieres empezar otra vez, pulsa deshacer ↩."),
+      onOp: queueOp,
       onStroke: (kind, v) => {
         if ((kind === "start" || kind === "fill") && pad.tool !== "eraser") addRecent(pad.color);
         if (kind === "fill") return SFX.play("splash");
@@ -2050,7 +2128,7 @@
     $("duoNextBtn").disabled = !host;
     $("duoNextBtn").textContent = !host
       ? `${nameOf(hostP, "El anfitrión")} pasa a la siguiente…`
-      : r.round >= r.rounds ? "Ver el podio 🏆" : "Siguiente ronda";
+      : r.round >= r.rounds ? (r.ranking && r.ranking.length > 1 && r.ranking[0].points === r.ranking[1].points ? "¡Empate! Ronda de desempate" : "Ver el podio 🏆") : "Siguiente ronda";
   }
 
   // ---------- revelación: un paso por pantalla ----------
@@ -2281,7 +2359,10 @@
     bookOpen = false;
     editingId = edit ? edit.id : null;
     document.body.classList.add("solo");
+    document.body.classList.remove("pairs-draw");
     ensurePad();
+    pad.shared = false;
+    pad.forcePortrait = false;
     pad.reset();
     pad.setRule(null);
     applyRuleToolbar(null);
@@ -2503,7 +2584,7 @@
     if (isVote) {
       const winners = state.ranking.filter((r) => r.place === 1);
       $("endTitle").textContent = winners.length > 1 ? "¡Empate en lo más alto!" : `¡Gana ${winners[0].name}!`;
-      $("endText").textContent = state.kind === "extreme" ? `${state.ranking[0].points} puntos entre aciertos y dibujos adivinados. ¿La revancha?` : `${state.ranking[0].points} estrellas${state.kind === "portrait" ? " por el parecido" : ""}. ¿La revancha?`;
+      $("endText").textContent = state.kind === "extreme" ? `${state.ranking[0].points} puntos entre aciertos y dibujos adivinados. ¿La revancha?` : state.kind === "pairs" ? `${state.ranking[0].points} estrellas sumadas, de media en cada ronda. ¿La revancha?` : `${state.ranking[0].points} estrellas${state.kind === "portrait" ? " por el parecido" : ""}. ¿La revancha?`;
       $("reviewBtn").textContent = "Volver a ver las rondas";
       paintPodium(state.ranking);
     } else if (state.mode === "duo") {

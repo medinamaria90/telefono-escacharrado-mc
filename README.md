@@ -90,6 +90,15 @@ La mecánica se adapta al número de jugadores:
   se va a dibujar («Se dibujará ⬛ Solo cuadrados. ¿Qué quieres que dibujen?»).
 - En la revelación, cada dibujo indica con qué limitación se hizo.
 
+### Modo Por parejas (4 a 12 jugadores)
+
+- En cada ronda a uno le toca **elegir qué se dibuja** (por turnos); los demás esperan.
+- Se forman **parejas que cambian cada ronda** (si sois impares, un trío). Se busca el reparto que menos repite compañeros: con 4, en 3 rondas cada uno ha dibujado con todos.
+- Cada pareja dibuja la frase **a la vez en un lienzo compartido**: los trazos del compañero aparecen en directo (el subrayador y la acuarela del otro, al soltar). No hay deshacer, porque borraría lo del compañero; la goma y la papelera sí.
+- Luego todos puntúan del 1 al 5 los dibujos en los que no han participado. Cada dibujo saca la **media** de sus estrellas (así un trío y una pareja compiten igual) y esa media se la suma **cada miembro**: los puntos son de cada persona.
+- Si al final hay empate arriba, se juega una **ronda de desempate** (como mucho dos).
+- Si alguien recarga o se reconecta a mitad, recupera todo lo que lleva pintado su pareja. En la sala de pruebas, los robots compañeros también pintan garabatos.
+
 ### Sala de pruebas
 
 Con el código **ZZZZZ** se crea una sala privada con **4 robots** que juegan solos:

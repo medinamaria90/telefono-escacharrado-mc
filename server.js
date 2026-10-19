@@ -197,6 +197,13 @@ function botContent(room, botId) {
   }
   if (game.stepType === "draw") {
     let text = "";
+    if (game.mode === "vote" && game.kind === "pairs") {
+      // En un equipo con personas, el robot no manda dibujo propio (se queda el de las personas)
+      const team = game.teams[game.round][teamIndexOf(game, botId)] || [];
+      if (team.some((id) => !room.players.get(id)?.bot)) return { content: null };
+      const d = ART.draw({ text: game.phrases[game.round] });
+      return { content: d.url, meta: d.key };
+    }
     if (game.mode === "vote") text = game.kind === "stars" ? game.phrases[game.round] : game.kind === "extreme" ? game.extras[game.round][botId].phrase : "una persona";
     else if (game.mode === "duo") text = game.secrets.get(botId)?.phrase;
     const d = game.kind === "extreme" ? ART.drawRule(game.extras[game.round][botId].rule) : ART.draw({ text, key: game.kind === "portrait" ? "persona" : undefined });
@@ -221,9 +228,81 @@ function scheduleBots(room) {
     setTimeout(() => {
       if (room.game !== game || game.seq !== seq || room.phase !== "playing" || game.submissions.get(id)?.done) return;
       const r = botContent(room, id);
-      game.submissions.set(id, { content: r.content, meta: r.meta, done: true });
+      game.submissions.set(id, { content: r.content, meta: r.meta, done: true, at: Date.now() - 600000 });
       maybeFinish(room);
     }, 2500 + crypto.randomInt(5000));
+  }
+}
+
+// ---------- por parejas: lienzo compartido ----------
+const TOOLS = ["pen", "marker", "water", "spray", "eraser"];
+const num = (v, lo, hi) => (typeof v === "number" && isFinite(v) ? Math.max(lo, Math.min(hi, Math.round(v * 10) / 10)) : null);
+/** Trazos que manda un móvil: solo se dejan pasar campos conocidos y números en rango */
+function cleanOps(ops) {
+  if (!Array.isArray(ops)) return [];
+  const out = [];
+  for (const o of ops.slice(0, 400)) {
+    if (!o || typeof o !== "object") continue;
+    if (o.t === "s") {
+      const x = num(o.x, 0, 900), y = num(o.y, 0, 900), z = num(o.z, 1, 80);
+      if (x == null || y == null || z == null || !TOOLS.includes(o.tool) || !/^#[0-9a-f]{6}$/i.test(o.c || "")) continue;
+      const op = { t: "s", tool: o.tool, c: o.c, z, x, y };
+      if (Array.isArray(o.w)) op.w = o.w.slice(0, 6).map((L) => ({ amp: num(L?.amp, 0, 1) || 0, k: num(L?.k, 0, 2) || 1, a: num(L?.a, 0, 1) || 0.3, p1: num(L?.p1, 0, 7) || 0, p2: num(L?.p2, 0, 7) || 0, p3: num(L?.p3, 0, 7) || 0 }));
+      out.push(op);
+    } else if (o.t === "m" && Array.isArray(o.p)) {
+      const p = [];
+      for (const v of o.p.slice(0, 800)) {
+        const n = num(v, 0, 900);
+        if (n == null) break;
+        p.push(n);
+      }
+      if (p.length >= 2) out.push({ t: "m", p: p.length % 2 ? p.slice(0, -1) : p });
+    } else if (o.t === "e" || o.t === "c") out.push({ t: o.t });
+    else if (o.t === "f") {
+      const x = num(o.x, 0, 900), y = num(o.y, 0, 900);
+      if (x != null && y != null && /^#[0-9a-f]{6}$/i.test(o.c || "")) out.push({ t: "f", x, y, c: o.c });
+    }
+  }
+  return out;
+}
+/** Guarda los trazos de un equipo y se los pasa a sus compañeros */
+function relayOps(room, fromId, ops) {
+  const game = room.game;
+  const ti = teamIndexOf(game, fromId);
+  if (ti < 0 || !ops.length) return;
+  const log = game.logs[ti] || (game.logs[ti] = []);
+  if (log.reduce((n, e) => n + e.ops.length, 0) > 60000) return; // tope de seguridad
+  log.push({ from: fromId, ops });
+  const key = stepKeyOf(game);
+  for (const id of game.teams[game.round][ti]) {
+    if (id === fromId) continue;
+    const p = room.players.get(id);
+    if (p && p.connected && p.socketId) io.to(p.socketId).emit("pairOps", { key, from: fromId, ops, i: log.length - 1 });
+  }
+}
+/** Sala de pruebas: el robot compañero también pinta (y estorba un poco) */
+function scheduleBotScribbles(room) {
+  const game = room.game;
+  if (!room.practice) return;
+  const seq = game.seq;
+  const COLS = ["#c81d25", "#2563eb", "#1f8a3a", "#ff7a1a", "#9b5de5", "#ffd21f"];
+  for (const team of game.teams[game.round]) {
+    const bots = team.filter((id) => room.players.get(id)?.bot);
+    if (!bots.length || bots.length === team.length) continue;
+    const tick = () => {
+      if (room.game !== game || game.seq !== seq || room.phase !== "playing") return;
+      const id = pick(bots);
+      let x = 80 + crypto.randomInt(440), y = 120 + crypto.randomInt(660);
+      const p = [];
+      for (let i = 0; i < 14; i++) {
+        x = Math.max(10, Math.min(590, x + crypto.randomInt(61) - 30));
+        y = Math.max(10, Math.min(890, y + crypto.randomInt(61) - 30));
+        p.push(x, y);
+      }
+      relayOps(room, id, [{ t: "s", tool: crypto.randomInt(4) ? "pen" : "marker", c: pick(COLS), z: 9, x: p[0], y: p[1] }, { t: "m", p }, { t: "e" }]);
+      setTimeout(tick, 4000 + crypto.randomInt(5000));
+    };
+    setTimeout(tick, 2500 + crypto.randomInt(3000));
   }
 }
 
@@ -249,12 +328,16 @@ const DEGRADE_VIEW_MS = 10000;
 const degradeSteps = (n) => Math.min(8, Math.max(4, n));
 // Dibujo extremo: limitaciones al azar
 const RULES = ["circles", "squares", "oneline"];
+// Modos que se juegan por rondas con votación de estrellas
+const VOTE_MODES = ["votacion", "retratos", "parejas"];
+const MODES = ["telefono", ...VOTE_MODES, "degradado", "extremo"];
+const minPlayersFor = (mode) => (mode === "parejas" ? 4 : 2);
 
 function startGame(room) {
   const order = shuffle([...room.players.values()].filter((p) => !p.left).map((p) => p.id));
   const n = order.length;
   const game = {
-    mode: ["votacion", "retratos"].includes(room.settings.mode) ? "vote" : ["degradado", "extremo"].includes(room.settings.mode) || n > 2 ? "chain" : "duo",
+    mode: VOTE_MODES.includes(room.settings.mode) ? "vote" : ["degradado", "extremo"].includes(room.settings.mode) || n > 2 ? "chain" : "duo",
     order,
     step: 0,
     stepType: null,
@@ -291,7 +374,7 @@ function startGame(room) {
     // Votación: todos dibujan la misma frase, se puntúa del 1 al 5 sin saber de quién es cada dibujo.
     // Retratos: a cada uno le toca retratar en secreto a otro jugador, y todos puntúan el
     // parecido de cada retrato del 1 al 5 (se sabe a quién retrata, no quién lo dibujó).
-    game.kind = room.settings.mode === "retratos" ? "portrait" : room.settings.mode === "extremo" ? "extreme" : "stars";
+    game.kind = room.settings.mode === "retratos" ? "portrait" : room.settings.mode === "parejas" ? "pairs" : room.settings.mode === "extremo" ? "extreme" : "stars";
     game.extras = []; // dibujo extremo: por ronda, {jugador: {phrase, rule}}
     game.targets = []; // retratos: por ronda, {dibujante: retratado}
     game.rounds = room.settings.duoRounds;
@@ -302,6 +385,16 @@ function startGame(room) {
     game.voteOrder = []; // por ronda: orden (barajado) en que se enseñan los dibujos
     game.totals = new Map(order.map((id) => [id, 0]));
     game.usedPhrases = new Set();
+    if (game.kind === "pairs") {
+      // Por parejas: en cada ronda a uno le toca elegir la frase; las parejas cambian cada ronda
+      // y dibujan a la vez en un lienzo compartido. Se puntúa con estrellas y los puntos son de cada persona.
+      game.stage = "write";
+      game.teams = []; // por ronda: [[id, id], [id, id, id]...]
+      game.choosers = []; // por ronda: quién elige la frase
+      game.partnerCount = new Map(); // "a|b" -> veces que han ido juntos
+      game.logs = []; // ronda actual: trazos de cada equipo, para quien se reconecta
+      game.tiebreaks = 0;
+    }
   } else {
     game.rounds = room.settings.duoRounds;
     game.round = 0;
@@ -350,7 +443,42 @@ function currentStepType(game) {
 /** Dibujos que puede puntuar un jugador: los de los demás que no están en blanco */
 function votableFor(game, playerId) {
   const list = game.drawings[game.round] || [];
-  return (game.voteOrder[game.round] || []).filter((k) => list[k] && list[k].image && list[k].by !== playerId);
+  return (game.voteOrder[game.round] || []).filter((k) => list[k] && list[k].image && !inDrawing(list[k], playerId));
+}
+/** ¿Participó este jugador en ese dibujo? (por parejas, todo el equipo) */
+function inDrawing(d, playerId) {
+  return d.team ? d.team.includes(playerId) : d.by === playerId;
+}
+/** Parejas de la ronda: se busca el reparto que menos repite compañeros (si son impares, un trío) */
+function makeTeams(game) {
+  const ids = game.order.slice();
+  const key = (a, b) => (a < b ? a + "|" + b : b + "|" + a);
+  const split = (list) => {
+    const teams = [];
+    for (let i = 0; i + 1 < list.length; i += 2) teams.push([list[i], list[i + 1]]);
+    if (list.length % 2) teams[teams.length - 1].push(list[list.length - 1]);
+    return teams;
+  };
+  let best = null;
+  let bestCost = Infinity;
+  for (let t = 0; t < 80; t++) {
+    const teams = split(shuffle(ids));
+    let cost = 0;
+    for (const team of teams) for (let i = 0; i < team.length; i++) for (let j = i + 1; j < team.length; j++) cost += (game.partnerCount.get(key(team[i], team[j])) || 0) ** 2;
+    if (cost < bestCost) {
+      best = teams;
+      bestCost = cost;
+    }
+  }
+  for (const team of best) for (let i = 0; i < team.length; i++) for (let j = i + 1; j < team.length; j++) {
+    const k = key(team[i], team[j]);
+    game.partnerCount.set(k, (game.partnerCount.get(k) || 0) + 1);
+  }
+  game.teams[game.round] = best;
+}
+function teamIndexOf(game, playerId) {
+  const teams = game.teams && game.teams[game.round];
+  return teams ? teams.findIndex((t) => t.includes(playerId)) : -1;
 }
 /** Reparto de retratos: una vuelta al azar, así nadie se dibuja a sí mismo y a todos les retratan */
 function assignTargets(game) {
@@ -370,7 +498,17 @@ function beginStep(room) {
     game.deadline = null;
     return;
   }
-  if (game.mode === "vote" && game.stage === "draw") {
+  if (game.mode === "vote" && game.kind === "pairs" && game.stage === "write") {
+    makeTeams(game);
+    const alive = game.order.filter((id) => !room.players.get(id)?.left);
+    const pool = alive.length ? alive : game.order;
+    game.choosers[game.round] = pool[game.round % pool.length];
+    game.phrases[game.round] = null;
+  }
+  if (game.mode === "vote" && game.kind === "pairs" && game.stage === "draw") {
+    game.logs = game.teams[game.round].map(() => []);
+  }
+  if (game.mode === "vote" && game.stage === "draw" && game.kind !== "pairs") {
     if (game.kind === "stars") game.phrases[game.round] = freshPhrase(game);
     else if (game.kind === "extreme") {
       game.phrases[game.round] = "Dibujo extremo";
@@ -412,7 +550,10 @@ function beginStep(room) {
     if (p && p.left) game.submissions.set(id, { content: null, done: true });
     // Sin dibujos que puntuar (todos los demás en blanco): no hay nada que hacer
     else if (game.mode === "vote" && game.stage === "vote" && !votableFor(game, id).length) game.submissions.set(id, { content: {}, done: true });
+    // Por parejas: mientras uno elige la frase, los demás esperan
+    else if (game.mode === "vote" && game.stage === "write" && id !== game.choosers[game.round]) game.submissions.set(id, { content: null, done: true });
   }
+  if (game.mode === "vote" && game.kind === "pairs" && game.stage === "draw") scheduleBotScribbles(room);
   checkPause(room);
   scheduleBots(room);
   maybeFinish(room);
@@ -492,8 +633,19 @@ function taskFor(room, playerId) {
     base.rounds = game.rounds;
     base.phrase = game.phrases[game.round];
     base.kind = game.kind;
+    if (game.kind === "pairs") {
+      base.tiebreak = game.round >= game.rounds - game.tiebreaks && game.tiebreaks > 0;
+      const ti = teamIndexOf(game, playerId);
+      const team = ti >= 0 ? game.teams[game.round][ti] : [];
+      base.partners = team.filter((id) => id !== playerId).map((id) => who(room, id));
+      if (game.stage === "write") {
+        const ch = game.choosers[game.round];
+        base.chooser = who(room, ch);
+        base.isChooser = ch === playerId;
+      }
+    }
     if (game.stage === "draw") {
-      if (game.kind === "stars") base.secret = base.phrase;
+      if (game.kind === "stars" || game.kind === "pairs") base.secret = base.phrase;
       else if (game.kind === "extreme") {
         const ex = game.extras[game.round][playerId];
         base.secret = ex.phrase;
@@ -553,7 +705,7 @@ function submit(room, playerId, content) {
   } else {
     value = cleanText(content);
   }
-  game.submissions.set(playerId, { content: value, done: true });
+  game.submissions.set(playerId, { content: value, done: true, at: Date.now() });
   maybeFinish(room);
 }
 
@@ -584,7 +736,7 @@ function lateDrawing(room, playerId, stepKey, content) {
     if (spot && !spot.content) spot.content = content;
     else spot = null;
   } else if (game.mode === "vote") {
-    spot = (game.drawings[last.round] || []).find((d) => d.by === playerId && !d.image);
+    spot = (game.drawings[last.round] || []).find((d) => inDrawing(d, playerId) && !d.image);
     if (spot) spot.image = content;
   } else if (game.mode === "duo") {
     spot = (game.cards[last.round] || []).find((c) => c.drawer === playerId && !c.image);
@@ -623,7 +775,30 @@ function finishStep(room) {
   }
 
   if (game.mode === "vote") {
-    if (game.stage === "draw") {
+    if (game.stage === "write") {
+      // Por parejas: la frase que eligió quien le tocaba (o una al azar si no escribió nada)
+      const ch = game.choosers[game.round];
+      const f = contentOf(ch);
+      game.phrases[game.round] = f || freshPhrase(game);
+      game.stage = "draw";
+    } else if (game.stage === "draw" && game.kind === "pairs") {
+      // Un dibujo por equipo: el último que se envió (el más completo)
+      game.drawings[game.round] = game.teams[game.round].map((team) => {
+        let image = null;
+        let at = -1;
+        for (const id of team) {
+          const s = game.submissions.get(id);
+          if (s && s.content && (s.at || 0) > at) {
+            image = s.content;
+            at = s.at || 0;
+          }
+        }
+        return { by: team[0], team: team.slice(), image, votes: {}, points: 0 };
+      });
+      game.voteOrder[game.round] = shuffle(game.drawings[game.round].map((_, k) => k));
+      game.logs = [];
+      game.stage = "vote";
+    } else if (game.stage === "draw") {
       const targets = game.targets[game.round] || {};
       const ex = (game.extras && game.extras[game.round]) || {};
       game.drawings[game.round] = game.order.map((id) => ({ by: id, target: targets[id] || null, phrase: ex[id] ? ex[id].phrase : null, rule: ex[id] ? ex[id].rule : null, image: contentOf(id), votes: {}, points: 0 }));
@@ -635,7 +810,7 @@ function finishStep(room) {
         const v = contentOf(voter) || {};
         for (const [k, val] of Object.entries(v)) {
           const d = list[Number(k)];
-          if (!d || d.by === voter) continue;
+          if (!d || inDrawing(d, voter)) continue;
           d.votes[voter] = val;
           if (game.kind === "extreme") {
             // Acertar qué es: puntos para quien adivina y para quien lo dibujó (3 acierto, 1 casi)
@@ -647,8 +822,17 @@ function finishStep(room) {
             game.totals.set(voter, (game.totals.get(voter) || 0) + pts);
             continue;
           }
+          if (game.kind === "pairs") continue; // se reparte abajo, con la media
           d.points += val;
           game.totals.set(d.by, (game.totals.get(d.by) || 0) + val);
+        }
+      }
+      if (game.kind === "pairs") {
+        // Media de estrellas (así un trío y una pareja compiten igual); cada miembro se la suma
+        for (const d of list) {
+          const vals = Object.values(d.votes);
+          d.points = vals.length ? Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10 : 0;
+          for (const id of d.team) game.totals.set(id, Math.round(((game.totals.get(id) || 0) + d.points) * 10) / 10);
         }
       }
       game.stage = "result";
@@ -714,6 +898,14 @@ function voteNext(room) {
   const game = room.game;
   if (!game || game.mode !== "vote" || game.stage !== "result" || room.phase !== "playing") return;
   game.round++;
+  if (game.round >= game.rounds && game.kind === "pairs" && game.tiebreaks < 2) {
+    // Empate arriba: una ronda más de desempate (como mucho dos)
+    const rk = voteRanking(room);
+    if (rk.length > 1 && rk[0].points === rk[1].points) {
+      game.tiebreaks++;
+      game.rounds++;
+    }
+  }
   if (game.round >= game.rounds) {
     room.phase = "end";
     game.phase = "end";
@@ -721,7 +913,7 @@ function voteNext(room) {
     sendGallery(room);
     return;
   }
-  game.stage = "draw";
+  game.stage = game.kind === "pairs" ? "write" : "draw";
   beginStep(room);
   broadcast(room);
 }
@@ -735,7 +927,7 @@ function voteRound(room, r) {
     kind: game.kind,
     items: list
       .map((d) => ({
-        by: who(room, d.by),
+        by: d.team ? teamWho(room, d.team) : who(room, d.by),
         target: d.target ? who(room, d.target) : null,
         phrase: d.phrase,
         rule: d.rule,
@@ -795,6 +987,12 @@ function publicEntry(room, e) {
   const by = room.players.get(e.by);
   return { type: e.type, content: e.content, rule: e.rule || null, by: by ? { name: by.name, emoji: by.emoji } : null };
 }
+/** Un equipo como si fuera una persona: «Ana y Luis» (con la carita del primero) */
+function teamWho(room, ids) {
+  const names = ids.map((id) => who(room, id).name);
+  const name = names.length > 1 ? names.slice(0, -1).join(", ") + " y " + names[names.length - 1] : names[0] || "?";
+  return { name, emoji: who(room, ids[0]).emoji };
+}
 function who(room, id) {
   const p = room.players.get(id);
   return p ? { name: p.name, emoji: p.emoji } : { name: "?", emoji: "❔" };
@@ -845,6 +1043,7 @@ function endGameEarly(room) {
     if (done < 1) return backToLobby(room);
     game.rounds = done;
     game.drawings = game.drawings.slice(0, done);
+    game.tiebreaks = 0;
     room.phase = "end";
     game.phase = "end";
     broadcast(room);
@@ -886,7 +1085,7 @@ function stateFor(room, playerId) {
     hostId: room.hostId,
     phase: room.phase,
     settings: room.settings,
-    mode: game ? game.mode : ["votacion", "retratos"].includes(room.settings.mode) ? "vote" : ["degradado", "extremo"].includes(room.settings.mode) || players.length !== 2 ? "chain" : "duo",
+    mode: game ? game.mode : VOTE_MODES.includes(room.settings.mode) ? "vote" : ["degradado", "extremo"].includes(room.settings.mode) || players.length !== 2 ? "chain" : "duo",
     chainSteps: chainLength(Math.max(players.length, 3)),
     players: players.map((p) => ({
       id: p.id,
@@ -915,6 +1114,7 @@ function stateFor(room, playerId) {
     }
     if (game.mode === "vote" && game.stage === "result") {
       st.voteResult = { round: game.round + 1, rounds: game.rounds, ...voteRound(room, game.round) };
+      if (game.kind === "pairs") st.voteResult.ranking = voteRanking(room);
     }
     if (game.mode === "duo" && game.duoStage === "result") {
       st.result = {
@@ -1075,7 +1275,7 @@ io.on("connection", (socket) => {
   socket.on("settings", (data) => {
     if (!isHost() || room.phase !== "lobby") return;
     if (data && DRAW_TIMES.includes(Number(data.time)) && data.time !== undefined && data.time !== null) room.settings.time = Number(data.time);
-    if (data && ["telefono", "votacion", "retratos", "degradado", "extremo"].includes(data.mode)) room.settings.mode = data.mode;
+    if (data && MODES.includes(data.mode)) room.settings.mode = data.mode;
     if (data && ["mix", ...RULES].includes(data.rule)) room.settings.rule = data.rule;
     const dr = Number(data?.duoRounds);
     if ([2, 3, 4, 5, 6].includes(dr)) room.settings.duoRounds = dr;
@@ -1087,7 +1287,8 @@ io.on("connection", (socket) => {
     const active = [...room.players.values()].filter((p) => !p.left && p.connected);
     // Antes de empezar, fuera quien no está conectado
     for (const [id, p] of room.players) if (!p.connected) room.players.delete(id);
-    if (active.length < 2) return socket.emit("toast", "Hacen falta al menos 2 jugadores.");
+    const need = minPlayersFor(room.settings.mode);
+    if (active.length < need) return socket.emit("toast", `Hacen falta al menos ${need} jugadores.`);
     startGame(room);
     broadcast(room);
   });
@@ -1101,6 +1302,21 @@ io.on("connection", (socket) => {
     }
     submit(room, player.id, data?.content);
     reply({ ok: true });
+  });
+
+  // Por parejas: trazos en directo y, al volver, todo lo que lleva pintado el equipo
+  socket.on("pairOps", (data) => {
+    const game = room?.game;
+    if (!game || room.phase !== "playing" || game.kind !== "pairs" || game.stage !== "draw") return;
+    if (data?.key !== stepKeyOf(game)) return;
+    relayOps(room, player.id, cleanOps(data.ops));
+  });
+  socket.on("pairSync", (data, ack) => {
+    if (typeof ack !== "function") return;
+    const game = room?.game;
+    if (!game || room.phase !== "playing" || game.kind !== "pairs" || game.stage !== "draw") return ack({ ok: false });
+    const ti = teamIndexOf(game, player.id);
+    ack({ ok: true, key: stepKeyOf(game), log: ti >= 0 ? game.logs[ti] || [] : [] });
   });
 
   socket.on("unsubmit", () => {
