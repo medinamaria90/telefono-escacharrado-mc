@@ -821,3 +821,7 @@ body.face-mode .pad-inner { overflow: hidden; }
 }
 .rule-seg button { font-size: .82rem; padding-inline: 2px; }
 .mode-card .seg.rule-seg button { font-size: 1.2rem; padding: 2px; min-height: 36px; }
+
+/* sala de espera: dibujar solo / ver el cuaderno */
+.lobby-extra { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 14px; }
+.lobby-extra .btn-ghost { white-space: nowrap; }

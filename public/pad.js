@@ -1,6 +1,40 @@
 // Lienzo de dibujo: pincel, goma, relleno, mover, zoom, deshacer/rehacer.
 (function () {
   const W = 600;
+  // Textura de papel para la acuarela (se crea una sola vez)
+  let grain = null;
+  function paperGrain() {
+    if (grain) return grain;
+    const n = 192;
+    grain = document.createElement("canvas");
+    grain.width = grain.height = n;
+    const g = grain.getContext("2d");
+    // manchas suaves: el pigmento no se reparte igual
+    for (let i = 0; i < 60; i++) {
+      const x = Math.random() * n, y = Math.random() * n, r = 8 + Math.random() * 28;
+      const rg = g.createRadialGradient(x, y, 0, x, y, r);
+      rg.addColorStop(0, "rgba(0,0,0," + (0.08 + Math.random() * 0.12) + ")");
+      rg.addColorStop(1, "rgba(0,0,0,0)");
+      g.fillStyle = rg;
+      for (const dx of [-n, 0, n]) for (const dy of [-n, 0, n]) {
+        g.save();
+        g.translate(dx, dy);
+        g.beginPath();
+        g.arc(x, y, r, 0, Math.PI * 2);
+        g.fill();
+        g.restore();
+      }
+    }
+    // grano fino del papel
+    const img = g.getImageData(0, 0, n, n);
+    const d = img.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const v = Math.pow(Math.random(), 3) * 110;
+      d[i + 3] = Math.min(255, d[i + 3] + v);
+    }
+    g.putImageData(img, 0, 0);
+    return grain;
+  }
   const H = 900;
   const MAX_UNDO = 20;
   const ZOOMS = [1, 1.5, 2, 3, 4];
@@ -383,7 +417,7 @@
       }
       this._snapshot();
       this.over.style.opacity = this.tool === "water" ? ".45" : "";
-      this.stroke = { last: p, lastMid: p, t: performance.now() };
+      this.stroke = { last: p, lastMid: p, t: performance.now(), pts: [p] };
       if (this.tool === "spray") {
         this._spray(p, 1);
         clearInterval(this.sprayTimer);
@@ -440,6 +474,7 @@
           this.stroke.lastMid = p;
           continue;
         }
+        if (this.tool === "water") this.stroke.pts.push(p);
         const mid = { x: (this.stroke.last.x + p.x) / 2, y: (this.stroke.last.y + p.y) / 2 };
         const ctx = this._soft() ? this.octx : this.ctx;
         this._style(ctx);
@@ -504,7 +539,7 @@
     }
     _width() {
       if (this.tool === "marker") return Math.max(6, this.size * 1.6);
-      if (this.tool === "water") return Math.max(6, this.size * 1.3);
+      if (this.tool === "water") return Math.max(8, this.size * 1.5);
       return this.size;
     }
     _style(ctx = this.ctx) {
@@ -513,9 +548,6 @@
       ctx.lineWidth = this._width();
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
-      // Acuarela: bordes difuminados
-      ctx.shadowColor = this.color;
-      ctx.shadowBlur = this.tool === "water" ? Math.max(6, this.size * 0.9) : 0;
     }
     _spray(p, amount) {
       const ctx = this.ctx;
@@ -540,16 +572,66 @@
       ctx.fill();
     }
     _commitMarker() {
+      if (this.tool === "water") return this._commitWater();
       // Semitransparente y en modo "multiplicar": deja ver las líneas de debajo
       const ctx = this.ctx;
       ctx.save();
-      ctx.shadowBlur = 0;
-      ctx.globalAlpha = this.tool === "water" ? 0.45 : 0.5;
+      ctx.globalAlpha = 0.5;
       ctx.globalCompositeOperation = "multiply";
       ctx.drawImage(this.over, 0, 0);
       ctx.restore();
       this.octx.clearRect(0, 0, W, H);
-      this.octx.shadowBlur = 0;
+    }
+    /** Acuarela: bordes irregulares, cerco de pigmento al secarse y grano del papel */
+    _commitWater() {
+      const t = this._wetCanvas || (this._wetCanvas = document.createElement("canvas"));
+      t.width = W;
+      t.height = H;
+      const tx = t.getContext("2d");
+      const pts = (this.stroke && this.stroke.pts) || [];
+      const w = this._width();
+      tx.lineCap = tx.lineJoin = "round";
+      tx.strokeStyle = this.color;
+      // camino con un temblor suave (el agua no avanza recta)
+      const path = (amp, k) => {
+        const ph1 = Math.random() * 6.3, ph2 = Math.random() * 6.3, ph3 = Math.random() * 6.3;
+        let dist = 0;
+        tx.beginPath();
+        pts.forEach((p, i) => {
+          if (i) dist += Math.hypot(p.x - pts[i - 1].x, p.y - pts[i - 1].y);
+          const ox = amp * (Math.sin(dist / (w * 0.9) + ph1) + 0.5 * Math.sin(dist / (w * 0.35) + ph2));
+          const oy = amp * (Math.cos(dist / (w * 0.8) + ph3) + 0.5 * Math.sin(dist / (w * 0.4) + ph1));
+          if (i) tx.lineTo(p.x + ox, p.y + oy);
+          else tx.moveTo(p.x + ox, p.y + oy);
+        });
+        if (pts.length === 1) tx.lineTo(pts[0].x + 0.1, pts[0].y);
+        tx.lineWidth = w * k;
+      };
+      if (pts.length) {
+        // varias capas finas y desplazadas: borde irregular y color que no es plano
+        [[0.16, 1.0, 0.5], [0.2, 0.85, 0.45], [0.12, 1.12, 0.3], [0.08, 0.6, 0.35]].forEach(([amp, k, a]) => {
+          tx.globalAlpha = a;
+          path(w * amp, k);
+          tx.stroke();
+        });
+        // el centro se aclara un poco: queda más pigmento en el borde
+        tx.globalCompositeOperation = "destination-out";
+        tx.globalAlpha = 0.22;
+        path(w * 0.1, 0.5);
+        tx.stroke();
+      } else tx.drawImage(this.over, 0, 0);
+      // grano del papel y manchas de pigmento
+      tx.globalCompositeOperation = "destination-out";
+      tx.globalAlpha = 0.85;
+      tx.fillStyle = tx.createPattern(paperGrain(), "repeat");
+      tx.fillRect(0, 0, W, H);
+      const ctx = this.ctx;
+      ctx.save();
+      ctx.globalAlpha = 0.85;
+      ctx.globalCompositeOperation = "multiply";
+      ctx.drawImage(t, 0, 0);
+      ctx.restore();
+      this.octx.clearRect(0, 0, W, H);
     }
 
     // ---- relleno por zonas (cubo de pintura) ----

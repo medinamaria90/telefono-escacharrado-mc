@@ -2304,6 +2304,7 @@
   });
   $("soloBtn").addEventListener("click", () => startSolo());
   $("lobbySoloBtn").addEventListener("click", () => startSolo());
+  $("lobbyBookBtn").addEventListener("click", () => openBook("lobby"));
   $("soloExitBtn").addEventListener("click", () => exitSolo());
   $("bookBtn").addEventListener("click", () => openBook("home"));
   $("soloBookBtn").addEventListener("click", () => openBook("solo"));
