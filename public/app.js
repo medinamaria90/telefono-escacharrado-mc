@@ -872,7 +872,7 @@
     const [t, txt] = modeCopy(n);
     $("modeTitle").textContent = (state.practice ? "🧪 Pruebas · " : "") + t;
     $("modeEmoji").textContent = modeInfo(state.settings.mode).emoji;
-    $("modeText").textContent = state.practice ? "🤖 Los robots juegan solos. " + txt : txt;
+    $("modeText").textContent = txt;
     const host = isHost();
     if (!timeDragging) {
       const idx = Math.max(0, DRAW_TIMES.indexOf(Number(state.settings.time)));
@@ -1038,7 +1038,7 @@
       $("diceBtn").hidden = false;
     } else if (task.type === "write") {
       $("textTitle").textContent = "Escribe una frase para que alguien la dibuje";
-      $("textInput").placeholder = "Ej.: Un pulpo tocando la batería";
+      $("textInput").placeholder = "Ej.: Un pulpo bailando";
       $("diceBtn").hidden = false;
     } else {
       $("textTitle").textContent = state.mode === "duo" ? "¿Qué ha dibujado tu pareja?" : "¿Qué crees que es este dibujo?";
