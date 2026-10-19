@@ -386,10 +386,19 @@
     if (!box) {
       box = document.createElement("div");
       box.id = "errbox";
-      box.style.cssText = "position:fixed;left:8px;right:8px;bottom:8px;z-index:99;background:#b00020;color:#fff;font:12px/1.35 monospace;padding:8px 10px;border-radius:10px;max-height:40vh;overflow:auto;white-space:pre-wrap";
+      box.style.cssText = "position:fixed;left:8px;right:8px;bottom:8px;z-index:99;background:#b00020;color:#fff;font:12px/1.35 monospace;padding:8px 10px;border-radius:10px;max-height:40vh;overflow:auto;white-space:pre-wrap;pointer-events:none";
       (document.body || document.documentElement).appendChild(box);
     }
-    box.textContent += (box.textContent ? "\n" : "") + msg;
+    // Aviso de 5 segundos: da tiempo a hacer una captura y luego desaparece
+    var lines = (box.dataset.msgs ? box.dataset.msgs + "\n" : "") + msg;
+    box.dataset.msgs = lines;
+    box.textContent = "📸 Algo ha fallado. Haz una captura y mándasela a María.\n" + lines;
+    box.hidden = false;
+    clearTimeout(box.hideTimer);
+    box.hideTimer = setTimeout(function () {
+      box.hidden = true;
+      box.dataset.msgs = "";
+    }, 5000);
   }
   window.addEventListener("error", function (e) {
     var t = e.target;
