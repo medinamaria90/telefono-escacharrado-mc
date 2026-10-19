@@ -183,6 +183,10 @@ function botContent(room, botId) {
         const d = ART.draw({ key: prev.botKey, text: first.type === "draw" ? "" : first.content, level: Math.max(1, game.step - (first.type === "draw" ? 0 : 1)) });
         return { content: d.url, meta: d.key };
       }
+      if (game.variant === "extreme") {
+        const d = ART.drawRule(game.stepRules[game.step]);
+        return { content: d.url, meta: d.key };
+      }
       const d = ART.draw({ text: prev.content });
       return { content: d.url, meta: d.key };
     }
@@ -243,7 +247,7 @@ function startGame(room) {
   const order = shuffle([...room.players.values()].filter((p) => !p.left).map((p) => p.id));
   const n = order.length;
   const game = {
-    mode: ["votacion", "retratos", "extremo"].includes(room.settings.mode) ? "vote" : room.settings.mode === "degradado" || n > 2 ? "chain" : "duo",
+    mode: ["votacion", "retratos"].includes(room.settings.mode) ? "vote" : ["degradado", "extremo"].includes(room.settings.mode) || n > 2 ? "chain" : "duo",
     order,
     step: 0,
     stepType: null,
@@ -252,8 +256,10 @@ function startGame(room) {
     phase: "playing",
   };
   if (game.mode === "chain") {
-    game.variant = room.settings.mode === "degradado" ? "degrade" : "classic";
-    game.steps = game.variant === "degrade" ? degradeSteps(n) : chainLength(n);
+    // Dibujo extremo: como el clásico, pero en cada vuelta de dibujo todos tienen la misma limitación
+    game.variant = room.settings.mode === "degradado" ? "degrade" : room.settings.mode === "extremo" ? "extreme" : "classic";
+    game.steps = game.variant === "degrade" ? degradeSteps(n) : n === 2 ? 4 : chainLength(n);
+    game.stepRules = [];
     game.books = order.map((id) => ({ owner: id, entries: [] }));
   } else if (game.mode === "vote") {
     // Votación: todos dibujan la misma frase, se puntúa del 1 al 5 sin saber de quién es cada dibujo.
@@ -337,6 +343,12 @@ function beginStep(room) {
   }
   const t = timesFor(room.settings);
   game.viewUntil = null;
+  if (game.mode === "chain" && game.variant === "extreme" && game.stepType === "draw" && !game.stepRules[game.step]) {
+    // Una limitación al azar para esta vuelta (si se puede, distinta de la anterior)
+    const prevRule = game.stepRules[game.step - 2];
+    const opts = RULES.filter((r) => r !== prevRule);
+    game.stepRules[game.step] = pick(opts.length ? opts : RULES);
+  }
   if (game.mode === "chain" && game.variant === "degrade" && game.stepType === "draw") {
     // Tiempos fijos (son la gracia del modo); desde el segundo dibujo, primero 10 s para mirar
     const secs = DEGRADE_TIMES[Math.min(game.step, DEGRADE_TIMES.length - 1)];
@@ -417,6 +429,7 @@ function taskFor(room, playerId) {
     base.totalSteps = game.steps;
     base.variant = game.variant;
     if (game.variant === "degrade") base.seconds = game.copySeconds;
+    if (game.variant === "extreme" && game.stepType === "draw") base.rule = game.stepRules[game.step];
     if (game.step > 0) {
       const book = game.books[chainBookIndex(game, idx)];
       const prev = book.entries[game.step - 1];
@@ -552,6 +565,7 @@ function finishStep(room) {
       if (game.stepType === "guess" && !content) content = "🤐 Se quedó sin palabras";
       const meta = game.submissions.get(id)?.meta;
       book.entries[game.step] = { type: game.stepType, content, by: id };
+      if (game.stepType === "draw" && game.stepRules && game.stepRules[game.step]) book.entries[game.step].rule = game.stepRules[game.step];
       if (meta) book.entries[game.step].botKey = meta;
     });
     game.step++;
@@ -731,7 +745,7 @@ function revealStep(room, dir) {
 
 function publicEntry(room, e) {
   const by = room.players.get(e.by);
-  return { type: e.type, content: e.content, by: by ? { name: by.name, emoji: by.emoji } : null };
+  return { type: e.type, content: e.content, rule: e.rule || null, by: by ? { name: by.name, emoji: by.emoji } : null };
 }
 function who(room, id) {
   const p = room.players.get(id);
@@ -824,7 +838,7 @@ function stateFor(room, playerId) {
     hostId: room.hostId,
     phase: room.phase,
     settings: room.settings,
-    mode: game ? game.mode : ["votacion", "retratos", "extremo"].includes(room.settings.mode) ? "vote" : room.settings.mode === "degradado" || players.length !== 2 ? "chain" : "duo",
+    mode: game ? game.mode : ["votacion", "retratos"].includes(room.settings.mode) ? "vote" : ["degradado", "extremo"].includes(room.settings.mode) || players.length !== 2 ? "chain" : "duo",
     chainSteps: chainLength(Math.max(players.length, 3)),
     players: players.map((p) => ({
       id: p.id,

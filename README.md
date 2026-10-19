@@ -70,16 +70,15 @@ La mecánica se adapta al número de jugadores:
 
 ### Modo Dibujo extremo (2 a 12 jugadores)
 
-- A cada uno le sale **su frase** y **una limitación al azar**, que el lienzo hace
-  cumplir de verdad:
+- Se juega **como el clásico** (frase → dibujo → adivina → dibujo…), con el mismo
+  tiempo elegible con la barra.
+- Pero en **cada vuelta de dibujo, a todos les toca la misma limitación al azar**
+  (y suele cambiar de una vuelta a otra), que el lienzo hace cumplir de verdad:
   - **⭕ Solo círculos:** al arrastrar el dedo sale un círculo (y se puede rellenar).
   - **⬛ Solo cuadrados:** igual, con cuadrados.
   - **〰️ Sin levantar el lápiz:** un único trazo. Al levantar el dedo ya no se
     puede pintar más: o se envía así, o se empieza de nuevo con deshacer o borrar.
-- Después los demás **adivinan qué es** cada dibujo (ven la limitación, no la frase
-  ni quién lo hizo). Acertar da 3 puntos y «casi» 1, **a quien adivina y a quien
-  dibujó**. Al final de la ronda se ve la frase de cada dibujo y lo que dijo cada uno.
-  Varias rondas y podio.
+- En la revelación, cada dibujo indica con qué limitación se hizo.
 
 ### Sala de pruebas
 

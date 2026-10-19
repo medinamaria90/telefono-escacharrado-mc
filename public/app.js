@@ -153,7 +153,7 @@
   });
   // Sonidos según lo que cambia entre un estado y el siguiente
   const modeName = (m, kind, variant) =>
-    m === "duo" ? "duo" : m === "vote" ? (kind === "portrait" ? "retratos" : kind === "extreme" ? "extremo" : "votacion") : variant === "degrade" ? "degradado" : "telefono";
+    m === "duo" ? "duo" : m === "vote" ? (kind === "portrait" ? "retratos" : "votacion") : variant === "degrade" ? "degradado" : variant === "extreme" ? "extremo" : "telefono";
   function trackGame(prev, next) {
     if (!prev || prev.code !== next.code || next.hostId !== next.you) return;
     const n = next.players.filter((p) => !p.left).length;
@@ -773,7 +773,7 @@
     { v: "votacion", emoji: "⭐", name: "Votación", desc: "Todos dibujáis la misma frase y puntuáis los dibujos de los demás del 1 al 5." },
     { v: "retratos", emoji: "🖼️", name: "Retratos", desc: "Te toca retratar en secreto a otro jugador; todos puntúan el parecido." },
     { v: "degradado", emoji: "🌀", name: "Degradado", desc: "Uno se inventa un dibujo en 2 min; los siguientes lo ven 10 s y lo copian de memoria en 1 min, 30 s y 15 s." },
-    { v: "extremo", emoji: "🔥", name: "Dibujo extremo", desc: "Dibujas tu frase solo con círculos, solo con cuadrados o sin levantar el lápiz, y los demás adivinan qué es." },
+    { v: "extremo", emoji: "🔥", name: "Dibujo extremo", desc: "Como el clásico, pero en cada vuelta de dibujo toca una limitación: solo círculos, solo cuadrados o sin levantar el lápiz." },
   ];
   const modeInfo = (v) => MODES.find((m) => m.v === v) || MODES[0];
   function buildModeList() {
@@ -813,7 +813,8 @@
       return ["Degradado", "El primero se inventa un dibujo en 2 min; los demás lo ven 10 s y lo copian de memoria cada vez más rápido."];
     }
     if (state.settings.mode === "extremo") {
-      return [`Dibujo extremo · ${state.settings.duoRounds} rondas`, "Cada uno dibuja su frase con una limitación al azar y los demás adivinan qué es."];
+      const steps = n === 2 ? 4 : n === 3 ? 5 : Math.max(n, 2);
+      return [`Dibujo extremo · ${steps} pasos por historia`, "Como el clásico (frase → dibujo → adivina…), pero cada vuelta de dibujo con una limitación: ⭕ círculos, ⬛ cuadrados o 〰️ de un trazo."];
     }
     if (state.settings.mode === "retratos") {
       return [`Retratos · ${state.settings.duoRounds} rondas`, "Cada uno retrata en secreto a otro jugador y todos puntuáis el parecido del 1 al 5, sin saber quién dibujó."];
@@ -861,8 +862,8 @@
       b.setAttribute("aria-pressed", String(Number(b.dataset.v) === state.settings.duoRounds));
       b.disabled = !host;
     }
-    const voteMode = ["votacion", "retratos", "extremo"].includes(state.settings.mode);
-    $("duoRoundsSetting").hidden = !(voteMode || n === 2);
+    const voteMode = ["votacion", "retratos"].includes(state.settings.mode);
+    $("duoRoundsSetting").hidden = !(voteMode || (n === 2 && state.settings.mode === "telefono"));
     $("lobbySoloBtn").hidden = n !== 1;
     const hostP = state.players.find((p) => p.id === state.hostId);
     $("notHostHint").textContent = host ? "" : `${nameOf(hostP, "El anfitrión")} elige las opciones y empieza la partida.`;
@@ -975,6 +976,8 @@
         const copying = task.prompt && task.prompt.kind === "image";
         $("drawStep").textContent = stepLabel(task) + (copying ? ` · De memoria en ${timeLabel(task.seconds)}` : ` · Dibujo libre, ${timeLabel(task.seconds)}`);
         if (copying && task.viewUntil) showMemorize(task);
+      } else if (task.variant === "extreme") {
+        $("drawStep").textContent = stepLabel(task) + " · " + RULE_LABEL[task.rule];
       } else if (state.mode === "vote" && task.kind === "extreme") {
         $("drawStep").textContent = stepLabel(task) + " · " + RULE_LABEL[task.rule];
       } else if (state.mode === "vote" && task.kind === "portrait") {
@@ -1846,6 +1849,10 @@
     } else {
       const by = el("div", "stage-by");
       by.appendChild(who(cur.by, cur.type === "draw" && prev && prev.type === "draw" ? "lo copió de memoria" : VERB[cur.type]));
+      if (cur.rule) {
+        by.appendChild(document.createTextNode(" "));
+        by.appendChild(el("span", "rule-chip", RULE_LABEL[cur.rule] || ""));
+      }
       st.appendChild(by);
       if (cur.type === "draw") {
         if (cur.content) {
