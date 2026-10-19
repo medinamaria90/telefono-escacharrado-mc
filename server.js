@@ -237,9 +237,16 @@ function typeForChainStep(k, variant) {
   return k % 2 === 1 ? "draw" : "guess";
 }
 // Degradado: el primero se inventa un dibujo en 3 min; luego se ve 10 s y se copia de memoria en 1 min, 30 s y 15 s
-const DEGRADE_TIMES = [180, 60, 30, 15];
+// Con más jugadores, más pasos; el tiempo baja poco a poco y el último siempre es de 15 s
+const DEGRADE_SCHEDULES = {
+  4: [180, 90, 45, 15],
+  5: [180, 90, 60, 30, 15],
+  6: [180, 120, 90, 60, 30, 15],
+  7: [180, 120, 90, 60, 45, 30, 15],
+  8: [180, 150, 120, 90, 60, 45, 30, 15],
+};
 const DEGRADE_VIEW_MS = 10000;
-const degradeSteps = (n) => Math.min(6, Math.max(4, n));
+const degradeSteps = (n) => Math.min(8, Math.max(4, n));
 // Dibujo extremo: limitaciones al azar
 const RULES = ["circles", "squares", "oneline"];
 
@@ -389,7 +396,8 @@ function beginStep(room) {
   }
   if (game.mode === "chain" && game.variant === "degrade" && game.stepType === "draw") {
     // Tiempos fijos (son la gracia del modo); desde el segundo dibujo, primero 10 s para mirar
-    const secs = DEGRADE_TIMES[Math.min(game.step, DEGRADE_TIMES.length - 1)];
+    const sched = DEGRADE_SCHEDULES[game.steps] || DEGRADE_SCHEDULES[4];
+    const secs = sched[Math.min(game.step, sched.length - 1)];
     const view = game.step >= 1 ? DEGRADE_VIEW_MS : 0;
     if (view) game.viewUntil = Date.now() + view;
     game.copySeconds = secs;

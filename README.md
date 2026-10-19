@@ -62,9 +62,14 @@ La mecánica se adapta al número de jugadores:
 
 - No hay frase: el primero **se inventa un dibujo**, lo que quiera, en **3 minutos** (para hacerlo con calma y bonito).
 - El siguiente ve ese dibujo **10 segundos** («👀 Memorízalo»), desaparece, y lo
-  tiene que **copiar de memoria en 1 minuto**. Los siguientes, en **30 segundos** y
-  luego en **15 segundos**.
-- Cada historia tiene entre 4 y 6 dibujos. Al final se ve, paso a paso, cómo se ha
+  tiene que **copiar de memoria**, cada vez con menos tiempo, acabando siempre en
+  **15 segundos**. Con más jugadores hay más pasos (de 4 a 8):
+  - 2–4 jugadores: 3 min → 1 min 30 → 45 s → 15 s
+  - 5: 3 min → 1 min 30 → 1 min → 30 s → 15 s
+  - 6: 3 min → 2 min → 1 min 30 → 1 min → 30 s → 15 s
+  - 7: 3 min → 2 min → 1 min 30 → 1 min → 45 s → 30 s → 15 s
+  - 8 o más: 3 min → 2 min 30 → 2 min → 1 min 30 → 1 min → 45 s → 30 s → 15 s
+- Cada historia tiene entre 4 y 8 dibujos. Al final se ve, paso a paso, cómo se ha
   ido deformando («lo copió de memoria»).
 - Los tiempos son fijos (son la gracia del modo), así que la barra de tiempo no sale.
 
