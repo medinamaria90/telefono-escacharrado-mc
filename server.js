@@ -9,6 +9,7 @@ const http = require("http");
 const express = require("express");
 const { Server } = require("socket.io");
 const FRASES = require("./public/frases.js");
+const ART = require("./lib/botart.js");
 
 const PORT = process.env.PORT || 3000;
 const MAX_PLAYERS = 12;
@@ -158,6 +159,7 @@ const BOTS = [
   { name: "Robotito", emoji: "av:robot" },
   { name: "Alien Bip", emoji: "av:alien" },
   { name: "Dino Rex", emoji: "av:dino" },
+  { name: "Gata Lola", emoji: "av:gato" },
 ];
 function addBots(room) {
   for (const b of BOTS) {
@@ -167,33 +169,40 @@ function addBots(room) {
     room.players.set(p.id, p);
   }
 }
-/** Garabato al azar (SVG): los robots no saben dibujar mejor */
-function botDrawing() {
-  const colors = ["#ff3b3b", "#2563eb", "#1f8a3a", "#ffd21f", "#9b5de5", "#ff7a1a", "#1b1b1f", "#d946ef"];
-  const r = (a, b) => a + crypto.randomInt(b - a + 1);
-  let shapes = "";
-  for (let i = 0; i < r(3, 6); i++) {
-    const c = pick(colors);
-    const t = crypto.randomInt(3);
-    if (t === 0) shapes += `<circle cx="${r(120, 480)}" cy="${r(150, 750)}" r="${r(40, 160)}" fill="${crypto.randomInt(2) ? c : "none"}" stroke="${c}" stroke-width="10"/>`;
-    else if (t === 1) shapes += `<rect x="${r(60, 360)}" y="${r(100, 600)}" width="${r(80, 240)}" height="${r(80, 240)}" fill="none" stroke="${c}" stroke-width="10" rx="12"/>`;
-    else {
-      let d = `M${r(50, 550)} ${r(50, 850)}`;
-      for (let k = 0; k < r(3, 7); k++) d += ` Q${r(50, 550)} ${r(50, 850)} ${r(50, 550)} ${r(50, 850)}`;
-      shapes += `<path d="${d}" fill="none" stroke="${c}" stroke-width="12" stroke-linecap="round"/>`;
+/** Lo que contesta un robot. Devuelve {content, meta} (meta = tema del dibujo, para copiarlo o adivinarlo) */
+function botContent(room, botId) {
+  const game = room.game;
+  const idx = game.order.indexOf(botId);
+  if (game.mode === "chain" && game.step > 0) {
+    const book = game.books[chainBookIndex(game, idx)];
+    const prev = book.entries[game.step - 1];
+    if (game.stepType === "draw") {
+      if (prev.type === "draw") {
+        // Degradado: copia de memoria, cada vez peor
+        const d = ART.draw({ key: prev.botKey, text: book.entries[0].content, level: game.step - 1 });
+        return { content: d.url, meta: d.key };
+      }
+      const d = ART.draw({ text: prev.content });
+      return { content: d.url, meta: d.key };
+    }
+    if (game.stepType === "guess") {
+      const subj = prev.botKey ? ART.SUBJECTS.find((x) => x.key === prev.botKey) : null;
+      return { content: subj && crypto.randomInt(10) < 7 ? subj.name : pick(FRASES) };
     }
   }
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900" viewBox="0 0 600 900"><rect width="600" height="900" fill="#fff"/>${shapes}</svg>`;
-  return "data:image/svg+xml;base64," + Buffer.from(svg).toString("base64");
-}
-function botContent(game, botId) {
-  if (game.stepType === "draw") return botDrawing();
+  if (game.stepType === "draw") {
+    let text = "";
+    if (game.mode === "vote") text = game.kind === "stars" ? game.phrases[game.round] : game.kind === "extreme" ? game.extras[game.round][botId].phrase : "una persona";
+    else if (game.mode === "duo") text = game.secrets.get(botId)?.phrase;
+    const d = game.kind === "extreme" ? ART.drawRule(game.extras[game.round][botId].rule) : ART.draw({ text, key: game.kind === "portrait" ? "persona" : undefined });
+    return { content: d.url, meta: d.key };
+  }
   if (game.stepType === "vote") {
     const v = {};
     for (const k of votableFor(game, botId)) v[k] = 1 + crypto.randomInt(5);
-    return v;
+    return { content: v };
   }
-  return pick(FRASES); // escribir o adivinar
+  return { content: pick(FRASES) }; // escribir o adivinar
 }
 /** Cada robot contesta al cabo de unos segundos, como si pensara */
 function scheduleBots(room) {
@@ -205,7 +214,8 @@ function scheduleBots(room) {
     if (!p || !p.bot || game.submissions.get(id)?.done) continue;
     setTimeout(() => {
       if (room.game !== game || game.seq !== seq || room.phase !== "playing" || game.submissions.get(id)?.done) return;
-      game.submissions.set(id, { content: botContent(game, id), done: true });
+      const r = botContent(room, id);
+      game.submissions.set(id, { content: r.content, meta: r.meta, done: true });
       maybeFinish(room);
     }, 2500 + crypto.randomInt(5000));
   }
@@ -215,16 +225,23 @@ function scheduleBots(room) {
 function chainLength(n) {
   return n === 3 ? 5 : n;
 }
-function typeForChainStep(k) {
+function typeForChainStep(k, variant) {
   if (k === 0) return "write";
+  if (variant === "degrade") return "draw"; // Degradado: después de la frase, todo son dibujos
   return k % 2 === 1 ? "draw" : "guess";
 }
+// Degradado: 2 min para el primer dibujo; luego se ve 10 s y se copia de memoria en 1 min, 30 s y 15 s
+const DEGRADE_TIMES = [120, 60, 30, 15];
+const DEGRADE_VIEW_MS = 10000;
+const degradeSteps = (n) => Math.min(6, Math.max(4, n));
+// Dibujo extremo: limitaciones al azar
+const RULES = ["circles", "squares", "oneline"];
 
 function startGame(room) {
   const order = shuffle([...room.players.values()].filter((p) => !p.left).map((p) => p.id));
   const n = order.length;
   const game = {
-    mode: room.settings.mode === "votacion" || room.settings.mode === "retratos" ? "vote" : n === 2 ? "duo" : "chain",
+    mode: ["votacion", "retratos", "extremo"].includes(room.settings.mode) ? "vote" : room.settings.mode === "degradado" || n > 2 ? "chain" : "duo",
     order,
     step: 0,
     stepType: null,
@@ -233,13 +250,15 @@ function startGame(room) {
     phase: "playing",
   };
   if (game.mode === "chain") {
-    game.steps = chainLength(n);
+    game.variant = room.settings.mode === "degradado" ? "degrade" : "classic";
+    game.steps = game.variant === "degrade" ? degradeSteps(n) : chainLength(n);
     game.books = order.map((id) => ({ owner: id, entries: [] }));
   } else if (game.mode === "vote") {
     // Votación: todos dibujan la misma frase, se puntúa del 1 al 5 sin saber de quién es cada dibujo.
     // Retratos: a cada uno le toca retratar en secreto a otro jugador, y todos puntúan el
     // parecido de cada retrato del 1 al 5 (se sabe a quién retrata, no quién lo dibujó).
-    game.kind = room.settings.mode === "retratos" ? "portrait" : "stars";
+    game.kind = room.settings.mode === "retratos" ? "portrait" : room.settings.mode === "extremo" ? "extreme" : "stars";
+    game.extras = []; // dibujo extremo: por ronda, {jugador: {phrase, rule}}
     game.targets = []; // retratos: por ronda, {dibujante: retratado}
     game.rounds = room.settings.duoRounds;
     game.round = 0;
@@ -271,7 +290,7 @@ function freshPhrase(game) {
 }
 
 function currentStepType(game) {
-  if (game.mode === "chain") return typeForChainStep(game.step);
+  if (game.mode === "chain") return typeForChainStep(game.step, game.variant);
   if (game.mode === "vote") return game.stage;
   return game.duoStage;
 }
@@ -300,7 +319,12 @@ function beginStep(room) {
   }
   if (game.mode === "vote" && game.stage === "draw") {
     if (game.kind === "stars") game.phrases[game.round] = freshPhrase(game);
-    else {
+    else if (game.kind === "extreme") {
+      game.phrases[game.round] = "Dibujo extremo";
+      const ex = {};
+      for (const id of game.order) ex[id] = { phrase: freshPhrase(game), rule: pick(RULES) };
+      game.extras[game.round] = ex;
+    } else {
       game.phrases[game.round] = "Retratos";
       assignTargets(game);
     }
@@ -310,7 +334,15 @@ function beginStep(room) {
     for (const id of game.order) game.secrets.set(id, { phrase: freshPhrase(game), rerolls: 2 });
   }
   const t = timesFor(room.settings);
-  game.deadline = t ? Date.now() + t[game.stepType] * 1000 : null;
+  game.viewUntil = null;
+  if (game.mode === "chain" && game.variant === "degrade" && game.stepType === "draw") {
+    // Tiempos fijos (son la gracia del modo); desde el segundo dibujo, primero 10 s para mirar
+    const secs = DEGRADE_TIMES[Math.min(game.step - 1, DEGRADE_TIMES.length - 1)];
+    const view = game.step >= 2 ? DEGRADE_VIEW_MS : 0;
+    if (view) game.viewUntil = Date.now() + view;
+    game.copySeconds = secs;
+    game.deadline = Date.now() + view + secs * 1000;
+  } else game.deadline = t ? Date.now() + t[game.stepType] * 1000 : null;
   game.stepStartedAt = Date.now();
   if (game.deadline) {
     armTimer(room);
@@ -381,11 +413,16 @@ function taskFor(room, playerId) {
   if (game.mode === "chain") {
     base.stepNumber = game.step + 1;
     base.totalSteps = game.steps;
+    base.variant = game.variant;
     if (game.step > 0) {
       const book = game.books[chainBookIndex(game, idx)];
       const prev = book.entries[game.step - 1];
       // Sin autor: quién lo hizo se descubre al final
       base.prompt = { kind: prev.type === "draw" ? "image" : "text", value: prev.content, by: null };
+      if (game.variant === "degrade" && game.stepType === "draw") {
+        base.seconds = game.copySeconds;
+        if (game.viewUntil) base.viewUntil = game.viewUntil;
+      }
     }
     return base;
   }
@@ -396,7 +433,11 @@ function taskFor(room, playerId) {
     base.kind = game.kind;
     if (game.stage === "draw") {
       if (game.kind === "stars") base.secret = base.phrase;
-      else {
+      else if (game.kind === "extreme") {
+        const ex = game.extras[game.round][playerId];
+        base.secret = ex.phrase;
+        base.rule = ex.rule;
+      } else {
         const target = who(room, game.targets[game.round][playerId]);
         base.portraitOf = target;
         base.secret = "Retrata a " + target.name;
@@ -406,7 +447,7 @@ function taskFor(room, playerId) {
       const list = game.drawings[game.round];
       // Sin autor: se descubre en el resultado de la ronda
       // Retratos: se dice a quién retrata (no quién lo dibujó)
-      base.items = votableFor(game, playerId).map((k) => ({ k, image: list[k].image, target: list[k].target ? who(room, list[k].target) : null }));
+      base.items = votableFor(game, playerId).map((k) => ({ k, image: list[k].image, target: list[k].target ? who(room, list[k].target) : null, phrase: list[k].phrase, rule: list[k].rule }));
     }
     return base;
   }
@@ -504,7 +545,9 @@ function finishStep(room) {
       let content = contentOf(id);
       if (game.stepType === "write" && !content) content = pick(FRASES);
       if (game.stepType === "guess" && !content) content = "🤐 Se quedó sin palabras";
+      const meta = game.submissions.get(id)?.meta;
       book.entries[game.step] = { type: game.stepType, content, by: id };
+      if (meta) book.entries[game.step].botKey = meta;
     });
     game.step++;
     if (game.step >= game.steps) return startReveal(room);
@@ -515,7 +558,8 @@ function finishStep(room) {
   if (game.mode === "vote") {
     if (game.stage === "draw") {
       const targets = game.targets[game.round] || {};
-      game.drawings[game.round] = game.order.map((id) => ({ by: id, target: targets[id] || null, image: contentOf(id), votes: {}, points: 0 }));
+      const ex = (game.extras && game.extras[game.round]) || {};
+      game.drawings[game.round] = game.order.map((id) => ({ by: id, target: targets[id] || null, phrase: ex[id] ? ex[id].phrase : null, rule: ex[id] ? ex[id].rule : null, image: contentOf(id), votes: {}, points: 0 }));
       game.voteOrder[game.round] = shuffle(game.order.map((_, k) => k));
       game.stage = "vote";
     } else if (game.stage === "vote") {
@@ -613,7 +657,7 @@ function voteRound(room, r) {
     phrase: game.phrases[r],
     kind: game.kind,
     items: list
-      .map((d) => ({ by: who(room, d.by), target: d.target ? who(room, d.target) : null, image: d.image, points: d.points, votes: Object.keys(d.votes).length }))
+      .map((d) => ({ by: who(room, d.by), target: d.target ? who(room, d.target) : null, phrase: d.phrase, rule: d.rule, image: d.image, points: d.points, votes: Object.keys(d.votes).length }))
       .sort((a, b) => b.points - a.points),
   };
 }
@@ -676,6 +720,7 @@ function galleryData(room) {
   if (game.mode === "chain") {
     return {
       mode: "chain",
+      variant: game.variant,
       books: game.books.map((b) => ({ owner: who(room, b.owner), entries: b.entries.map((e) => publicEntry(room, e)) })),
     };
   }
@@ -755,7 +800,7 @@ function stateFor(room, playerId) {
     hostId: room.hostId,
     phase: room.phase,
     settings: room.settings,
-    mode: game ? game.mode : room.settings.mode === "votacion" || room.settings.mode === "retratos" ? "vote" : players.length === 2 ? "duo" : "chain",
+    mode: game ? game.mode : ["votacion", "retratos", "extremo"].includes(room.settings.mode) ? "vote" : room.settings.mode === "degradado" || players.length !== 2 ? "chain" : "duo",
     chainSteps: chainLength(Math.max(players.length, 3)),
     players: players.map((p) => ({
       id: p.id,
@@ -771,6 +816,7 @@ function stateFor(room, playerId) {
   };
   if (!game) return st;
   st.mode = game.mode;
+  if (game.mode === "chain") st.variant = game.variant;
   if (room.phase === "playing") {
     st.task = taskFor(room, playerId);
     if (game.paused) {
@@ -943,7 +989,7 @@ io.on("connection", (socket) => {
   socket.on("settings", (data) => {
     if (!isHost() || room.phase !== "lobby") return;
     if (data && DRAW_TIMES.includes(Number(data.time)) && data.time !== undefined && data.time !== null) room.settings.time = Number(data.time);
-    if (data && ["telefono", "votacion", "retratos"].includes(data.mode)) room.settings.mode = data.mode;
+    if (data && ["telefono", "votacion", "retratos", "degradado", "extremo"].includes(data.mode)) room.settings.mode = data.mode;
     const dr = Number(data?.duoRounds);
     if ([2, 3, 4, 5, 6].includes(dr)) room.settings.duoRounds = dr;
     broadcast(room);

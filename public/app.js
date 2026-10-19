@@ -152,15 +152,16 @@
     render();
   });
   // Sonidos según lo que cambia entre un estado y el siguiente
-  const modeName = (m, kind) => (m === "duo" ? "duo" : m === "vote" ? (kind === "portrait" ? "retratos" : "votacion") : "telefono");
+  const modeName = (m, kind, variant) =>
+    m === "duo" ? "duo" : m === "vote" ? (kind === "portrait" ? "retratos" : kind === "extreme" ? "extremo" : "votacion") : variant === "degrade" ? "degradado" : "telefono";
   function trackGame(prev, next) {
     if (!prev || prev.code !== next.code || next.hostId !== next.you) return;
     const n = next.players.filter((p) => !p.left).length;
     if (prev.phase === "lobby" && next.phase === "playing") {
-      track("partida_empezada", { jugadores: n, modo: modeName(next.mode, next.kind || (next.settings.mode === "retratos" ? "portrait" : "")), tiempo: String(next.settings.time), pruebas: !!next.practice });
+      track("partida_empezada", { jugadores: n, modo: next.settings.mode, tiempo: String(next.settings.time), pruebas: !!next.practice });
     }
     if (prev.phase !== "end" && next.phase === "end") {
-      track("partida_terminada", { jugadores: n, modo: modeName(next.mode, next.kind) });
+      track("partida_terminada", { jugadores: n, modo: modeName(next.mode, next.kind, next.variant) });
     }
   }
   function playCues(prev, next) {
@@ -445,6 +446,8 @@
     ensurePad();
     pad.forcePortrait = true;
     pad.reset();
+    pad.setRule(null);
+    applyRuleToolbar(null);
     pad.fillClip = { cx: FACE_BOX.x + FACE_BOX.s / 2, cy: FACE_BOX.y + FACE_BOX.s / 2, r: FACE_BOX.s / 2 };
     closePops();
     let guide = $("faceGuide");
@@ -764,7 +767,54 @@
   }
 
   // ---------- sala de espera ----------
+  // Modos de juego (el menú de la sala)
+  const MODES = [
+    { v: "telefono", emoji: "✏️", name: "Clásico", desc: "Frase → dibujo → adivina… y al final se ve cómo ha cambiado cada historia. Con 2 se juega en Dúo." },
+    { v: "votacion", emoji: "⭐", name: "Votación", desc: "Todos dibujáis la misma frase y puntuáis los dibujos de los demás del 1 al 5." },
+    { v: "retratos", emoji: "🖼️", name: "Retratos", desc: "Te toca retratar en secreto a otro jugador; todos puntúan el parecido." },
+    { v: "degradado", emoji: "🌀", name: "Degradado", desc: "Uno dibuja la frase en 2 min; los siguientes lo ven 10 s y lo copian de memoria en 1 min, 30 s y 15 s." },
+    { v: "extremo", emoji: "🔥", name: "Dibujo extremo", desc: "Cada uno dibuja su frase con una limitación: solo círculos, solo cuadrados o sin levantar el lápiz. Luego se puntúa." },
+  ];
+  const modeInfo = (v) => MODES.find((m) => m.v === v) || MODES[0];
+  function buildModeList() {
+    const box = $("modeList");
+    box.innerHTML = "";
+    for (const m of MODES) {
+      const b = el("button", "mode-item");
+      b.type = "button";
+      b.dataset.v = m.v;
+      b.setAttribute("aria-pressed", String(state && state.settings.mode === m.v));
+      b.appendChild(el("span", "mi-emoji", m.emoji));
+      const t = el("span", "mi-text");
+      t.appendChild(el("strong", "", m.name));
+      t.appendChild(el("span", "", m.desc));
+      b.appendChild(t);
+      b.addEventListener("click", () => {
+        SFX.play("click");
+        $("modeSheet").hidden = true;
+        if (isHost()) socket.emit("settings", { mode: m.v });
+        track("modo_elegido", { modo: m.v });
+      });
+      box.appendChild(b);
+    }
+  }
+  $("modeBtn").addEventListener("click", () => {
+    if (!isHost()) return;
+    SFX.play("click");
+    buildModeList();
+    $("modeSheet").hidden = false;
+  });
+  $("modeClose").addEventListener("click", () => ($("modeSheet").hidden = true));
+  $("modeSheet").addEventListener("click", (e) => {
+    if (e.target === $("modeSheet")) $("modeSheet").hidden = true;
+  });
   function modeCopy(n) {
+    if (state.settings.mode === "degradado") {
+      return ["Degradado", "Dibujas la frase en 2 min; los demás lo ven 10 s y lo copian de memoria cada vez más rápido."];
+    }
+    if (state.settings.mode === "extremo") {
+      return [`Dibujo extremo · ${state.settings.duoRounds} rondas`, "Cada uno con su frase y una limitación al azar. Luego se puntúa del 1 al 5."];
+    }
     if (state.settings.mode === "retratos") {
       return [`Retratos · ${state.settings.duoRounds} rondas`, "Cada uno retrata en secreto a otro jugador y todos puntuáis el parecido del 1 al 5, sin saber quién dibujó."];
     }
@@ -795,6 +845,7 @@
     state.players.forEach((p) => ul.appendChild(playerItem(p)));
     const [t, txt] = modeCopy(n);
     $("modeTitle").textContent = (state.practice ? "🧪 Pruebas · " : "") + t;
+    $("modeEmoji").textContent = modeInfo(state.settings.mode).emoji;
     $("modeText").textContent = state.practice ? "🤖 Los robots juegan solos. " + txt : txt;
     const host = isHost();
     if (!timeDragging) {
@@ -803,15 +854,14 @@
       paintTime(idx);
     }
     $("timeRange").disabled = !host;
-    for (const b of $("modeSeg").children) {
-      b.setAttribute("aria-pressed", String(b.dataset.v === state.settings.mode));
-      b.disabled = !host;
-    }
+    $("modeBtn").disabled = !host;
+    // Degradado tiene sus propios tiempos
+    $("timeSetting").hidden = state.settings.mode === "degradado";
     for (const b of $("roundsSeg").children) {
       b.setAttribute("aria-pressed", String(Number(b.dataset.v) === state.settings.duoRounds));
       b.disabled = !host;
     }
-    const voteMode = state.settings.mode === "votacion" || state.settings.mode === "retratos";
+    const voteMode = ["votacion", "retratos", "extremo"].includes(state.settings.mode);
     $("duoRoundsSetting").hidden = !(voteMode || n === 2);
     $("lobbySoloBtn").hidden = n !== 1;
     const hostP = state.players.find((p) => p.id === state.hostId);
@@ -845,13 +895,6 @@
     if (!isHost()) return;
     SFX.play("click");
     socket.emit("settings", { time: DRAW_TIMES[Number(e.target.value)] });
-  });
-  $("modeSeg").addEventListener("click", (e) => {
-    const v = e.target.closest("button")?.dataset.v;
-    if (v && isHost()) {
-      SFX.play("click");
-      socket.emit("settings", { mode: v });
-    }
   });
   $("roundsSeg").addEventListener("click", (e) => {
     const v = e.target.dataset && e.target.dataset.v;
@@ -904,7 +947,8 @@
     }
     if (task.type === "draw") {
       show("s-draw");
-      $("drawWhat").textContent = task.secret != null ? task.secret : task.prompt ? (task.prompt.value || "(sin respuesta)") : "";
+      const copying = task.variant === "degrade" && task.prompt && task.prompt.kind === "image";
+      $("drawWhat").textContent = copying ? "Cópialo de memoria" : task.secret != null ? task.secret : task.prompt ? (task.prompt.value || "(sin respuesta)") : "";
       $("drawWhat").classList.toggle("long", $("drawWhat").textContent.length > 26);
       $("rerollBtn").hidden = !(task.secret != null && task.rerolls > 0);
       $("rerollBtn").textContent = `🎲 ${task.rerolls}`;
@@ -925,7 +969,15 @@
       closePops();
       updateToolbar();
       $("drawStep").textContent = stepLabel(task);
-      if (state.mode === "vote" && task.kind === "portrait") {
+      pad.setRule(task.rule || null);
+      applyRuleToolbar(task.rule || null);
+      if (task.variant === "degrade") {
+        const copying = task.prompt && task.prompt.kind === "image";
+        $("drawStep").textContent = stepLabel(task) + (copying ? ` · De memoria en ${timeLabel(task.seconds)}` : ` · Tienes ${timeLabel(task.seconds)}`);
+        if (copying && task.viewUntil) showMemorize(task);
+      } else if (state.mode === "vote" && task.kind === "extreme") {
+        $("drawStep").textContent = stepLabel(task) + " · " + RULE_LABEL[task.rule];
+      } else if (state.mode === "vote" && task.kind === "portrait") {
         $("drawStep").textContent = stepLabel(task) + " · Retrato secreto 🤫";
       } else if (state.mode === "vote") {
         $("drawStep").textContent = stepLabel(task) + " · Todos dibujáis esto";
@@ -987,6 +1039,44 @@
   $("diceBtn").addEventListener("click", () => {
     $("textInput").value = FRASES[Math.floor(Math.random() * FRASES.length)];
   });
+
+  // ---------- dibujo extremo: limitaciones ----------
+  const RULE_LABEL = { circles: "⭕ Solo círculos", squares: "⬛ Solo cuadrados", oneline: "〰️ Sin levantar el lápiz" };
+  const RULE_TOOLS = { circles: ["pen", "fill"], squares: ["pen", "fill"], oneline: ["pen", "marker"] };
+  function applyRuleToolbar(rule) {
+    document.querySelectorAll("[data-tool]").forEach((b) => (b.hidden = !!rule && !RULE_TOOLS[rule].includes(b.dataset.tool)));
+    const pen = document.querySelector("[data-tool=pen]");
+    if (pen) pen.title = rule === "circles" ? "Círculo" : rule === "squares" ? "Cuadrado" : "Lápiz";
+    updateToolbar();
+  }
+
+  // ---------- degradado: mirar el dibujo 10 segundos ----------
+  let memoTimer = null;
+  function showMemorize(task) {
+    const left = () => Math.ceil((task.viewUntil - now()) / 1000);
+    if (left() <= 0) return;
+    $("memorizeImg").src = task.prompt.value;
+    $("memorize").hidden = false;
+    clearInterval(memoTimer);
+    let lastL = null;
+    const tick = () => {
+      const l = left();
+      if (l <= 0 || !state || !state.task || state.task.stepKey !== task.stepKey) {
+        clearInterval(memoTimer);
+        $("memorize").hidden = true;
+        if (l <= 0) {
+          SFX.play("turn");
+          toast("¡A dibujar de memoria!");
+        }
+        return;
+      }
+      $("memorizeCount").textContent = l;
+      if (l <= 3 && l !== lastL) SFX.play("tick");
+      lastL = l;
+    };
+    tick();
+    memoTimer = setInterval(tick, 250);
+  }
 
   // Imagen ligera para que suba rápido aunque la conexión vaya justa (p. ej. con videollamada)
   function drawingData() {
@@ -1186,6 +1276,7 @@
     if (pad) return;
     pad = new Pad($("pad"), {
       onChange: updateToolbar,
+      onBlocked: () => toast("¡Sin levantar el lápiz! Si quieres empezar otra vez, pulsa deshacer ↩."),
       onStroke: (kind, v) => {
         if (kind === "fill") return SFX.play("splash");
         if (kind === "start") SFX.strokeStart(v);
@@ -1488,7 +1579,7 @@
     const items = task.items || [];
     const portrait = task.kind === "portrait";
     $("voteStep").textContent = stepLabel(task) + (portrait ? " · ¿Cuánto se parece?" : " · Puntúa");
-    if (!portrait) $("votePhrase").textContent = "«" + (task.phrase || "") + "»";
+    if (!portrait && task.kind !== "extreme") $("votePhrase").textContent = "«" + (task.phrase || "") + "»";
     const empty = !items.length;
     $("voteFig").hidden = empty;
     $("voteEmpty").hidden = !empty;
@@ -1504,6 +1595,11 @@
     const it = items[vIdx];
     if ($("voteImg").getAttribute("src") !== it.image) $("voteImg").src = it.image;
     if (portrait) setWho($("votePhrase"), "Retrato de", it.target);
+    if (task.kind === "extreme") {
+      $("votePhrase").innerHTML = "";
+      $("votePhrase").appendChild(document.createTextNode("«" + (it.phrase || "") + "» "));
+      $("votePhrase").appendChild(el("span", "rule-chip", RULE_LABEL[it.rule] || ""));
+    }
     $("voteCount").textContent = portrait ? `Retrato ${vIdx + 1} de ${items.length} · ¿quién lo habrá dibujado?` : `Dibujo ${vIdx + 1} de ${items.length} · ¿de quién será?`;
     const mine = votes[it.k] || 0;
     for (const b of $("voteStars").children) {
@@ -1570,7 +1666,7 @@
     const box = $("resultCards");
     box.innerHTML = "";
     box.className = "duo-cards grow vote-cards n" + Math.min(round.items.length, 12);
-    const ph = el("p", "secret vote-round-phrase", round.kind === "portrait" ? "🖼️ Retratos" : "«" + round.phrase + "»");
+    const ph = el("p", "secret vote-round-phrase", round.kind === "portrait" ? "🖼️ Retratos" : round.kind === "extreme" ? "🔥 Dibujo extremo" : "«" + round.phrase + "»");
     box.appendChild(ph);
     let place = 0;
     round.items.forEach((it, i) => {
@@ -1580,6 +1676,11 @@
       head.appendChild(el("span", "vote-place", it.points > 0 && place < 3 ? MEDAL[place] : `${place + 1}.º`));
       head.appendChild(who(it.by));
       card.appendChild(head);
+      if (it.rule) {
+        const t = el("div", "card-phrase", "«" + (it.phrase || "") + "» ");
+        t.appendChild(el("span", "rule-chip", RULE_LABEL[it.rule] || ""));
+        card.appendChild(t);
+      }
       if (it.target) {
         const t = el("div", "portrait-of");
         t.appendChild(who(it.target, ""));
@@ -1593,7 +1694,7 @@
         card.appendChild(img);
       } else card.appendChild(blankEl("grow-img"));
       card.appendChild(el("div", "pts vote-pts", `★ ${it.points}`));
-      if (it.image) card.addEventListener("click", () => zoomDrawing(it, it.target ? "Retrato de " + it.target.name : round.phrase));
+      if (it.image) card.addEventListener("click", () => zoomDrawing(it, it.target ? "Retrato de " + it.target.name : it.phrase || round.phrase));
       box.appendChild(card);
     });
   }
@@ -1683,7 +1784,7 @@
       st.appendChild(el("p", "stage-bubble is-guess compact", cur.content));
     } else {
       const by = el("div", "stage-by");
-      by.appendChild(who(cur.by, VERB[cur.type]));
+      by.appendChild(who(cur.by, cur.type === "draw" && prev && prev.type === "draw" ? "lo copió de memoria" : VERB[cur.type]));
       st.appendChild(by);
       if (cur.type === "draw") {
         if (cur.content) {
@@ -1861,6 +1962,8 @@
     document.body.classList.add("solo");
     ensurePad();
     pad.reset();
+    pad.setRule(null);
+    applyRuleToolbar(null);
     closePops();
     updateToolbar();
     if (edit) {

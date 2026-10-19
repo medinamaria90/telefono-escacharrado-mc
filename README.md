@@ -14,7 +14,8 @@ familia, cada uno desde su móvil. Sin crear cuenta y sin anuncios.
    **dibuja la suya** (botón ✏️ al principio de la lista): se dibuja en el lienzo
    grande, con todas las herramientas, dentro de un círculo guía. Se guarda en el
    móvil y se puede editar o borrar (papelera 🗑️, con confirmación).
-3. El anfitrión elige el modo de juego (**Clásico**, **Votación** o **Retratos**) y, con una barra,
+3. El anfitrión elige el modo de juego en un menú (**Clásico**, **Votación**,
+   **Retratos**, **Degradado** o **Dibujo extremo**) y, con una barra,
    el **tiempo para dibujar** (de 30 segundos a 5 minutos, o sin límite; por defecto
    1 minuto). Y pulsa **Empezar partida**.
 
@@ -57,10 +58,32 @@ La mecánica se adapta al número de jugadores:
 - Al acabar la ronda se ve cada retrato con su autor y sus estrellas; al final,
   podio. Se eligen de 2 a 6 rondas, con reparto nuevo en cada una.
 
+### Modo Degradado (2 a 12 jugadores)
+
+- Cada uno escribe una frase. El siguiente la dibuja en **2 minutos**.
+- El siguiente ve ese dibujo **10 segundos** («👀 Memorízalo»), desaparece, y lo
+  tiene que **copiar de memoria en 1 minuto**. Los siguientes, en **30 segundos** y
+  luego en **15 segundos**.
+- Cada historia tiene entre 4 y 6 pasos. Al final se ve, paso a paso, cómo se ha
+  ido deformando el dibujo («lo copió de memoria»).
+- Los tiempos son fijos (son la gracia del modo), así que la barra de tiempo no sale.
+
+### Modo Dibujo extremo (2 a 12 jugadores)
+
+- A cada uno le sale **su frase** y **una limitación al azar**, que el lienzo hace
+  cumplir de verdad:
+  - **⭕ Solo círculos:** al arrastrar el dedo sale un círculo (y se puede rellenar).
+  - **⬛ Solo cuadrados:** igual, con cuadrados.
+  - **〰️ Sin levantar el lápiz:** un único trazo; para empezar otra vez, deshacer.
+- Después todos puntúan cada dibujo del 1 al 5 (se ve la frase y la limitación,
+  no quién lo hizo). Varias rondas y podio al final.
+
 ### Sala de pruebas
 
-Con el código **ZZZZZ** se crea una sala privada con **3 robots** que juegan solos
-(escriben frases, hacen garabatos, adivinan y puntúan). Sirve para ver cómo es una
+Con el código **ZZZZZ** se crea una sala privada con **4 robots** que juegan solos:
+escriben frases, adivinan, puntúan y **dibujan de verdad** (sol, casa, gato, coche,
+barco, cohete… según la frase cuando pueden). En el Degradado sus copias también se
+van deformando, y en el Dibujo extremo respetan su limitación. Sirve para ver cómo es una
 partida de 4 sin tener a nadie más. Cada entrada crea una sala nueva.
 
 ### Si alguien se va o se queda sin tiempo
@@ -195,6 +218,7 @@ del ordenador, por ejemplo http://192.168.1.20:3000.
 | `public/app.js` | Lógica del navegador: pantallas, turnos, cuaderno, sonidos. |
 | `public/pad.js` | Lienzo de dibujo y herramientas. |
 | `public/avatars.js` | Las caritas, dibujadas en SVG. |
+| `lib/botart.js` | Dibujos de los robots de la sala de pruebas. |
 | `public/sfx.js` | Sonidos generados con Web Audio (sin archivos de audio). |
 | `public/frases.js` | Unas 400 ideas para dibujar, todas fáciles de reconocer en un dibujo: animales, paisajes, monumentos muy conocidos o genéricos (una catedral, un teatro…), objetos, personajes famosos, comida, deportes, oficios, escenas y alguna graciosa. |
 | `public/style.css` | Estilos (modo claro y oscuro, móvil y tableta). |

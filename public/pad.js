@@ -21,6 +21,9 @@
       this.screenLandscape = false;
       this.forcePortrait = false; // p. ej. al dibujar la carita: siempre vertical
       this.fillClip = null; // {cx, cy, r}: el cubo no pasa de este círculo (carita)
+      this.rule = null; // dibujo extremo: "circles" | "squares" | "oneline"
+      this.lineUsed = false;
+      this.onBlocked = opts.onBlocked || (() => {});
       this.stage = document.createElement("div");
       this.stage.className = "pad-stage";
       this.inner = document.createElement("div");
@@ -169,6 +172,7 @@
       this.ctx.putImageData(this.undoStack.pop(), 0, 0);
       this.dirty = true;
       this.blank = false;
+      if (this.rule === "oneline") this.lineUsed = this.undoStack.length > 0;
       this.onChange();
     }
     redo() {
@@ -188,6 +192,7 @@
       this.ctx.restore();
       if (record) this.dirty = true;
       this.blank = true;
+      this.lineUsed = false;
       // Lienzo vacío otra vez: vuelve a seguir la orientación del móvil
       if (record && !this.forcePortrait && !!this.rotated !== this.screenLandscape) {
         this._setRotated(this.screenLandscape);
@@ -234,6 +239,36 @@
       };
       img.onerror = () => done && done(false);
       img.src = src;
+    }
+    /** Dibujo extremo: limita cómo se puede dibujar */
+    setRule(rule) {
+      this.rule = rule || null;
+      this.lineUsed = false;
+      if (this.rule && this.tool !== "fill") this.tool = "pen";
+      if (this.rule === "oneline" && this.tool === "fill") this.tool = "pen";
+      this.onChange();
+    }
+    _shapePath(ctx, a, b) {
+      ctx.beginPath();
+      if (this.rule === "circles") {
+        const r = Math.max(2, Math.hypot(b.x - a.x, b.y - a.y));
+        ctx.arc(a.x, a.y, r, 0, Math.PI * 2);
+      } else {
+        const side = Math.max(Math.abs(b.x - a.x), Math.abs(b.y - a.y), 2);
+        const x = b.x < a.x ? a.x - side : a.x;
+        const y = b.y < a.y ? a.y - side : a.y;
+        ctx.rect(x, y, side, side);
+      }
+    }
+    _drawShape(ctx, a, b) {
+      ctx.save();
+      ctx.globalCompositeOperation = "source-over";
+      ctx.strokeStyle = this.color;
+      ctx.lineWidth = this.size;
+      ctx.lineJoin = "round";
+      this._shapePath(ctx, a, b);
+      ctx.stroke();
+      ctx.restore();
     }
     canUndo() {
       return this.undoStack.length > 0;
@@ -292,6 +327,12 @@
       if (this.pointers.size === 2) {
         this.pendingFill = null;
         // Dos dedos: cancelar el trazo y pasar a mover/ampliar
+        if (this.shape) {
+          this.octx.clearRect(0, 0, W, H);
+          this.ctx.putImageData(this.undoStack.pop(), 0, 0);
+          this.shape = null;
+          this.onStroke("end");
+        }
         if (this.stroke) {
           clearInterval(this.sprayTimer);
           this.octx.clearRect(0, 0, W, H);
@@ -328,6 +369,18 @@
         this.pendingFill = { id: e.pointerId, p, cx: e.clientX, cy: e.clientY };
         return;
       }
+      if (this.rule === "oneline" && this.lineUsed) {
+        this.onBlocked("oneline");
+        return;
+      }
+      if (this.rule === "circles" || this.rule === "squares") {
+        // Solo círculos / cuadrados: se arrastra para darle tamaño
+        this._snapshot();
+        this.shape = { a: p, b: p };
+        this.dirty = true;
+        this.onStroke("start", "pen");
+        return;
+      }
       this._snapshot();
       this.stroke = { last: p, lastMid: p, t: performance.now() };
       if (this.tool === "spray") {
@@ -360,6 +413,13 @@
         this.stage.scrollLeft -= e.clientX - this.pan.x;
         this.stage.scrollTop -= e.clientY - this.pan.y;
         this.pan = { x: e.clientX, y: e.clientY };
+        return;
+      }
+      if (this.shape) {
+        this.shape.b = this._pt(e);
+        this.octx.clearRect(0, 0, W, H);
+        this._drawShape(this.octx, this.shape.a, this.shape.b);
+        this.onStroke("move", 0.6);
         return;
       }
       if (!this.stroke) return;
@@ -407,6 +467,14 @@
           this.onChange();
         }
       }
+      if (this.shape) {
+        this.octx.clearRect(0, 0, W, H);
+        this._drawShape(this.ctx, this.shape.a, this.shape.b);
+        this.shape = null;
+        this.onStroke("end");
+        this.onChange();
+      }
+      if (this.stroke && this.rule === "oneline") this.lineUsed = true;
       if (this.stroke && this.tool === "spray") {
         clearInterval(this.sprayTimer);
         this.stroke = null;

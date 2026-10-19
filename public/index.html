@@ -114,17 +114,13 @@
     </div>
 
     <div class="card mode-card">
-      <div class="setting">
-        <span class="label">Modo de juego</span>
-        <div class="seg mode-seg" id="modeSeg" role="group" aria-label="Modo de juego">
-          <button type="button" data-v="telefono">✏️ Clásico</button>
-          <button type="button" data-v="votacion">⭐ Votación</button>
-          <button type="button" data-v="retratos">🖼️ Retratos</button>
-        </div>
-      </div>
-      <h2 class="h3" id="modeTitle"></h2>
-      <p class="mode-text" id="modeText"></p>
-      <div class="setting">
+      <span class="label">Modo de juego</span>
+      <button class="mode-pick" id="modeBtn" type="button" aria-haspopup="dialog">
+        <span class="mode-pick-emoji" id="modeEmoji">✏️</span>
+        <span class="mode-pick-text"><strong id="modeTitle"></strong><span class="mode-text" id="modeText"></span></span>
+        <span class="chev" aria-hidden="true">›</span>
+      </button>
+      <div class="setting" id="timeSetting">
         <div class="row-between"><label class="label" for="timeRange">Tiempo para dibujar</label><strong class="time-value" id="timeValue">1 min</strong></div>
         <input type="range" class="time-range" id="timeRange" min="0" max="10" step="1" value="2" aria-label="Tiempo para dibujar">
       </div>
@@ -320,6 +316,24 @@
       </div>
       <div class="emoji-grid" id="emojiGrid" role="radiogroup" aria-label="Caritas"></div>
     </div>
+  </div>
+
+  <!-- Elegir modo de juego -->
+  <div class="sheet-backdrop" id="modeSheet" hidden>
+    <div class="sheet mode-sheet" role="dialog" aria-modal="true" aria-labelledby="modeSheetTitle">
+      <div class="sheet-head">
+        <h2 class="h2" id="modeSheetTitle">Modo de juego</h2>
+        <button class="btn-ghost small" id="modeClose" type="button">Cerrar</button>
+      </div>
+      <div class="mode-list" id="modeList"></div>
+    </div>
+  </div>
+
+  <!-- Degradado: mirar el dibujo 10 segundos -->
+  <div class="memorize" id="memorize" hidden>
+    <p class="memorize-title">👀 Memorízalo</p>
+    <img id="memorizeImg" alt="Dibujo que tienes que copiar de memoria">
+    <p class="memorize-count" id="memorizeCount">10</p>
   </div>
 
   <!-- Cómo se juega -->
