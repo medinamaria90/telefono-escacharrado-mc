@@ -839,7 +839,9 @@
     }
     if (state.settings.mode === "extremo") {
       const steps = n === 2 ? 4 : n === 3 ? 5 : Math.max(n, 2);
-      return [`Dibujo extremo · ${steps} pasos por historia`, "Como el clásico (frase → dibujo → adivina…), pero cada vuelta de dibujo con una limitación: ⭕ círculos, ⬛ cuadrados o 〰️ de un trazo."];
+      const rule = state.settings.rule || "mix";
+      const txt = rule === "mix" ? "Como el clásico, pero cada vuelta de dibujo con una limitación distinta: ⭕ círculos, ⬛ cuadrados o 〰️ de un trazo." : rule === "circles" ? "Como el clásico, pero dibujando solo con círculos." : rule === "squares" ? "Como el clásico, pero dibujando solo con cuadrados." : "Como el clásico, pero cada dibujo de un solo trazo, sin levantar el lápiz.";
+      return [`Dibujo extremo · ${steps} pasos por historia`, txt];
     }
     if (state.settings.mode === "retratos") {
       return [`Retratos · ${state.settings.duoRounds} rondas`, "Cada uno retrata en secreto a otro jugador y todos puntuáis el parecido del 1 al 5, sin saber quién dibujó."];
@@ -881,6 +883,13 @@
     }
     $("timeRange").disabled = !host;
     $("modeBtn").disabled = !host;
+    // Dibujo extremo: qué limitación
+    $("ruleSetting").hidden = state.settings.mode !== "extremo";
+    $("ruleValue").textContent = { mix: "Variada", circles: "Solo círculos", squares: "Solo cuadrados", oneline: "Sin levantar el lápiz" }[state.settings.rule || "mix"];
+    for (const b of $("ruleSeg").children) {
+      b.setAttribute("aria-pressed", String(b.dataset.v === (state.settings.rule || "mix")));
+      b.disabled = !host;
+    }
     // Degradado tiene sus propios tiempos
     $("timeSetting").hidden = state.settings.mode === "degradado";
     for (const b of $("roundsSeg").children) {
@@ -921,6 +930,13 @@
     if (!isHost()) return;
     SFX.play("click");
     socket.emit("settings", { time: DRAW_TIMES[Number(e.target.value)] });
+  });
+  $("ruleSeg").addEventListener("click", (e) => {
+    const v = e.target.closest("button")?.dataset.v;
+    if (v && isHost()) {
+      SFX.play("click");
+      socket.emit("settings", { rule: v });
+    }
   });
   $("roundsSeg").addEventListener("click", (e) => {
     const v = e.target.dataset && e.target.dataset.v;

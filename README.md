@@ -72,8 +72,11 @@ La mecánica se adapta al número de jugadores:
 
 - Se juega **como el clásico** (frase → dibujo → adivina → dibujo…), con el mismo
   tiempo elegible con la barra.
-- Pero en **cada vuelta de dibujo, a todos les toca la misma limitación al azar**
-  (y suele cambiar de una vuelta a otra), que el lienzo hace cumplir de verdad:
+- Pero en **cada vuelta de dibujo, todos dibujan a la vez con la misma limitación**.
+  El anfitrión elige en la sala cuál: **🎲 Variada** (por defecto: las tres
+  repartidas, sin repetir hasta usarlas todas), **⭕ círculos**, **⬛ cuadrados** o
+  **〰️ un trazo** para toda la partida (así se puede ajustar el tiempo a ella).
+  El lienzo la hace cumplir de verdad:
   - **⭕ Solo círculos:** al arrastrar el dedo sale un círculo (y se puede rellenar).
   - **⬛ Solo cuadrados:** igual, con cuadrados.
   - **〰️ Sin levantar el lápiz:** un único trazo. Al levantar el dedo ya no se

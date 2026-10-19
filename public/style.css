@@ -809,3 +809,5 @@ body.face-mode .pad-inner { overflow: hidden; }
   .code-card .big-code { font-size: 1.5rem; }
   #copyBtn { font-size: .8rem; padding: 6px 8px; }
 }
+.rule-seg button { font-size: .82rem; padding-inline: 2px; }
+.mode-card .seg.rule-seg button { font-size: 1.2rem; padding: 2px; min-height: 36px; }

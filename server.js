@@ -261,12 +261,22 @@ function startGame(room) {
     game.steps = game.variant === "degrade" ? degradeSteps(n) : n === 2 ? 4 : chainLength(n);
     game.stepRules = [];
     if (game.variant === "extreme") {
-      // Las limitaciones se deciden al empezar, así quien escribe la frase ya sabe cómo se dibujará
+      // Las limitaciones se deciden al empezar, así quien escribe la frase ya sabe cómo se dibujará.
+      // Una fija para toda la partida, o «variada»: las tres repartidas sin repetir hasta usarlas todas.
+      const fixed = RULES.includes(room.settings.rule) ? room.settings.rule : null;
+      let bag = [];
       let prevRule = null;
       for (let k = 1; k < game.steps; k++) {
         if (typeForChainStep(k, game.variant) !== "draw") continue;
-        const opts = RULES.filter((r) => r !== prevRule);
-        prevRule = game.stepRules[k] = pick(opts);
+        if (fixed) {
+          game.stepRules[k] = fixed;
+          continue;
+        }
+        if (!bag.length) {
+          bag = shuffle(RULES);
+          if (bag[0] === prevRule) bag.push(bag.shift());
+        }
+        prevRule = game.stepRules[k] = bag.shift();
       }
     }
     game.books = order.map((id) => ({ owner: id, entries: [] }));
@@ -963,7 +973,7 @@ io.on("connection", (socket) => {
       players: new Map(),
       hostId: null,
       phase: "lobby",
-      settings: { time: 60, duoRounds: 3, mode: "telefono" },
+      settings: { time: 60, duoRounds: 3, mode: "telefono", rule: "mix" },
       game: null,
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -1058,6 +1068,7 @@ io.on("connection", (socket) => {
     if (!isHost() || room.phase !== "lobby") return;
     if (data && DRAW_TIMES.includes(Number(data.time)) && data.time !== undefined && data.time !== null) room.settings.time = Number(data.time);
     if (data && ["telefono", "votacion", "retratos", "degradado", "extremo"].includes(data.mode)) room.settings.mode = data.mode;
+    if (data && ["mix", ...RULES].includes(data.rule)) room.settings.rule = data.rule;
     const dr = Number(data?.duoRounds);
     if ([2, 3, 4, 5, 6].includes(dr)) room.settings.duoRounds = dr;
     broadcast(room);

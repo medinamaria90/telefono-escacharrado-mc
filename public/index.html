@@ -124,6 +124,15 @@
         <div class="row-between"><label class="label" for="timeRange">Tiempo para dibujar</label><strong class="time-value" id="timeValue">1 min</strong></div>
         <input type="range" class="time-range" id="timeRange" min="0" max="10" step="1" value="2" aria-label="Tiempo para dibujar">
       </div>
+      <div class="setting" id="ruleSetting" hidden>
+        <div class="row-between"><span class="label">Limitación</span><strong class="time-value" id="ruleValue">Variada</strong></div>
+        <div class="seg rule-seg" id="ruleSeg">
+          <button type="button" data-v="mix" aria-label="Variada" title="Variada: cambia en cada vuelta">🎲</button>
+          <button type="button" data-v="circles" aria-label="Solo círculos" title="Solo círculos">⭕</button>
+          <button type="button" data-v="squares" aria-label="Solo cuadrados" title="Solo cuadrados">⬛</button>
+          <button type="button" data-v="oneline" aria-label="Un trazo" title="Sin levantar el lápiz">〰️</button>
+        </div>
+      </div>
       <div class="setting" id="duoRoundsSetting">
         <span class="label">Rondas</span>
         <div class="seg" id="roundsSeg">
