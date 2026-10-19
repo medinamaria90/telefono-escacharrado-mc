@@ -428,7 +428,10 @@
       }
       this._snapshot();
       // acuarela: lo que se ve mientras pintas es ya el resultado final
-      this.over.style.opacity = this.tool === "water" ? ".85" : "";
+      // el blanco no mezcla (multiplicar no aclara): hace de velo lechoso que aclara un poco
+      const veil = this._isVeil();
+      this.over.style.opacity = this.tool === "water" ? (veil ? ".5" : ".85") : "";
+      this.over.style.mixBlendMode = veil ? "normal" : "";
       this.stroke = { last: p, lastMid: p, t: performance.now(), pts: [p] };
       if (this.tool === "spray") {
         this._spray(p, 1);
@@ -683,14 +686,21 @@
       const took = performance.now() - t0;
       this._wetNext = performance.now() + Math.min(150, Math.max(33, took * 3));
     }
+    /** Acuarela blanca (o casi): aclara en vez de mezclar */
+    _isVeil() {
+      if (this.tool !== "water") return false;
+      const [r, g, b] = hexToRgba(this.color);
+      return r >= 235 && g >= 235 && b >= 235;
+    }
     _commitWater() {
       clearTimeout(this._wetRaf);
       this._wetRaf = null;
       if (this.stroke && this.stroke.wet) this._wetRender();
+      const veil = this._isVeil();
       const ctx = this.ctx;
       ctx.save();
-      ctx.globalAlpha = 0.85;
-      ctx.globalCompositeOperation = "multiply";
+      ctx.globalAlpha = veil ? 0.5 : 0.85;
+      ctx.globalCompositeOperation = veil ? "source-over" : "multiply";
       ctx.drawImage(this.over, 0, 0);
       ctx.restore();
       this.octx.clearRect(0, 0, W, H);
