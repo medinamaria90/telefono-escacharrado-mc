@@ -208,7 +208,7 @@ function botContent(room, botId) {
     for (const k of votableFor(game, botId)) v[k] = game.kind === "extreme" ? (crypto.randomInt(10) < 4 ? list[k].phrase : pick(FRASES)) : 1 + crypto.randomInt(5);
     return { content: v };
   }
-  return { content: pick(FRASES) }; // escribir o adivinar
+  return { content: game.stepType === "write" ? pick(poolFor(game)) : pick(FRASES) }; // escribir o adivinar
 }
 /** Cada robot contesta al cabo de unos segundos, como si pensara */
 function scheduleBots(room) {
@@ -290,10 +290,29 @@ function startGame(room) {
   beginStep(room);
 }
 
+// Frases salidas hace poco (en todas las salas): no se repiten hasta que han pasado muchas
+const RECENT_MAX = 2500;
+const recentPhrases = [];
+const recentSet = new Set();
+// Qué tipo de frase pide cada modo
+function poolFor(game) {
+  const r = crypto.randomInt(100);
+  if (game.mode === "vote") return r < 55 ? FRASES.bonitas : FRASES.graciosas; // votación: que luzca
+  if (game.mode === "duo") return r < 45 ? FRASES.sencillas : FRASES.graciosas; // dúo: que se pueda acertar
+  if (game.variant === "extreme") return FRASES.sencillas; // con limitaciones: cosas simples
+  return r < 75 ? FRASES.graciosas : FRASES.bonitas; // clásico: cuanto más loca, mejor historia
+}
 function freshPhrase(game) {
-  const free = FRASES.filter((f) => !game.usedPhrases.has(f));
-  const f = pick(free.length ? free : FRASES);
+  let f = null;
+  for (let i = 0; i < 40 && !f; i++) {
+    const c = pick(poolFor(game));
+    if (!game.usedPhrases.has(c) && !recentSet.has(c)) f = c;
+  }
+  if (!f) f = pick(poolFor(game));
   game.usedPhrases.add(f);
+  recentPhrases.push(f);
+  recentSet.add(f);
+  if (recentPhrases.length > RECENT_MAX) recentSet.delete(recentPhrases.shift());
   return f;
 }
 
@@ -561,7 +580,7 @@ function finishStep(room) {
     game.order.forEach((id, idx) => {
       const book = game.books[chainBookIndex(game, idx)];
       let content = contentOf(id);
-      if (game.stepType === "write" && !content) content = pick(FRASES);
+      if (game.stepType === "write" && !content) content = pick(poolFor(game));
       if (game.stepType === "guess" && !content) content = "🤐 Se quedó sin palabras";
       const meta = game.submissions.get(id)?.meta;
       book.entries[game.step] = { type: game.stepType, content, by: id };

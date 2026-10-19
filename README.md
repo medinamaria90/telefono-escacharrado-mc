@@ -222,7 +222,7 @@ del ordenador, por ejemplo http://192.168.1.20:3000.
 | `public/avatars.js` | Las caritas, dibujadas en SVG. |
 | `lib/botart.js` | Dibujos de los robots de la sala de pruebas. |
 | `public/sfx.js` | Sonidos generados con Web Audio (sin archivos de audio). |
-| `public/frases.js` | Unas 400 ideas para dibujar, todas fáciles de reconocer en un dibujo: animales, paisajes, monumentos muy conocidos o genéricos (una catedral, un teatro…), objetos, personajes famosos, comida, deportes, oficios, escenas y alguna graciosa. |
+| `public/frases.js` | Unas 8.000 ideas para dibujar en tres grupos: **sencillas** (una cosa: animal, objeto, comida, monumento, personaje; para el Dibujo extremo y el Dúo), **bonitas** (escenas, paisajes, monumentos; para la Votación y el dibujo libre) y **graciosas** (situaciones locas y combinaciones; para el Clásico). No se repiten hasta que han salido muchas. |
 | `public/style.css` | Estilos (modo claro y oscuro, móvil y tableta). |
 | `public/sw.js` | Trabajador mínimo para poder instalar la app (sin caché). |
 | `public/manifest.webmanifest` | Nombre, icono y colores de la app instalada. |

@@ -90,6 +90,31 @@
     },
   };
 
+  // Idea al azar que no haya salido en este móvil hace poco
+  // Cada sitio pide un tipo de idea: [lista, peso]
+  function ideaPool(kind) {
+    const r = Math.random();
+    if (kind === "extreme") return FRASES.sencillas;
+    if (kind === "classic") return r < 0.75 ? FRASES.graciosas : FRASES.bonitas;
+    return r < 0.55 ? FRASES.bonitas : r < 0.85 ? FRASES.graciosas : FRASES.sencillas; // dibujo libre
+  }
+  function idea(kind) {
+    const LIST = ideaPool(kind);
+    let recent = [];
+    try {
+      recent = JSON.parse(localStorage.getItem("tg-recent-ideas") || "[]");
+    } catch (_) {}
+    const seen = new Set(recent);
+    let f = LIST[Math.floor(Math.random() * LIST.length)];
+    for (let i = 0; i < 30 && seen.has(f); i++) f = LIST[Math.floor(Math.random() * LIST.length)];
+    recent.push(f);
+    if (recent.length > 600) recent = recent.slice(-600);
+    try {
+      localStorage.setItem("tg-recent-ideas", JSON.stringify(recent));
+    } catch (_) {}
+    return f;
+  }
+
   // ---------- estado local ----------
   let state = null;
   let clockOffset = 0;
@@ -1042,7 +1067,7 @@
     if (sendText()) $("textInput").blur();
   });
   $("diceBtn").addEventListener("click", () => {
-    $("textInput").value = FRASES[Math.floor(Math.random() * FRASES.length)];
+    $("textInput").value = idea(state && state.variant === "extreme" ? "extreme" : "classic");
   });
 
   // ---------- dibujo extremo: limitaciones ----------
@@ -2018,7 +2043,7 @@
     return b;
   }
   function newIdea() {
-    $("drawWhat").textContent = FRASES[Math.floor(Math.random() * FRASES.length)];
+    $("drawWhat").textContent = idea("solo");
     $("drawWhat").classList.toggle("long", $("drawWhat").textContent.length > 26);
   }
   function startSolo(edit) {
