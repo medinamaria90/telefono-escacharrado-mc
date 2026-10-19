@@ -260,6 +260,15 @@ function startGame(room) {
     game.variant = room.settings.mode === "degradado" ? "degrade" : room.settings.mode === "extremo" ? "extreme" : "classic";
     game.steps = game.variant === "degrade" ? degradeSteps(n) : n === 2 ? 4 : chainLength(n);
     game.stepRules = [];
+    if (game.variant === "extreme") {
+      // Las limitaciones se deciden al empezar, así quien escribe la frase ya sabe cómo se dibujará
+      let prevRule = null;
+      for (let k = 1; k < game.steps; k++) {
+        if (typeForChainStep(k, game.variant) !== "draw") continue;
+        const opts = RULES.filter((r) => r !== prevRule);
+        prevRule = game.stepRules[k] = pick(opts);
+      }
+    }
     game.books = order.map((id) => ({ owner: id, entries: [] }));
   } else if (game.mode === "vote") {
     // Votación: todos dibujan la misma frase, se puntúa del 1 al 5 sin saber de quién es cada dibujo.
@@ -449,6 +458,8 @@ function taskFor(room, playerId) {
     base.variant = game.variant;
     if (game.variant === "degrade") base.seconds = game.copySeconds;
     if (game.variant === "extreme" && game.stepType === "draw") base.rule = game.stepRules[game.step];
+    // Al escribir la frase: con qué limitación se va a dibujar
+    if (game.variant === "extreme" && game.stepType === "write") base.nextRule = game.stepRules[game.step + 1];
     if (game.step > 0) {
       const book = game.books[chainBookIndex(game, idx)];
       const prev = book.entries[game.step - 1];

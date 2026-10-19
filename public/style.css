@@ -762,3 +762,4 @@ body.face-mode .pad-inner { overflow: hidden; }
 .guess-list li span:last-child { overflow: hidden; text-overflow: ellipsis; }
 .guess-list li.hit { color: #1f8a3a; font-weight: 700; }
 .guess-list li.near { color: #b34700; }
+.rule-chip.big { font-size: .85em; padding: 2px 10px; vertical-align: middle; }

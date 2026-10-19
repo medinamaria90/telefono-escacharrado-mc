@@ -1028,7 +1028,15 @@
     $("textPromptFig").hidden = true;
     $("textPromptEmpty").hidden = true;
     $("textSpacer").hidden = false;
-    if (task.type === "write") {
+    if (task.type === "write" && task.nextRule) {
+      // Dibujo extremo: se avisa de la limitación con la que se dibujará
+      $("textTitle").innerHTML = "";
+      $("textTitle").appendChild(document.createTextNode("Se dibujará "));
+      $("textTitle").appendChild(el("span", "rule-chip big", RULE_LABEL[task.nextRule]));
+      $("textTitle").appendChild(document.createTextNode(" ¿Qué quieres que dibujen?"));
+      $("textInput").placeholder = task.nextRule === "oneline" ? "Ej.: Un caracol" : task.nextRule === "circles" ? "Ej.: Un muñeco de nieve" : "Ej.: Un robot";
+      $("diceBtn").hidden = false;
+    } else if (task.type === "write") {
       $("textTitle").textContent = "Escribe una frase para que alguien la dibuje";
       $("textInput").placeholder = "Ej.: Un pulpo tocando la batería";
       $("diceBtn").hidden = false;

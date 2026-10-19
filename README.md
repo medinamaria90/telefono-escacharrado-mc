@@ -78,6 +78,8 @@ La mecánica se adapta al número de jugadores:
   - **⬛ Solo cuadrados:** igual, con cuadrados.
   - **〰️ Sin levantar el lápiz:** un único trazo. Al levantar el dedo ya no se
     puede pintar más: o se envía así, o se empieza de nuevo con deshacer o borrar.
+- Las limitaciones se deciden al empezar: al escribir la frase ya se avisa con cuál
+  se va a dibujar («Se dibujará ⬛ Solo cuadrados. ¿Qué quieres que dibujen?»).
 - En la revelación, cada dibujo indica con qué limitación se hizo.
 
 ### Sala de pruebas
