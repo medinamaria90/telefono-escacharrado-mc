@@ -1008,6 +1008,11 @@
     if (task.type === "draw") {
       ensurePad();
       pad.reset();
+      // Cada dibujo nuevo empieza con lápiz negro y tamaño estándar
+      pad.tool = "pen";
+      pad.color = COLORS[0];
+      pad.size = SIZES[2];
+      syncFree(COLORS[0]);
       closePops();
       updateToolbar();
       $("drawStep").textContent = stepLabel(task);
@@ -1118,10 +1123,7 @@
       if (l <= 0 || !state || !state.task || state.task.stepKey !== task.stepKey) {
         clearInterval(memoTimer);
         $("memorize").hidden = true;
-        if (l <= 0) {
-          SFX.play("turn");
-          toast("¡A dibujar de memoria!");
-        }
+        if (l <= 0) SFX.play("turn");
         return;
       }
       $("memorizeCount").textContent = l;
