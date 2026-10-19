@@ -375,7 +375,10 @@ body[data-screen="s-home"] .topbar { display: none; }
 .prev-img { width: 40px; height: 60px; object-fit: contain; background: #fff; border-radius: 6px; border: 1.5px solid var(--line); }
 .reveal-stage { display: flex; flex-direction: column; align-items: stretch; justify-content: center; gap: 8px; }
 .stage-by { font-weight: 700; color: var(--muted); font-size: .95rem; flex-shrink: 0; }
-.stage-img { flex: 1 1 auto; min-height: 0; width: 100%; height: 100%; object-fit: contain; background: #fff; border-radius: 14px; border: 2px solid var(--ink); box-shadow: var(--shadow); }
+/* el marco se ciñe al dibujo, sea vertical u horizontal */
+.stage-frame { flex: 1 1 0; min-height: 0; width: 100%; display: flex; align-items: center; justify-content: center; position: relative; padding: 0; border: 0; background: none; cursor: zoom-in; touch-action: manipulation; }
+.stage-img { display: block; max-width: 100%; max-height: 100%; width: auto; height: auto; background: #fff; border-radius: 14px; border: 2px solid var(--ink); box-shadow: var(--shadow); }
+.stage-frame .zoom-hint { position: absolute; right: 8px; bottom: 8px; width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; background: var(--card); border: 1.5px solid var(--line); box-shadow: 0 4px 12px -6px #0006; font-size: 1rem; pointer-events: none; }
 .stage-bubble { margin: auto 0; align-self: center; text-align: center; max-width: 100%; border: 2.5px solid var(--ink); border-radius: 24px 24px 24px 6px; padding: 22px 24px; font-family: var(--font-display); font-weight: 400; font-size: clamp(1.6rem, 8vw, 2.6rem); line-height: 1.1; overflow-wrap: anywhere; box-shadow: var(--shadow); background: var(--card); }
 .stage-bubble.is-write { background: var(--accent-2); color: #3b2a00; }
 .reveal-stage.pop-in { animation: pop .45s cubic-bezier(.2, 1.4, .4, 1); }
@@ -696,7 +699,10 @@ body.vote-end .end-center { gap: 8px; }
 #s-result .vote-card { cursor: zoom-in; overflow: visible; }
 #s-result .vote-card .duo-img, #s-result .vote-card .grow-img { flex: none; width: 100%; height: auto; aspect-ratio: 1; object-fit: contain; }
 .zoom-sheet { gap: 8px; }
-.zoom-sheet img { width: 100%; flex: 1 1 auto; min-height: 0; max-height: calc(100dvh - 190px); object-fit: contain; background: #fff; border-radius: 12px; border: 2px solid var(--ink); }
+.zoom-wrap { flex: 1 1 auto; min-height: 0; height: calc(100dvh - 210px); overflow: hidden; display: flex; align-items: center; justify-content: center; touch-action: none; border-radius: 12px; }
+.zoom-wrap img { display: block; max-width: 100%; max-height: 100%; width: auto; height: auto; background: #fff; border-radius: 12px; border: 2px solid var(--ink); transform-origin: center center; user-select: none; -webkit-user-select: none; }
+.zoom-wrap.zoomed img { border-radius: 0; }
+.zoom-tip { margin: 0; text-align: center; font-size: .8rem; color: var(--muted); }
 .zoom-cap { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 700; }
 
 /* tiempo para dibujar: barra */

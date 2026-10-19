@@ -363,8 +363,8 @@
   // ---------- utilidades de interfaz ----------
   const screens = ["s-home", "s-lobby", "s-text", "s-draw", "s-vote", "s-wait", "s-result", "s-reveal", "s-end", "s-book"];
   function show(id) {
+    if (document.body.dataset.screen !== id) $("zoomSheet").hidden = true;
     for (const s of screens) $(s).hidden = s !== id;
-    if (id !== "s-result") $("zoomSheet").hidden = true;
     document.body.dataset.screen = id;
     trackScreen(id);
     if (id === "s-draw" && pad) requestAnimationFrame(() => pad.layout());
@@ -1929,8 +1929,22 @@
       box.appendChild(card);
     });
   }
+  /** Dibujo de la historia: el marco se ajusta a su forma (vertical u horizontal) y al tocarlo se amplía */
+  function stageImg(src, by, prompt) {
+    const fr = el("button", "stage-frame");
+    fr.type = "button";
+    fr.setAttribute("aria-label", "Ver en grande");
+    const im = el("img", "stage-img");
+    im.src = src;
+    im.alt = "Dibujo de " + (by ? by.name : "alguien");
+    fr.appendChild(im);
+    fr.appendChild(el("span", "zoom-hint", "🔍"));
+    fr.addEventListener("click", () => zoomDrawing({ image: src, by }, prompt || "Dibujo"));
+    return fr;
+  }
   let zooming = null;
   function zoomDrawing(it, prompt) {
+    resetZoomView();
     SFX.play("page");
     zooming = { img: it.image, prompt, by: it.by };
     $("zoomImg").src = it.image;
@@ -1947,8 +1961,85 @@
   $("zoomSave").addEventListener("click", () => zooming && saveSharedToBook(zooming.img, zooming.prompt, zooming.by, $("zoomSave")));
   $("zoomClose").addEventListener("click", () => ($("zoomSheet").hidden = true));
   $("zoomSheet").addEventListener("click", (e) => {
-    if (e.target === $("zoomSheet") || e.target === $("zoomImg")) $("zoomSheet").hidden = true;
+    if (e.target === $("zoomSheet")) $("zoomSheet").hidden = true;
   });
+  // Dentro del visor: pellizcar o doble toque para ampliar, arrastrar para moverse
+  let zv = { s: 1, x: 0, y: 0 };
+  const zPts = new Map();
+  let zGest = null;
+  let zLastTap = 0;
+  function applyZoomView() {
+    const box = $("zoomWrap");
+    const im = $("zoomImg");
+    const maxX = (box.clientWidth * (zv.s - 1)) / 2;
+    const maxY = (box.clientHeight * (zv.s - 1)) / 2;
+    zv.x = Math.max(-maxX, Math.min(maxX, zv.x));
+    zv.y = Math.max(-maxY, Math.min(maxY, zv.y));
+    im.style.transform = `translate(${zv.x}px, ${zv.y}px) scale(${zv.s})`;
+    box.classList.toggle("zoomed", zv.s > 1.01);
+  }
+  function resetZoomView() {
+    zv = { s: 1, x: 0, y: 0 };
+    zPts.clear();
+    zGest = null;
+    applyZoomView();
+  }
+  function zoomAt(ns, cx, cy) {
+    const box = $("zoomWrap").getBoundingClientRect();
+    const px = cx - (box.left + box.width / 2);
+    const py = cy - (box.top + box.height / 2);
+    ns = Math.max(1, Math.min(5, ns));
+    // el punto bajo el dedo se queda en su sitio
+    zv.x = px - ((px - zv.x) * ns) / zv.s;
+    zv.y = py - ((py - zv.y) * ns) / zv.s;
+    zv.s = ns;
+    applyZoomView();
+  }
+  (() => {
+    const box = $("zoomWrap");
+    box.addEventListener("pointerdown", (e) => {
+      box.setPointerCapture(e.pointerId);
+      zPts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (zPts.size === 2) {
+        const [a, b] = [...zPts.values()];
+        zGest = { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, s: zv.s };
+      } else if (zPts.size === 1) {
+        const t = Date.now();
+        if (t - zLastTap < 300) {
+          zoomAt(zv.s > 1.01 ? 1 : 2.5, e.clientX, e.clientY);
+          zLastTap = 0;
+        } else zLastTap = t;
+      }
+    });
+    box.addEventListener("pointermove", (e) => {
+      const p = zPts.get(e.pointerId);
+      if (!p) return;
+      const nx = e.clientX, ny = e.clientY;
+      if (zPts.size >= 2 && zGest) {
+        zPts.set(e.pointerId, { x: nx, y: ny });
+        const [a, b] = [...zPts.values()];
+        const d = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+        zoomAt(zGest.s * (d / zGest.d), (a.x + b.x) / 2, (a.y + b.y) / 2);
+        return;
+      }
+      if (zv.s > 1.01) {
+        zv.x += nx - p.x;
+        zv.y += ny - p.y;
+        applyZoomView();
+      }
+      zPts.set(e.pointerId, { x: nx, y: ny });
+    });
+    const up = (e) => {
+      zPts.delete(e.pointerId);
+      if (zPts.size < 2) zGest = null;
+    };
+    box.addEventListener("pointerup", up);
+    box.addEventListener("pointercancel", up);
+    box.addEventListener("wheel", (e) => {
+      e.preventDefault();
+      zoomAt(zv.s * (e.deltaY < 0 ? 1.2 : 1 / 1.2), e.clientX, e.clientY);
+    }, { passive: false });
+  })();
   function renderVoteResult() {
     currentStepKey = "voteResult";
     const r = state.voteResult;
@@ -2004,10 +2095,7 @@
       return e && e.type !== "draw" ? e.content : "";
     };
     if (guessOfDrawing) {
-      const im = el("img", "stage-img");
-      im.src = prev.content;
-      im.alt = "Dibujo de " + (prev.by ? prev.by.name : "alguien");
-      st.appendChild(im);
+      st.appendChild(stageImg(prev.content, prev.by, textBefore(o.entries.length - 3)));
       st.appendChild(saveBtn(prev.content, textBefore(o.entries.length - 3), prev.by));
       const by = el("div", "stage-by");
       by.appendChild(who(cur.by, "dijo que es…"));
@@ -2023,10 +2111,7 @@
       st.appendChild(by);
       if (cur.type === "draw") {
         if (cur.content) {
-          const im = el("img", "stage-img");
-          im.src = cur.content;
-          im.alt = "Dibujo de " + (cur.by ? cur.by.name : "alguien");
-          st.appendChild(im);
+          st.appendChild(stageImg(cur.content, cur.by, textBefore(o.entries.length - 2)));
           st.appendChild(saveBtn(cur.content, textBefore(o.entries.length - 2), cur.by));
         } else st.appendChild(blankEl());
       } else {
@@ -2034,6 +2119,7 @@
       }
     }
     if (o.animate) {
+      $("zoomSheet").hidden = true; // pasa al siguiente: se cierra el visor
       st.classList.remove("pop-in");
       void st.offsetWidth;
       st.classList.add("pop-in");

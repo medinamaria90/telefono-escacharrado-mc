@@ -371,7 +371,8 @@
   <div class="sheet-backdrop" id="zoomSheet" hidden>
     <div class="sheet zoom-sheet" role="dialog" aria-modal="true" aria-label="Dibujo ampliado">
       <div class="zoom-cap"><span id="zoomWho"></span><span class="pts vote-pts" id="zoomPts"></span></div>
-      <img id="zoomImg" alt="Dibujo ampliado">
+      <div class="zoom-wrap" id="zoomWrap"><img id="zoomImg" alt="Dibujo ampliado" draggable="false"></div>
+      <p class="zoom-tip">Pellizca o toca dos veces para ampliar</p>
       <div class="sheet-actions"><button class="btn secondary" id="zoomClose" type="button">Cerrar</button><button class="btn primary" id="zoomSave" type="button">📒 Guardar en mi cuaderno</button></div>
     </div>
   </div>
