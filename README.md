@@ -60,12 +60,12 @@ La mecánica se adapta al número de jugadores:
 
 ### Modo Degradado (2 a 12 jugadores)
 
-- Cada uno escribe una frase. El siguiente la dibuja en **2 minutos**.
+- No hay frase: el primero **se inventa un dibujo**, lo que quiera, en **2 minutos**.
 - El siguiente ve ese dibujo **10 segundos** («👀 Memorízalo»), desaparece, y lo
   tiene que **copiar de memoria en 1 minuto**. Los siguientes, en **30 segundos** y
   luego en **15 segundos**.
-- Cada historia tiene entre 4 y 6 pasos. Al final se ve, paso a paso, cómo se ha
-  ido deformando el dibujo («lo copió de memoria»).
+- Cada historia tiene entre 4 y 6 dibujos. Al final se ve, paso a paso, cómo se ha
+  ido deformando («lo copió de memoria»).
 - Los tiempos son fijos (son la gracia del modo), así que la barra de tiempo no sale.
 
 ### Modo Dibujo extremo (2 a 12 jugadores)
@@ -74,9 +74,12 @@ La mecánica se adapta al número de jugadores:
   cumplir de verdad:
   - **⭕ Solo círculos:** al arrastrar el dedo sale un círculo (y se puede rellenar).
   - **⬛ Solo cuadrados:** igual, con cuadrados.
-  - **〰️ Sin levantar el lápiz:** un único trazo; para empezar otra vez, deshacer.
-- Después todos puntúan cada dibujo del 1 al 5 (se ve la frase y la limitación,
-  no quién lo hizo). Varias rondas y podio al final.
+  - **〰️ Sin levantar el lápiz:** un único trazo. Al levantar el dedo ya no se
+    puede pintar más: o se envía así, o se empieza de nuevo con deshacer o borrar.
+- Después los demás **adivinan qué es** cada dibujo (ven la limitación, no la frase
+  ni quién lo hizo). Acertar da 3 puntos y «casi» 1, **a quien adivina y a quien
+  dibujó**. Al final de la ronda se ve la frase de cada dibujo y lo que dijo cada uno.
+  Varias rondas y podio.
 
 ### Sala de pruebas
 

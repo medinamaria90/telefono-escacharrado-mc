@@ -772,8 +772,8 @@
     { v: "telefono", emoji: "✏️", name: "Clásico", desc: "Frase → dibujo → adivina… y al final se ve cómo ha cambiado cada historia. Con 2 se juega en Dúo." },
     { v: "votacion", emoji: "⭐", name: "Votación", desc: "Todos dibujáis la misma frase y puntuáis los dibujos de los demás del 1 al 5." },
     { v: "retratos", emoji: "🖼️", name: "Retratos", desc: "Te toca retratar en secreto a otro jugador; todos puntúan el parecido." },
-    { v: "degradado", emoji: "🌀", name: "Degradado", desc: "Uno dibuja la frase en 2 min; los siguientes lo ven 10 s y lo copian de memoria en 1 min, 30 s y 15 s." },
-    { v: "extremo", emoji: "🔥", name: "Dibujo extremo", desc: "Cada uno dibuja su frase con una limitación: solo círculos, solo cuadrados o sin levantar el lápiz. Luego se puntúa." },
+    { v: "degradado", emoji: "🌀", name: "Degradado", desc: "Uno se inventa un dibujo en 2 min; los siguientes lo ven 10 s y lo copian de memoria en 1 min, 30 s y 15 s." },
+    { v: "extremo", emoji: "🔥", name: "Dibujo extremo", desc: "Dibujas tu frase solo con círculos, solo con cuadrados o sin levantar el lápiz, y los demás adivinan qué es." },
   ];
   const modeInfo = (v) => MODES.find((m) => m.v === v) || MODES[0];
   function buildModeList() {
@@ -810,10 +810,10 @@
   });
   function modeCopy(n) {
     if (state.settings.mode === "degradado") {
-      return ["Degradado", "Dibujas la frase en 2 min; los demás lo ven 10 s y lo copian de memoria cada vez más rápido."];
+      return ["Degradado", "El primero se inventa un dibujo en 2 min; los demás lo ven 10 s y lo copian de memoria cada vez más rápido."];
     }
     if (state.settings.mode === "extremo") {
-      return [`Dibujo extremo · ${state.settings.duoRounds} rondas`, "Cada uno con su frase y una limitación al azar. Luego se puntúa del 1 al 5."];
+      return [`Dibujo extremo · ${state.settings.duoRounds} rondas`, "Cada uno dibuja su frase con una limitación al azar y los demás adivinan qué es."];
     }
     if (state.settings.mode === "retratos") {
       return [`Retratos · ${state.settings.duoRounds} rondas`, "Cada uno retrata en secreto a otro jugador y todos puntuáis el parecido del 1 al 5, sin saber quién dibujó."];
@@ -948,7 +948,7 @@
     if (task.type === "draw") {
       show("s-draw");
       const copying = task.variant === "degrade" && task.prompt && task.prompt.kind === "image";
-      $("drawWhat").textContent = copying ? "Cópialo de memoria" : task.secret != null ? task.secret : task.prompt ? (task.prompt.value || "(sin respuesta)") : "";
+      $("drawWhat").textContent = copying ? "Cópialo de memoria" : task.variant === "degrade" ? "Invéntate un dibujo: lo que quieras" : task.secret != null ? task.secret : task.prompt ? (task.prompt.value || "(sin respuesta)") : "";
       $("drawWhat").classList.toggle("long", $("drawWhat").textContent.length > 26);
       $("rerollBtn").hidden = !(task.secret != null && task.rerolls > 0);
       $("rerollBtn").textContent = `🎲 ${task.rerolls}`;
@@ -973,7 +973,7 @@
       applyRuleToolbar(task.rule || null);
       if (task.variant === "degrade") {
         const copying = task.prompt && task.prompt.kind === "image";
-        $("drawStep").textContent = stepLabel(task) + (copying ? ` · De memoria en ${timeLabel(task.seconds)}` : ` · Tienes ${timeLabel(task.seconds)}`);
+        $("drawStep").textContent = stepLabel(task) + (copying ? ` · De memoria en ${timeLabel(task.seconds)}` : ` · Dibujo libre, ${timeLabel(task.seconds)}`);
         if (copying && task.viewUntil) showMemorize(task);
       } else if (state.mode === "vote" && task.kind === "extreme") {
         $("drawStep").textContent = stepLabel(task) + " · " + RULE_LABEL[task.rule];
@@ -991,6 +991,8 @@
     if (task.type === "vote") {
       votes = {};
       vIdx = 0;
+      delete $("voteGuess").dataset.k;
+      $("voteGuess").value = "";
       return;
     }
     $("textStep").textContent = stepLabel(task);
@@ -1044,7 +1046,7 @@
   const RULE_LABEL = { circles: "⭕ Solo círculos", squares: "⬛ Solo cuadrados", oneline: "〰️ Sin levantar el lápiz" };
   const RULE_TOOLS = { circles: ["pen", "fill"], squares: ["pen", "fill"], oneline: ["pen", "marker"] };
   function applyRuleToolbar(rule) {
-    document.querySelectorAll("[data-tool]").forEach((b) => (b.hidden = !!rule && !RULE_TOOLS[rule].includes(b.dataset.tool)));
+    document.querySelectorAll(".tool[data-tool]").forEach((b) => (b.hidden = !!rule && !RULE_TOOLS[rule].includes(b.dataset.tool)));
     const pen = document.querySelector("[data-tool=pen]");
     if (pen) pen.title = rule === "circles" ? "Círculo" : rule === "squares" ? "Cuadrado" : "Lápiz";
     updateToolbar();
@@ -1607,6 +1609,8 @@
     const portrait = task.kind === "portrait";
     $("voteStep").textContent = stepLabel(task) + (portrait ? " · ¿Cuánto se parece?" : " · Puntúa");
     if (!portrait && task.kind !== "extreme") $("votePhrase").textContent = "«" + (task.phrase || "") + "»";
+    $("voteCount").textContent = "";
+    $("voteGuess").hidden = true;
     const empty = !items.length;
     $("voteFig").hidden = empty;
     $("voteEmpty").hidden = !empty;
@@ -1622,13 +1626,22 @@
     const it = items[vIdx];
     if ($("voteImg").getAttribute("src") !== it.image) $("voteImg").src = it.image;
     if (portrait) setWho($("votePhrase"), "Retrato de", it.target);
-    if (task.kind === "extreme") {
+    const guessing = task.kind === "extreme";
+    if (guessing) {
       $("votePhrase").innerHTML = "";
-      $("votePhrase").appendChild(document.createTextNode("«" + (it.phrase || "") + "» "));
+      $("votePhrase").appendChild(document.createTextNode("¿Qué es? "));
       $("votePhrase").appendChild(el("span", "rule-chip", RULE_LABEL[it.rule] || ""));
+      if ($("voteGuess").dataset.k !== String(it.k)) {
+        $("voteGuess").dataset.k = it.k;
+        $("voteGuess").value = votes[it.k] || "";
+      }
     }
+    $("voteStars").hidden = guessing;
+    $("starsLabel").hidden = guessing;
+    $("voteGuess").hidden = !guessing;
     $("voteCount").textContent = portrait ? `Retrato ${vIdx + 1} de ${items.length} · ¿quién lo habrá dibujado?` : `Dibujo ${vIdx + 1} de ${items.length} · ¿de quién será?`;
-    const mine = votes[it.k] || 0;
+    if (guessing) $("voteStep").textContent = stepLabel(task) + " · Adivina";
+    const mine = guessing ? 0 : votes[it.k] || 0;
     for (const b of $("voteStars").children) {
       const n = Number(b.dataset.s);
       b.classList.toggle("on", n <= mine);
@@ -1637,8 +1650,8 @@
     $("starsLabel").textContent = (portrait ? LIKE_TEXT : STAR_TEXT)[mine];
     const last = vIdx === items.length - 1;
     $("votePrev").disabled = vIdx === 0;
-    $("voteNextBtn").textContent = last ? "Enviar puntos" : "Siguiente";
-    $("voteNextBtn").disabled = !mine;
+    $("voteNextBtn").textContent = last ? (guessing ? "Enviar respuestas" : "Enviar puntos") : "Siguiente";
+    $("voteNextBtn").disabled = guessing ? !String(votes[it.k] || "").trim() : !mine;
   }
   $("voteStars").addEventListener("click", (e) => {
     const b = e.target.closest("button");
@@ -1660,6 +1673,18 @@
         }
       }, 450);
   });
+  $("voteGuess").addEventListener("input", (e) => {
+    const k = e.target.dataset.k;
+    if (k != null) votes[k] = e.target.value;
+    const items = (state.task && state.task.items) || [];
+    $("voteNextBtn").disabled = !e.target.value.trim();
+  });
+  $("voteGuess").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !$("voteNextBtn").disabled) {
+      e.preventDefault();
+      $("voteNextBtn").click();
+    }
+  });
   $("votePrev").addEventListener("click", () => {
     if (vIdx > 0) {
       vIdx--;
@@ -1674,10 +1699,10 @@
       SFX.play("page");
       return paintVote();
     }
-    const missing = items.findIndex((it) => !votes[it.k]);
+    const missing = items.findIndex((it) => !String(votes[it.k] || "").trim());
     if (missing >= 0) {
       vIdx = missing;
-      toast("Te falta puntuar este dibujo.");
+      toast(state.task.kind === "extreme" ? "Te falta adivinar este dibujo." : "Te falta puntuar este dibujo.");
       return paintVote();
     }
     socket.emit("submit", { stepKey: currentStepKey, content: votes });
@@ -1708,6 +1733,14 @@
         t.appendChild(el("span", "rule-chip", RULE_LABEL[it.rule] || ""));
         card.appendChild(t);
       }
+      const guessList = it.guesses && it.guesses.length ? el("ul", "guess-list") : null;
+      if (guessList)
+        it.guesses.forEach((g) => {
+          const li = el("li", g.pts === 3 ? "hit" : g.pts ? "near" : "");
+          li.appendChild(who(g.by, ""));
+          li.appendChild(el("span", "", (g.pts === 3 ? "✔ " : g.pts ? "≈ " : "✗ ") + g.text));
+          guessList.appendChild(li);
+        });
       if (it.target) {
         const t = el("div", "portrait-of");
         t.appendChild(who(it.target, ""));
@@ -1720,7 +1753,8 @@
         img.alt = "Dibujo de " + it.by.name;
         card.appendChild(img);
       } else card.appendChild(blankEl("grow-img"));
-      card.appendChild(el("div", "pts vote-pts", `★ ${it.points}`));
+      if (guessList) card.appendChild(guessList);
+      card.appendChild(el("div", "pts vote-pts", round.kind === "extreme" ? `${it.points} pts` : `★ ${it.points}`));
       if (it.image) card.addEventListener("click", () => zoomDrawing(it, it.target ? "Retrato de " + it.target.name : it.phrase || round.phrase));
       box.appendChild(card);
     });
@@ -2208,7 +2242,7 @@
     if (isVote) {
       const winners = state.ranking.filter((r) => r.place === 1);
       $("endTitle").textContent = winners.length > 1 ? "¡Empate en lo más alto!" : `¡Gana ${winners[0].name}!`;
-      $("endText").textContent = `${state.ranking[0].points} estrellas${state.kind === "portrait" ? " por el parecido" : ""}. ¿La revancha?`;
+      $("endText").textContent = state.kind === "extreme" ? `${state.ranking[0].points} puntos entre aciertos y dibujos adivinados. ¿La revancha?` : `${state.ranking[0].points} estrellas${state.kind === "portrait" ? " por el parecido" : ""}. ¿La revancha?`;
       $("reviewBtn").textContent = "Volver a ver las rondas";
       paintPodium(state.ranking);
     } else if (state.mode === "duo") {
