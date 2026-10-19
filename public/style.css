@@ -484,7 +484,7 @@ body.solo .draw-prompt { order: 2; flex-basis: 100%; }
 .free-label { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
 .hue-bar, .shade-bar { position: relative; height: 30px; border-radius: 999px; border: 2px solid #0002; touch-action: none; cursor: pointer; }
 .hue-bar { background: linear-gradient(to right, hsl(0 100% 50%), hsl(60 100% 50%), hsl(120 100% 50%), hsl(180 100% 50%), hsl(240 100% 50%), hsl(300 100% 50%), hsl(359 100% 50%)); }
-.shade-bar { --h: 0; background: linear-gradient(to right, #fff, hsl(var(--h) 100% 50%), #000); }
+.shade-bar { --h: 0; --s: 100%; background: linear-gradient(to right, #fff, hsl(var(--h) var(--s) 50%), #000); }
 .bar-knob { position: absolute; top: 50%; width: 22px; height: 22px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 0 1.5px #1d2747, 0 2px 6px #0005; transform: translate(-50%, -50%); pointer-events: none; }
 .book-note { font-size: .8rem; line-height: 1.35; }
 .book-sheet .sheet-actions { flex-wrap: wrap; } .book-sheet .sheet-actions .btn { flex: 1 1 30%; padding-inline: 8px; }

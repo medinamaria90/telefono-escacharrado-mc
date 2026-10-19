@@ -1325,6 +1325,7 @@
         SFX.play("color");
         pad.color = c;
         if (pad.tool === "eraser") pad.tool = "pen";
+        syncFree(c); // las barras se ponen en este color, para ajustarlo desde aquí
         updateToolbar();
         closePops();
       });
@@ -1346,8 +1347,9 @@
     cs.appendChild(free);
     let hue = 0;
     let light = 50;
-    const hslHex = (h, l) => {
-      const a2 = Math.min(l, 100 - l) / 100;
+    let sat = 100;
+    const hslHex = (h, l, sv = 100) => {
+      const a2 = ((sv / 100) * Math.min(l, 100 - l)) / 100;
       const f = (n) => {
         const k = (n + h / 30) % 12;
         const c = l / 100 - a2 * Math.max(-1, Math.min(k - 3, 9 - k, 1));
@@ -1355,9 +1357,32 @@
       };
       return "#" + f(0) + f(8) + f(4);
     };
-    function applyFree() {
-      pad.color = hslHex(hue, light);
+    // Color de la paleta -> tono, saturación y luz (las barras se colocan ahí)
+    function hexHsl(hex) {
+      const n = parseInt(hex.slice(1), 16);
+      const r = ((n >> 16) & 255) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
+      const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+      const l = (mx + mn) / 2;
+      let h = 0, sv = 0;
+      if (mx !== mn) {
+        const d = mx - mn;
+        sv = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+        h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+        h *= 60;
+      }
+      return [Math.round(h), Math.round(sv * 100), Math.round(l * 100)];
+    }
+    syncFree = (hex) => {
+      [hue, sat, light] = hexHsl(hex);
       shadeBar.style.setProperty("--h", hue);
+      shadeBar.style.setProperty("--s", sat + "%");
+      hueKnob.style.left = (hue / 360) * 100 + "%";
+      shadeKnob.style.left = (1 - light / 100) * 100 + "%";
+    };
+    function applyFree() {
+      pad.color = hslHex(hue, light, sat);
+      shadeBar.style.setProperty("--h", hue);
+      shadeBar.style.setProperty("--s", sat + "%");
       hueKnob.style.left = (hue / 360) * 100 + "%";
       shadeKnob.style.left = (1 - light / 100) * 100 + "%";
       if (pad.tool === "eraser") pad.tool = "pen";
@@ -1389,6 +1414,7 @@
     dragBar(hueBar, (x) => {
       hue = Math.round(x * 359);
       light = 50; // al cambiar de tono, color puro
+      sat = 100;
       applyFree();
     });
     dragBar(shadeBar, (x) => {
@@ -1410,6 +1436,7 @@
     } catch (_) {}
   }
   const LANDSCAPE = "(orientation: landscape)";
+  let syncFree = () => {};
   const POPS = [["sizes", "sizeToggle"], ["colors", "colorToggle"]];
   function togglePop(popId, open) {
     for (const [pid, bid] of POPS) {
