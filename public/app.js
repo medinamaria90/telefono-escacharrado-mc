@@ -2179,6 +2179,11 @@
   }
   function paintStory(o) {
     show("s-reveal");
+    // Historia completa a la vista: se puede compartir
+    const full = o.entries.length >= o.total;
+    $("shareStoryBtn").hidden = !full;
+    $("revealHead").classList.toggle("has-share", full);
+    sharing = full ? { owner: o.owner, entries: o.entries.slice() } : null;
     $("revealCount").textContent = o.count;
     setWho($("revealTitle"), "La historia de", o.owner);
     const dots = $("revealDots");
@@ -2246,6 +2251,217 @@
     $("revealHint").textContent = o.hint || "";
   }
   let lastRevealKey = null;
+
+  // ---------- compartir una historia en redes ----------
+  // Una imagen vertical (formato story, 1080x1920) por cada paso y una de cierre; luego el menú de compartir del móvil.
+  let sharing = null;
+  const SW = 1080, SH = 1920;
+  function loadImg(src) {
+    return new Promise((ok) => {
+      const im = new Image();
+      im.onload = () => ok(im);
+      im.onerror = () => ok(null);
+      im.src = src;
+    });
+  }
+  function wrapLines(ctx, text, maxW) {
+    const words = String(text).split(/\s+/);
+    const lines = [];
+    let line = "";
+    for (const w of words) {
+      const t = line ? line + " " + w : w;
+      if (ctx.measureText(t).width > maxW && line) {
+        lines.push(line);
+        line = w;
+      } else line = t;
+    }
+    if (line) lines.push(line);
+    return lines;
+  }
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+  const SHARE_FONT = '"Bagel Fat One", "Atkinson Hyperlegible", system-ui, sans-serif';
+  const SHARE_TEXT = '"Atkinson Hyperlegible", system-ui, sans-serif';
+  /** Fondo común: cuadrícula de libreta, marca arriba y dirección abajo */
+  function slideBase(ctx, top, sub) {
+    ctx.fillStyle = "#eef3fb";
+    ctx.fillRect(0, 0, SW, SH);
+    ctx.strokeStyle = "#dfe7f5";
+    ctx.lineWidth = 2;
+    for (let x = 0; x <= SW; x += 54) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, SH);
+      ctx.stroke();
+    }
+    for (let y = 0; y <= SH; y += 54) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(SW, y);
+      ctx.stroke();
+    }
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#ff5a3c";
+    ctx.font = `96px ${SHARE_FONT}`;
+    ctx.fillText("Dibulíos", SW / 2, 210);
+    ctx.fillStyle = "#1d2747";
+    ctx.font = `700 46px ${SHARE_TEXT}`;
+    if (top) ctx.fillText(top, SW / 2, 290);
+    ctx.fillStyle = "#5b6687";
+    ctx.font = `700 36px ${SHARE_TEXT}`;
+    if (sub) ctx.fillText(sub, SW / 2, 350);
+    ctx.font = `700 38px ${SHARE_TEXT}`;
+    ctx.fillStyle = "#5b6687";
+    ctx.fillText(location.host, SW / 2, SH - 110);
+  }
+  const VERB_SHARE = { write: "escribió", draw: "dibujó", guess: "dijo que era" };
+  async function storySlides(st) {
+    try {
+      await Promise.all([document.fonts.load(`96px "Bagel Fat One"`), document.fonts.load(`700 46px "Atkinson Hyperlegible"`)]);
+    } catch (_) {}
+    const files = [];
+    const n = st.entries.length;
+    const ownerName = st.owner && st.owner.name ? st.owner.name : "alguien";
+    for (let i = 0; i < n; i++) {
+      const e = st.entries[i];
+      const c = document.createElement("canvas");
+      c.width = SW;
+      c.height = SH;
+      const ctx = c.getContext("2d");
+      slideBase(ctx, `La historia de ${ownerName}`, `${i + 1} de ${n}`);
+      const by = e.by && e.by.name ? e.by.name : "Alguien";
+      const prevDraw = i > 0 && st.entries[i - 1].type === "draw";
+      const verb = e.type === "draw" && prevDraw ? "lo copió de memoria" : VERB_SHARE[e.type] || "";
+      ctx.fillStyle = "#1d2747";
+      ctx.font = `700 52px ${SHARE_TEXT}`;
+      ctx.fillText(`${by} ${verb}${e.rule ? " · " + (RULE_LABEL[e.rule] || "") : ""}`, SW / 2, 470);
+      if (e.type === "draw") {
+        const im = e.content ? await loadImg(e.content) : null;
+        const boxW = 940, boxH = 1180, bx = (SW - boxW) / 2, by0 = 540;
+        let w = boxW, h = boxH;
+        if (im) {
+          const k = Math.min(boxW / im.naturalWidth, boxH / im.naturalHeight);
+          w = im.naturalWidth * k;
+          h = im.naturalHeight * k;
+        }
+        const x = bx + (boxW - w) / 2, y = by0 + (boxH - h) / 2;
+        ctx.save();
+        ctx.shadowColor = "rgba(29,39,71,.25)";
+        ctx.shadowBlur = 30;
+        ctx.shadowOffsetY = 10;
+        roundRect(ctx, x, y, w, h, 28);
+        ctx.fillStyle = "#fff";
+        ctx.fill();
+        ctx.restore();
+        ctx.save();
+        roundRect(ctx, x, y, w, h, 28);
+        ctx.clip();
+        if (im) ctx.drawImage(im, x, y, w, h);
+        else {
+          ctx.fillStyle = "#5b6687";
+          ctx.font = `700 54px ${SHARE_TEXT}`;
+          ctx.fillText("🎨 Lienzo en blanco", SW / 2, y + h / 2);
+        }
+        ctx.restore();
+        roundRect(ctx, x, y, w, h, 28);
+        ctx.lineWidth = 6;
+        ctx.strokeStyle = "#1d2747";
+        ctx.stroke();
+      } else {
+        // texto en un bocadillo grande
+        ctx.font = `92px ${SHARE_FONT}`;
+        let lines = wrapLines(ctx, e.content || "…", 820);
+        let size = 92;
+        while (lines.length > 6 && size > 56) {
+          size -= 8;
+          ctx.font = `${size}px ${SHARE_FONT}`;
+          lines = wrapLines(ctx, e.content || "…", 820);
+        }
+        const lh = size * 1.18;
+        const bh = lines.length * lh + 120, bw = 940, bx = (SW - bw) / 2, byy = 1100 - bh / 2;
+        ctx.save();
+        ctx.shadowColor = "rgba(29,39,71,.25)";
+        ctx.shadowBlur = 30;
+        ctx.shadowOffsetY = 10;
+        roundRect(ctx, bx, byy, bw, bh, 60);
+        ctx.fillStyle = e.type === "write" ? "#ffc53d" : "#ffffff";
+        ctx.fill();
+        ctx.restore();
+        roundRect(ctx, bx, byy, bw, bh, 60);
+        ctx.lineWidth = 7;
+        ctx.strokeStyle = "#1d2747";
+        ctx.stroke();
+        ctx.fillStyle = "#1d2747";
+        ctx.font = `${size}px ${SHARE_FONT}`;
+        lines.forEach((l, j) => ctx.fillText(l, SW / 2, byy + 60 + lh * (j + 0.8)));
+      }
+      files.push(await canvasFile(c, `dibulios-${i + 1}.jpg`));
+    }
+    // cierre: invitación a jugar
+    const c = document.createElement("canvas");
+    c.width = SW;
+    c.height = SH;
+    const ctx = c.getContext("2d");
+    slideBase(ctx, "", "");
+    ctx.fillStyle = "#1d2747";
+    ctx.font = `110px ${SHARE_FONT}`;
+    ["¿Y vosotros,", "qué habríais", "dibujado?"].forEach((l, j) => ctx.fillText(l, SW / 2, 760 + j * 135));
+    ctx.font = `700 54px ${SHARE_TEXT}`;
+    ctx.fillStyle = "#5b6687";
+    ["Dibuja, adivina y pásalo.", "Gratis, sin anuncios y sin registro."].forEach((l, j) => ctx.fillText(l, SW / 2, 1240 + j * 72));
+    roundRect(ctx, 190, 1430, 700, 130, 65);
+    ctx.fillStyle = "#ff5a3c";
+    ctx.fill();
+    ctx.fillStyle = "#fff";
+    ctx.font = `700 54px ${SHARE_TEXT}`;
+    ctx.fillText(location.host, SW / 2, 1513);
+    files.push(await canvasFile(c, `dibulios-${n + 1}.jpg`));
+    return files;
+  }
+  function canvasFile(c, name) {
+    return new Promise((ok) => c.toBlob((b) => ok(new File([b], name, { type: "image/jpeg" })), "image/jpeg", 0.9));
+  }
+  $("shareStoryBtn").addEventListener("click", async () => {
+    if (!sharing) return;
+    const btn = $("shareStoryBtn");
+    if (btn.disabled) return;
+    btn.disabled = true;
+    const old = btn.textContent;
+    btn.textContent = "Preparando…";
+    try {
+      const files = await storySlides(sharing);
+      const data = { files, title: "Dibulíos", text: "Mirad cómo acabó nuestra historia en Dibulíos 😂 " + location.origin };
+      if (navigator.canShare && navigator.canShare({ files })) {
+        try {
+          await navigator.share(data);
+          track("historia_compartida", { imagenes: files.length });
+        } catch (_) {} // cancelado
+      } else {
+        // ordenador (o móvil sin «compartir»): se descargan las imágenes
+        for (const f of files) {
+          const a = document.createElement("a");
+          a.href = URL.createObjectURL(f);
+          a.download = f.name;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          await new Promise((r) => setTimeout(r, 250));
+        }
+        track("historia_descargada", { imagenes: files.length });
+      }
+    } catch (_) {
+      toast("No se pudo preparar la historia para compartir.");
+    }
+    btn.textContent = old;
+    btn.disabled = false;
+  });
   function renderReveal() {
     currentStepKey = null;
     const r = state.reveal;

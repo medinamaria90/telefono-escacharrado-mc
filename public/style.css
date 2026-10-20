@@ -845,3 +845,8 @@ body.pairs-draw #undoBtn, body.pairs-draw #redoBtn { display: none; }
 
 /* iPhone: el doble toque no amplía la página en ningún sitio (el lienzo y el visor tienen su propio zoom) */
 html, *, *::before, *::after { touch-action: manipulation; }
+
+/* compartir la historia completa (Instagram, TikTok, WhatsApp…) */
+.reveal-head { position: relative; padding-right: 0; }
+.reveal-head .share-story { position: absolute; top: 0; right: 0; }
+.reveal-head.has-share { padding-right: 118px; }
