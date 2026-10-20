@@ -841,3 +841,6 @@ body.face-mode .pad-inner { overflow: hidden; }
 body.pairs-draw #undoBtn, body.pairs-draw #redoBtn { display: none; }
 @media (orientation: portrait) { body.pairs-draw .tool-row { grid-template-columns: repeat(7, minmax(0, 1fr)); } }
 .wait-badge.thinking { background: var(--accent-2); color: #3b2a00; }
+
+/* iPhone: el doble toque no amplía la página en ningún sitio (el lienzo y el visor tienen su propio zoom) */
+html, *, *::before, *::after { touch-action: manipulation; }

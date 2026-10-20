@@ -370,6 +370,20 @@
     if (id === "s-draw" && pad) requestAnimationFrame(() => pad.layout());
   }
   let toastTimer;
+  // iPhone: Safari ignora «no ampliar» y, con un doble toque o un pellizco fuera del lienzo,
+  // amplía toda la página (y cuesta quitarlo). Se bloquea; el lienzo y el visor tienen su propio zoom.
+  const OWN_ZOOM = ".pad-stage, .zoom-wrap, .hue-bar, .shade-bar";
+  document.addEventListener("gesturestart", (e) => e.preventDefault());
+  document.addEventListener("dblclick", (e) => {
+    if (!e.target.closest(OWN_ZOOM)) e.preventDefault();
+  }, { passive: false });
+  let lastTouchEnd = 0;
+  document.addEventListener("touchend", (e) => {
+    const t = Date.now();
+    // segundo toque rápido sobre algo que no es un botón ni un campo: no se deja ampliar
+    if (t - lastTouchEnd < 350 && !e.target.closest("button, input, textarea, select, a, label, " + OWN_ZOOM)) e.preventDefault();
+    lastTouchEnd = t;
+  }, { passive: false });
   /** Confirmación dentro del propio botón (en vez de un aviso que tape nada) */
   function flashBtn(btn, text, ms = 1600) {
     if (!btn) return;
