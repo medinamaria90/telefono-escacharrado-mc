@@ -327,7 +327,6 @@
   window.addEventListener("appinstalled", () => {
     track("app_instalada");
     $("installCard").hidden = true;
-    toast("¡Dibulíos instalado! 🎉");
   });
   $("installBtn").addEventListener("click", async () => {
     if (!installEvt) return;
@@ -371,6 +370,17 @@
     if (id === "s-draw" && pad) requestAnimationFrame(() => pad.layout());
   }
   let toastTimer;
+  /** Confirmación dentro del propio botón (en vez de un aviso que tape nada) */
+  function flashBtn(btn, text, ms = 1600) {
+    if (!btn) return;
+    if (btn._flash) clearTimeout(btn._flash);
+    else btn._orig = btn.textContent;
+    btn.textContent = text;
+    btn._flash = setTimeout(() => {
+      if (btn.textContent === text) btn.textContent = btn._orig; // si nadie lo ha cambiado entretanto
+      btn._flash = null;
+    }, ms);
+  }
   function toast(msg) {
     const t = $("toast");
     t.textContent = msg;
@@ -533,7 +543,6 @@
     }
     buildEmojiGrid();
     SFX.play("crumple");
-    toast("Carita borrada");
     exitSolo(true);
   });
   function closeFace() {
@@ -572,7 +581,6 @@
     track("carita_dibujada");
     buildEmojiGrid();
     SFX.play("point");
-    toast("¡Ya tienes tu carita!");
     if (state && state.phase === "lobby") socket.emit("profile", { name: me.name, emoji: me.emoji });
     exitSolo(true);
   }
@@ -962,7 +970,7 @@
     try {
       await navigator.clipboard.writeText(v);
       SFX.play("pop");
-      toast("Enlace copiado");
+      flashBtn($("copyBtn"), "✔ Copiado");
     } catch (_) {
       $("shareLink").hidden = false;
       $("shareLink").select();
@@ -1761,11 +1769,9 @@
       $("clearBtn").classList.remove("armed");
       pad.clear();
       SFX.play("crumple");
-      toast("Lienzo borrado. Puedes deshacerlo.");
       return;
     }
     $("clearBtn").classList.add("armed");
-    toast("Pulsa otra vez la papelera para borrarlo todo");
     clearArmed = setTimeout(() => {
       clearArmed = null;
       $("clearBtn").classList.remove("armed");
@@ -2343,7 +2349,6 @@
   async function saveSharedToBook(src, prompt, by, btn, doneText) {
     if (!src) return;
     if (inBook(src)) {
-      toast("Ese dibujo ya está en tu cuaderno 📒");
     } else {
       let img;
       try {
@@ -2358,7 +2363,6 @@
       if (!writeBook(list)) return toast("No queda espacio en este móvil para guardar más dibujos.");
       SFX.play("point");
       track("dibujo_guardado_partida", { total: list.length });
-      toast("Guardado en tu cuaderno 📒");
     }
     if (btn) {
       btn.textContent = doneText || "✔ En tu cuaderno";
@@ -2444,7 +2448,6 @@
         if (!writeBook(list)) return toast("No queda espacio en este móvil para guardar los cambios.");
         SFX.play("point");
         track("dibujo_editado");
-        toast("Cambios guardados 📒");
       }
       editingId = null;
       $("drawDone").textContent = "Guardar";
@@ -2458,7 +2461,7 @@
     if (!writeBook(list)) return toast("No queda espacio en este móvil para guardar más dibujos.");
     SFX.play("point");
     track("dibujo_guardado", { total: list.length });
-    toast("Guardado en tu cuaderno 📒");
+    flashBtn($("drawDone"), "✔ Guardado");
     pad.reset();
     updateToolbar();
     newIdea();
