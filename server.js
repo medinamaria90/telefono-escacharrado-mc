@@ -7,6 +7,7 @@ const path = require("path");
 const crypto = require("crypto");
 const http = require("http");
 const express = require("express");
+const compression = require("compression");
 const { Server } = require("socket.io");
 const FRASES = require("./public/frases.js");
 const ART = require("./lib/botart.js");
@@ -33,6 +34,8 @@ function timesFor(settings) {
 
 const app = express();
 app.disable("x-powered-by");
+// Todo lo que se manda en texto (página, código, frases) va comprimido: pesa varias veces menos
+app.use(compression());
 // Cada arranque tiene su versión: así los móviles nunca mezclan archivos viejos y nuevos
 const fs = require("fs");
 const BOOT = Date.now().toString(36);
@@ -48,9 +51,25 @@ app.get("/sw.js", (_req, res) => {
 });
 app.use(express.static(path.join(__dirname, "public"), { maxAge: "7d", index: false }));
 app.get("/salud", (_req, res) => res.send("ok"));
+// Para Google: se puede indexar la portada (las salas no)
+const SITE = process.env.SITE_URL || "https://dibulios.onrender.com";
+app.get("/robots.txt", (_req, res) => res.type("text/plain").send(`User-agent: *\nAllow: /\nDisallow: /img/\nSitemap: ${SITE}/sitemap.xml\n`));
+app.get("/sitemap.xml", (_req, res) =>
+  res.type("application/xml").send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${SITE}/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url></urlset>\n`)
+);
+// Dibujos y caritas de una sala: cada móvil los descarga una sola vez (y se quedan en su caché)
+app.get("/img/:code/:id", (req, res) => {
+  const r = rooms.get(String(req.params.code).toUpperCase());
+  const im = r && r.images && r.images.get(req.params.id);
+  if (!im) return res.status(404).end();
+  res.set("Cache-Control", "private, max-age=86400, immutable");
+  res.set("X-Robots-Tag", "noindex");
+  res.type(im.type).send(im.buf);
+});
 
 const server = http.createServer(app);
-const io = new Server(server, { maxHttpBufferSize: 8e6, pingTimeout: 30000 });
+// Los mensajes grandes van comprimidos (los pequeños no: no merece la pena el trabajo)
+const io = new Server(server, { maxHttpBufferSize: 8e6, pingTimeout: 30000, perMessageDeflate: { threshold: 1024 } });
 
 /** @type {Map<string, any>} */
 const rooms = new Map();
@@ -94,6 +113,27 @@ function cleanEmoji(s) {
   // Un solo emoji (puede ocupar varios puntos de código). Límite de seguridad.
   if (!e || e.length > 16 || /[<>&"'\s]/.test(e)) return "🙂";
   return e;
+}
+/** Guarda un dibujo (o carita) de la sala y devuelve su dirección corta: así no viaja una y otra vez dentro del estado */
+function storeImage(room, data, key) {
+  if (typeof data !== "string" || data.indexOf("data:image/") !== 0) return data;
+  if (!room.images) room.images = new Map();
+  const m = /^data:([^;,]+)(;base64)?,([\s\S]*)$/.exec(data);
+  if (!m) return data;
+  const id = key || newId();
+  if (!room.images.has(id)) room.images.set(id, { type: m[1], buf: m[2] ? Buffer.from(m[3], "base64") : Buffer.from(decodeURIComponent(m[3]), "utf8") });
+  return `/img/${room.code}/${id}`;
+}
+/** Carita dibujada: la misma imagen siempre tiene la misma dirección (y se cachea) */
+function faceRef(room, emoji) {
+  if (typeof emoji !== "string" || emoji.indexOf("data:image/") !== 0) return emoji;
+  if (!room.faceIds) room.faceIds = new Map();
+  let ref = room.faceIds.get(emoji);
+  if (!ref) {
+    ref = storeImage(room, emoji, "f" + crypto.createHash("sha1").update(emoji).digest("base64url").slice(0, 16));
+    room.faceIds.set(emoji, ref);
+  }
+  return ref;
 }
 function isImage(s) {
   return typeof s === "string" && s.length <= MAX_IMAGE && /^data:image\/(png|webp|jpeg);base64,[A-Za-z0-9+/=]+$/.test(s);
@@ -228,7 +268,7 @@ function scheduleBots(room) {
     setTimeout(() => {
       if (room.game !== game || game.seq !== seq || room.phase !== "playing" || game.submissions.get(id)?.done) return;
       const r = botContent(room, id);
-      game.submissions.set(id, { content: r.content, meta: r.meta, done: true, at: Date.now() - 600000 });
+      game.submissions.set(id, { content: storeImage(room, r.content), meta: r.meta, done: true, at: Date.now() - 600000 });
       maybeFinish(room);
     }, 2500 + crypto.randomInt(5000));
   }
@@ -702,7 +742,7 @@ function submit(room, playerId, content) {
       }
     }
   } else if (game.stepType === "draw") {
-    value = isImage(content) ? content : null;
+    value = isImage(content) ? storeImage(room, content) : null;
   } else {
     value = cleanText(content);
   }
@@ -730,6 +770,7 @@ function lateDrawing(room, playerId, stepKey, content) {
   const game = room.game;
   const last = game && game.lastDraw;
   if (!last || last.key !== stepKey || Date.now() - last.at > LATE_DRAWING_MS || !isImage(content)) return false;
+  content = storeImage(room, content);
   let spot = null;
   if (game.mode === "chain") {
     const book = game.books.find((b) => b.entries[last.step] && b.entries[last.step].by === playerId);
@@ -986,7 +1027,7 @@ function revealStep(room, dir) {
 
 function publicEntry(room, e) {
   const by = room.players.get(e.by);
-  return { type: e.type, content: e.content, rule: e.rule || null, by: by ? { name: by.name, emoji: by.emoji } : null };
+  return { type: e.type, content: e.content, rule: e.rule || null, by: by ? { name: by.name, emoji: faceRef(room, by.emoji) } : null };
 }
 /** Un equipo como si fuera una persona: «Ana y Luis» (con la carita del primero) */
 function teamWho(room, ids) {
@@ -996,7 +1037,7 @@ function teamWho(room, ids) {
 }
 function who(room, id) {
   const p = room.players.get(id);
-  return p ? { name: p.name, emoji: p.emoji } : { name: "?", emoji: "❔" };
+  return p ? { name: p.name, emoji: faceRef(room, p.emoji) } : { name: "?", emoji: "❔" };
 }
 
 function galleryData(room) {
@@ -1065,6 +1106,8 @@ function backToLobby(room) {
   // Se borran todos los dibujos y frases de la partida
   room.game = null;
   room.phase = "lobby";
+  room.images = new Map(); // los dibujos de la partida ya no hacen falta
+  room.faceIds = new Map();
   for (const [id, p] of room.players) {
     if (p.left || !p.connected) {
       clearTimeout(p.dropTimer);
@@ -1091,7 +1134,7 @@ function stateFor(room, playerId) {
     players: players.map((p) => ({
       id: p.id,
       name: p.name,
-      emoji: p.emoji,
+      emoji: faceRef(room, p.emoji),
       connected: p.connected,
       left: p.left,
       bot: !!p.bot,
@@ -1110,7 +1153,7 @@ function stateFor(room, playerId) {
         away: game.order
           .map((id) => room.players.get(id))
           .filter((p) => p && (!p.connected || p.left))
-          .map((p) => ({ name: p.name, emoji: p.emoji, left: !!p.left })),
+          .map((p) => ({ name: p.name, emoji: faceRef(room, p.emoji), left: !!p.left })),
       };
     }
     if (game.mode === "vote" && game.stage === "result") {
@@ -1459,5 +1502,13 @@ setInterval(() => {
 }, 10 * 60 * 1000).unref();
 
 server.listen(PORT, () => console.log(`Dibulíos escuchando en el puerto ${PORT}`));
+
+// Mantener despierto (Render gratis se duerme tras 15 min sin visitas): solo si KEEP_AWAKE=1.
+// Se visita a sí mismo por su dirección pública cada 10 minutos; cuenta como una visita normal.
+if (process.env.KEEP_AWAKE === "1" && process.env.RENDER_EXTERNAL_URL) {
+  setInterval(() => {
+    fetch(process.env.RENDER_EXTERNAL_URL + "/salud", { cache: "no-store" }).catch(() => {});
+  }, 10 * 60 * 1000).unref();
+}
 
 module.exports = { scoreGuess, chainLength };

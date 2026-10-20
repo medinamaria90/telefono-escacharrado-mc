@@ -182,6 +182,17 @@ trazo, roce de goma, siseo de spray, chapoteo al rellenar…
 - **Móvil en horizontal:** el inicio y la sala se reparten en dos columnas y, al
   dibujar, las herramientas pasan a un lado.
 
+## Consumo de recursos
+
+- **Los dibujos viajan una sola vez.** Al enviarse, el servidor los guarda (en memoria, con la sala) y en el estado de la partida solo va su dirección (`/img/SALA/id`). Cada móvil descarga cada dibujo una vez y lo guarda en su caché, en vez de recibirlo repetido en cada actualización. Lo mismo con las caritas dibujadas. Al volver a la sala de espera, los dibujos de la partida se borran.
+- **Todo lo que es texto va comprimido** (página, código, frases y los mensajes grandes del juego), unas 3–4 veces menos datos.
+- Al guardar un dibujo de la partida en el cuaderno, el móvil descarga la imagen y la guarda entera (la dirección deja de existir cuando se cierra la sala).
+- **Mantener despierto:** con la variable `KEEP_AWAKE=1`, el servidor se visita a sí mismo cada 10 minutos para que el plan gratuito de Render no lo duerma. Un servicio encendido todo el mes gasta ~744 de las 750 horas gratis de la cuenta, así que solo debe haber un servicio gratuito encendido.
+
+## Google
+
+La portada se puede indexar: tiene título y descripción pensados para buscadores, enlace canónico, `robots.txt` (las imágenes de las partidas no se indexan) y `sitemap.xml`. Para que aparezca antes, se puede dar de alta en Google Search Console.
+
 ## Privacidad y datos
 
 - **No hay base de datos ni cuentas.** Las frases y dibujos de una partida solo

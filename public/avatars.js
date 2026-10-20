@@ -365,12 +365,14 @@
     if (!a) return null;
     return `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><clipPath id="c-${id}"><circle cx="50" cy="50" r="50"/></clipPath><g clip-path="url(#c-${id})">${a.svg}</g></svg>`;
   }
+  // Carita dibujada: la propia (imagen) o la de otro jugador (dirección en el servidor)
+  const isPic = (id) => /^(data:image\/|\/img\/)/.test(String(id || ""));
   /** Devuelve un <span> con la carita (o el texto si es un emoticono antiguo) */
   function avatarEl(id, cls = "") {
     const span = document.createElement("span");
     span.className = "avatar " + cls;
     // Carita dibujada por el propio jugador (imagen pequeña)
-    if (String(id || "").indexOf("data:image/") === 0) {
+    if (isPic(id)) {
       const img = document.createElement("img");
       img.src = id;
       img.alt = "";
@@ -385,5 +387,5 @@
     } else span.textContent = id || "🙂";
     return span;
   }
-  window.AVATARS = { ids: IDS.map((k) => "av:" + k), label: (id) => (String(id).indexOf("data:image/") === 0 ? "dibujada por ti" : (A[String(id).replace(/^av:/, "")] || {}).label || ""), svgFor, avatarEl };
+  window.AVATARS = { ids: IDS.map((k) => "av:" + k), label: (id) => (isPic(id) ? "dibujada por ti" : (A[String(id).replace(/^av:/, "")] || {}).label || ""), svgFor, avatarEl };
 })();

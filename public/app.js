@@ -2016,7 +2016,18 @@
     im.src = src;
     im.alt = "Dibujo de " + (by ? by.name : "alguien");
     fr.appendChild(im);
-    fr.appendChild(el("span", "zoom-hint", "🔍"));
+    const hint = el("span", "zoom-hint", "🔍");
+    fr.appendChild(hint);
+    // la lupa va en la esquina del propio dibujo (vertical u horizontal)
+    const place = () => {
+      if (!im.offsetWidth) return;
+      hint.style.left = im.offsetLeft + im.offsetWidth - 42 + "px";
+      hint.style.top = im.offsetTop + im.offsetHeight - 42 + "px";
+    };
+    im.addEventListener("load", place);
+    try {
+      new ResizeObserver(place).observe(fr);
+    } catch (_) {}
     fr.addEventListener("click", () => zoomDrawing({ image: src, by }, prompt || "Dibujo"));
     return fr;
   }
@@ -2031,12 +2042,12 @@
     w.appendChild(who(it.by, "dibujó"));
     $("zoomPts").hidden = it.points == null;
     $("zoomPts").textContent = `★ ${it.points}`;
-    const saved = readBook().some((x) => x.img === it.image);
+    const saved = inBook(it.image);
     $("zoomSave").disabled = saved;
-    $("zoomSave").textContent = saved ? "✔ En tu cuaderno" : "📒 Guardar en mi cuaderno";
+    $("zoomSave").textContent = saved ? "✔ Guardado" : "📒 Guardar";
     $("zoomSheet").hidden = false;
   }
-  $("zoomSave").addEventListener("click", () => zooming && saveSharedToBook(zooming.img, zooming.prompt, zooming.by, $("zoomSave")));
+  $("zoomSave").addEventListener("click", () => zooming && saveSharedToBook(zooming.img, zooming.prompt, zooming.by, $("zoomSave"), "✔ Guardado"));
   $("zoomClose").addEventListener("click", () => ($("zoomSheet").hidden = true));
   $("zoomSheet").addEventListener("click", (e) => {
     if (e.target === $("zoomSheet")) $("zoomSheet").hidden = true;
@@ -2316,14 +2327,33 @@
     return false;
   }
   /** Guarda en el cuaderno un dibujo que se ha visto en la partida (tuyo o de otra persona) */
-  function saveSharedToBook(img, prompt, by, btn) {
-    if (!img) return;
-    const list = readBook();
-    if (list.some((x) => x.img === img)) {
+  /** Los dibujos de la partida llegan como dirección; el cuaderno guarda la imagen en sí (la sala desaparece) */
+  function asDataUrl(src) {
+    if (String(src).indexOf("data:") === 0) return Promise.resolve(src);
+    return fetch(src)
+      .then((r) => (r.ok ? r.blob() : Promise.reject(new Error("no"))))
+      .then((b) => new Promise((ok, ko) => {
+        const fr = new FileReader();
+        fr.onload = () => ok(fr.result);
+        fr.onerror = ko;
+        fr.readAsDataURL(b);
+      }));
+  }
+  const inBook = (src) => readBook().some((x) => x.img === src || x.src === src);
+  async function saveSharedToBook(src, prompt, by, btn, doneText) {
+    if (!src) return;
+    if (inBook(src)) {
       toast("Ese dibujo ya está en tu cuaderno 📒");
     } else {
+      let img;
+      try {
+        img = await asDataUrl(src);
+      } catch (_) {
+        return toast("No se pudo guardar: la partida ya no está en el servidor.");
+      }
+      const list = readBook();
       const author = by && by.name ? by.name : "";
-      list.unshift({ id: Date.now(), prompt: prompt || "Dibujo de la partida", by: author, date: new Date().toISOString(), img });
+      list.unshift({ id: Date.now(), prompt: prompt || "Dibujo de la partida", by: author, date: new Date().toISOString(), img, src });
       if (list.length > BOOK_MAX) list.length = BOOK_MAX;
       if (!writeBook(list)) return toast("No queda espacio en este móvil para guardar más dibujos.");
       SFX.play("point");
@@ -2331,14 +2361,14 @@
       toast("Guardado en tu cuaderno 📒");
     }
     if (btn) {
-      btn.textContent = "✔ En tu cuaderno";
+      btn.textContent = doneText || "✔ En tu cuaderno";
       btn.disabled = true;
     }
   }
   function saveBtn(img, prompt, by) {
     const b = el("button", "btn-ghost small save-book", "📒 Guardar en mi cuaderno");
     b.type = "button";
-    if (readBook().some((x) => x.img === img)) {
+    if (inBook(img)) {
       b.textContent = "✔ En tu cuaderno";
       b.disabled = true;
     }
