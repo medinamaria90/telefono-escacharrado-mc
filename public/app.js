@@ -786,6 +786,13 @@
     }
     if (soloMode || bookOpen) {
       if (state && state.phase !== "lobby") {
+        // Empieza la partida mientras dibujabas: lo que llevabas se guarda solo en el cuaderno
+        if (soloMode && !faceMode && pad && pad.dirty && !editingId) {
+          const list = readBook();
+          list.unshift({ id: Date.now(), prompt: $("drawWhat").textContent || "Dibujo libre", date: new Date().toISOString(), img: pad.toDataURL("image/jpeg", 0.85) });
+          if (list.length > BOOK_MAX) list.length = BOOK_MAX;
+          if (writeBook(list)) toast("Ha empezado la partida: tu dibujo se ha guardado en el cuaderno 📒");
+        }
         exitSolo(true);
       } else {
         renderChrome();
@@ -928,7 +935,6 @@
     }
     const voteMode = ["votacion", "retratos", "parejas"].includes(state.settings.mode);
     $("duoRoundsSetting").hidden = !(voteMode || (n === 2 && state.settings.mode === "telefono"));
-    $("lobbySoloBtn").hidden = n !== 1;
     const hostP = state.players.find((p) => p.id === state.hostId);
     $("notHostHint").textContent = host ? "" : `${nameOf(hostP, "El anfitrión")} elige las opciones y empieza la partida.`;
     $("startBtn").hidden = !host;

@@ -830,8 +830,9 @@ body.face-mode .pad-inner { overflow: hidden; }
 .mode-card .seg.rule-seg button { font-size: 1.2rem; padding: 2px; min-height: 36px; }
 
 /* sala de espera: dibujar solo / ver el cuaderno */
-.lobby-extra { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 14px; }
-.lobby-extra .btn-ghost { white-space: nowrap; }
+.lobby-extra-label { display: block; text-align: center; margin-top: 2px; }
+.lobby-extra { display: flex; justify-content: center; gap: 8px; }
+.lobby-extra .btn-ghost { flex: 1 1 0; min-width: 0; white-space: nowrap; padding-inline: 8px; }
 
 /* elegir lienzo vertical / horizontal */
 .orient-btn { position: absolute; top: 8px; left: 8px; z-index: 5; display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px 4px 7px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--card); color: var(--ink); font: inherit; font-weight: 700; font-size: .78rem; box-shadow: 0 4px 12px -6px #0006; cursor: pointer; touch-action: manipulation; opacity: .92; }
