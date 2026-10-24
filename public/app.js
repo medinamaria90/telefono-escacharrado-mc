@@ -2175,6 +2175,12 @@
   }
   (() => {
     const box = $("zoomWrap");
+    // iPad: mantener pulsado en el visor tampoco selecciona ni abre menús
+    const stopTouch = (e) => {
+      if (e.cancelable) e.preventDefault();
+    };
+    box.addEventListener("touchstart", stopTouch, { passive: false });
+    box.addEventListener("touchmove", stopTouch, { passive: false });
     box.addEventListener("pointerdown", (e) => {
       box.setPointerCapture(e.pointerId);
       zPts.set(e.pointerId, { x: e.clientX, y: e.clientY });

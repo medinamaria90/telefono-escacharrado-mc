@@ -855,3 +855,4 @@ html, *, *::before, *::after { touch-action: manipulation; }
 html, body, * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
 input, textarea, [contenteditable="true"] { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
 img, canvas { -webkit-user-drag: none; user-drag: none; }
+.pad, .pad-stage, .pad-inner, .pad-canvas, .pad-over { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }

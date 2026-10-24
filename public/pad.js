@@ -430,6 +430,14 @@
         { passive: false }
       );
       c.addEventListener("contextmenu", (e) => e.preventDefault());
+      // iPad/iPhone: el toque sobre el lienzo es solo para dibujar. Sin esto, mantener el dedo
+      // activa los gestos de Safari (selección azul, lupa, resaltar la imagen). Los eventos de
+      // puntero, que son los que dibujan, siguen llegando igual.
+      const stopTouch = (e) => {
+        if (e.cancelable) e.preventDefault();
+      };
+      c.addEventListener("touchstart", stopTouch, { passive: false });
+      c.addEventListener("touchmove", stopTouch, { passive: false });
     }
     _down(e) {
       if (e.pointerType === "mouse" && e.button !== 0 && e.button !== 1) return;
