@@ -1079,3 +1079,7 @@ body.has-tabbar .home-screen { padding-bottom: calc(110px + env(safe-area-inset-
 .viewer-track.zoomed { overflow-x: hidden; touch-action: none; cursor: grab; }
 .viewer-slide img { transform-origin: center center; will-change: transform; }
 .face-action strong { white-space: nowrap; }
+/* elegir dibujo para la carita: que no se encojan las filas (se veían recortadas) */
+.face-pick-grid { grid-auto-rows: max-content; align-content: start; align-items: start; }
+.face-pick-item { display: block; height: auto; }
+.face-pick-item img { height: auto; background: #fff; }
