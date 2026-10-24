@@ -4205,6 +4205,11 @@
     pad.setGuide(null);
     pad.setLock(null);
     pad.reset();
+    pad.tool = "pen";
+    lastBrush = "pen";
+    pad.color = COLORS[0];
+    pad.size = SIZES[2];
+    syncFree(COLORS[0]);
     pad.setRule(null);
     applyRuleToolbar(null);
     closePops();
@@ -5031,6 +5036,12 @@
     pad.setGuide(null);
     pad.setLock(null);
     pad.reset();
+    // como en las partidas: cada dibujo empieza con lápiz negro y tamaño estándar
+    pad.tool = "pen";
+    lastBrush = "pen";
+    pad.color = COLORS[0];
+    pad.size = SIZES[2];
+    syncFree(COLORS[0]);
     pad.setRule(null);
     applyRuleToolbar(null);
     closePops();
