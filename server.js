@@ -106,7 +106,7 @@ function cleanText(s, max = MAX_TEXT) {
 function cleanName(s) {
   return cleanText(s, 16) || "Sin nombre";
 }
-const MAX_FACE = 14000; // carita dibujada: imagen pequeña
+const MAX_FACE = 40000; // carita dibujada: imagen pequeña (256 px)
 function cleanEmoji(s) {
   const e = String(s ?? "").trim();
   if (/^data:image\/(png|webp|jpeg);base64,[A-Za-z0-9+/=]+$/.test(e) && e.length <= MAX_FACE) return e;

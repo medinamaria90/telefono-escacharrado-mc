@@ -38,7 +38,7 @@
   let lastTracked = null;
   function trackScreen(id) {
     let key = id;
-    if (id === "s-draw" && soloMode) key = faceMode ? "carita" : "solo";
+    if (id === "s-draw" && soloMode) key = faceDraft ? "carita" : "solo";
     if (key === lastTracked) return;
     lastTracked = key;
     const [url, title] = key === "solo" ? ["/dibujo-libre", "Dibujo libre"] : key === "carita" ? ["/carita", "Dibujar carita"] : SCREEN_PATH[id] || ["/" + id, id];
@@ -465,18 +465,7 @@
   function buildEmojiGrid() {
     const g = $("emojiGrid");
     g.innerHTML = "";
-    const own = el("button", "emoji-btn draw-own", "✏️");
-    own.type = "button";
-    own.setAttribute("aria-label", "Dibujar mi carita");
-    own.title = "Dibuja tu carita";
-    own.addEventListener("click", () => openFace());
-    g.appendChild(own);
-    const fromBook = el("button", "emoji-btn draw-own", "📒");
-    fromBook.type = "button";
-    fromBook.setAttribute("aria-label", "Elegir mi carita de un dibujo del cuaderno");
-    fromBook.title = "Desde tu cuaderno";
-    fromBook.addEventListener("click", () => openFacePick());
-    g.appendChild(fromBook);
+
     const saved = store.get("tg-face", "");
     const list = isFace(saved) ? [saved, ...EMOJIS] : EMOJIS;
     for (const e of list) {
@@ -494,6 +483,7 @@
         paintCurrentAvatar();
         SFX.play("pop");
         $("emojiSheet").hidden = true;
+        if (state && state.phase === "lobby") socket.emit("profile", { name: me.name, emoji: me.emoji });
       });
       g.appendChild(b);
     }
@@ -529,58 +519,33 @@
   // El círculo ocupa el cuadrado central del lienzo (600x600 a partir de y=150)
   const FACE_BOX = { x: 0, y: 150, s: 600 };
   let faceMode = false;
+  // Dibujar la carita: en el lienzo normal (con todas las herramientas); al pulsar «Siguiente» se guarda
+  // en el cuaderno y se pasa a encuadrarla. Así solo hay un sitio para dibujar y otro para elegir.
+  let faceDraft = false;
   function openFace() {
     $("emojiSheet").hidden = true;
-    SFX.play("pop");
-    soloMode = true;
-    faceMode = true;
-    bookOpen = false;
-    editingId = null;
-    document.body.classList.add("solo", "face-mode");
-    document.body.classList.remove("pairs-draw");
-    ensurePad();
-    pad.shared = false;
-    pad.forcePortrait = true;
-    pad.forceLandscape = false;
-    pad.setGuide(null);
-    pad.setLock(null);
-    pad.setLock(null);
-    pad.reset();
-    pad.setRule(null);
-    applyRuleToolbar(null);
-    pad.fillClip = { cx: FACE_BOX.x + FACE_BOX.s / 2, cy: FACE_BOX.y + FACE_BOX.s / 2, r: FACE_BOX.s / 2 };
-    closePops();
-    let guide = $("faceGuide");
-    if (!guide) {
-      guide = el("div", "face-guide");
-      guide.id = "faceGuide";
-      pad.inner.appendChild(guide);
-    }
-    // Si ya tenías una carita, se parte de ella
-    const saved = store.get("tg-face", "");
-    $("faceDelBtn").hidden = !isFace(saved);
-    $("faceDelBtn").textContent = "🗑️";
-    if (isFace(saved)) {
-      const im = new Image();
-      im.onload = () => {
-        pad.ctx.drawImage(im, FACE_BOX.x, FACE_BOX.y, FACE_BOX.s, FACE_BOX.s);
-        pad.blank = false;
-        updateToolbar();
-      };
-      im.src = saved;
-    }
-    updateToolbar();
+    startSolo();
+    faceDraft = true;
     $("drawStep").textContent = "Tu carita";
-    $("drawWhat").textContent = "Dibuja tu cara dentro del círculo";
+    $("drawWhat").textContent = "Dibuja tu cara: luego eliges el encuadre";
     $("drawWhat").classList.remove("long");
     $("rerollBtn").hidden = true;
     $("soloBookBtn").hidden = true;
-    $("soloExitBtn").hidden = false;
-    $("drawTimer").hidden = true;
-    $("drawDone").textContent = "Usar esta carita";
-    $("pauseBar").hidden = true;
-    show("s-draw");
+    $("drawDone").textContent = "Siguiente";
   }
+  function finishFaceDraft() {
+    if (!pad.dirty) return toast("Dibuja tu carita primero 🙂");
+    const m = addToBook({ prompt: "Mi carita" }, pad.toDataURL("image/jpeg", 0.9));
+    faceDraft = false;
+    exitSolo(true);
+    if (m) openFaceCrop(m);
+  }
+  $("faceDrawBtn").addEventListener("click", () => openFace());
+  $("faceBookBtn").addEventListener("click", () => openFacePick());
+  $("lobbyFaceBtn").addEventListener("click", () => {
+    SFX.play("click");
+    $("emojiSheet").hidden = false;
+  });
   // Borrar la carita dibujada (pide confirmación: hay que tocar dos veces)
   let faceDelArmed = null;
   $("faceDelBtn").addEventListener("click", () => {
@@ -650,7 +615,7 @@
       } catch (_) {
         url = out.toDataURL("image/jpeg", q);
       }
-      if (url.length < 13000) break;
+      if (url.length < 36000) break;
     }
     store.set("tg-face", url);
     me.emoji = url;
@@ -770,11 +735,11 @@
     const im = $("cropImg");
     if (!im.naturalWidth) return;
     const out = document.createElement("canvas");
-    out.width = out.height = 160;
+    out.width = out.height = 256; // más grande: no se pixela al verla en grande
     const x = out.getContext("2d");
-    const f = 160 / crop.S;
+    const f = 256 / crop.S;
     x.fillStyle = "#ffffff";
-    x.fillRect(0, 0, 160, 160);
+    x.fillRect(0, 0, 256, 256);
     x.drawImage(im, crop.tx * f, crop.ty * f, crop.w * crop.k * f, crop.h * crop.k * f);
     useFace(out, "carita_del_cuaderno");
     $("faceCrop").hidden = true;
@@ -1694,6 +1659,7 @@
   }
   $("drawDone").addEventListener("click", () => {
     if (faceMode) return saveFace();
+    if (faceDraft) return finishFaceDraft();
     if (soloMode) return saveToBook();
     if (!pad.dirty) return sendBlank(); // sin dibujar: va el lienzo en blanco, sin avisos
     // Tríptico: si no has bajado hasta la franja de abajo, se avisa una vez
@@ -3817,7 +3783,7 @@
     trimBook();
     storeItem(m, img);
     persistStorage();
-    return true;
+    return m;
   }
   function updateBookImg(id, img) {
     const m = bookCache.find((d) => d.id === id);
@@ -4001,6 +3967,7 @@
   }
   function exitSolo(silent) {
     if (faceMode) closeFace();
+    faceDraft = false;
     soloMode = false;
     bookOpen = false;
     editingId = null;
