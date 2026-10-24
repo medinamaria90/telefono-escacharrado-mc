@@ -375,7 +375,7 @@
   });
 
   // ---------- utilidades de interfaz ----------
-  const screens = ["s-me", "s-knock", "s-home", "s-lobby", "s-text", "s-draw", "s-vote", "s-wait", "s-result", "s-reveal", "s-end", "s-book"];
+  const screens = ["s-solo", "s-me", "s-knock", "s-home", "s-lobby", "s-text", "s-draw", "s-vote", "s-wait", "s-result", "s-reveal", "s-end", "s-book"];
   function show(id) {
     if (document.body.dataset.screen !== id) {
       $("zoomSheet").hidden = true;
@@ -1204,9 +1204,9 @@
   }
   // «Atrás» del móvil (Android, también con la app instalada): primero cierra lo que haya abierto
   // (visor, ventanas), luego sale del cuaderno o del dibujo libre; en partida, pregunta antes de salir.
-  const OVERLAYS = ["welcomeSheet", "faceCrop", "facePick", "bookView", "zoomSheet", "shareSheet", "modeSheet", "howSheet", "endSheet", "leaveSheet"];
+  const OVERLAYS = ["transferSheet", "welcomeSheet", "faceCrop", "facePick", "bookView", "zoomSheet", "shareSheet", "modeSheet", "howSheet", "endSheet", "leaveSheet"];
   const openOverlay = () => OVERLAYS.map((id) => $(id)).find((o) => o && !o.hidden);
-  const needsGuard = () => !!state || bookOpen || soloMode || meOpen || !!openOverlay();
+  const needsGuard = () => !!state || bookOpen || soloMode || meOpen || !!soloGame || !!openOverlay();
   let consumingBack = false;
   // (No se quita la entrada de más al cerrar algo con un botón: hacerlo con history.back() a veces se
   // cruzaba con la siguiente y «atrás» sacaba de la app. Como mucho, en el inicio hay que pulsar atrás dos veces.)
@@ -1229,6 +1229,7 @@
       else if (ov.id === "leaveSheet") $("leaveNo").click();
       else ov.hidden = true;
     } else if (meOpen) closeMe();
+    else if (soloGame && !soloMode) endSoloGame();
     else if (bookOpen) $("bookBack").click();
     else if (soloMode) {
       if (pad && pad.dirty) toast("Pulsa «Guardar» para guardar tu dibujo, o «Salir» si no lo quieres.");
@@ -1888,6 +1889,8 @@
   $("drawDone").addEventListener("click", () => {
     if (faceMode) return saveFace();
     if (faceDraft) return finishFaceDraft();
+    if (soloGame === "memo") return memoFinish();
+    if (soloGame === "crit") return critFinish();
     if (soloMode) return saveToBook();
     if (!pad.dirty) return sendBlank(); // sin dibujar: va el lienzo en blanco, sin avisos
     // Tríptico: si no has bajado hasta la franja de abajo, se avisa una vez
@@ -4023,6 +4026,19 @@
     storeItem(m, img);
     return true;
   }
+  /** Añade un dibujo que viene de otro dispositivo (sin duplicar los que ya estén) */
+  function importBookItem(it) {
+    if (!it || typeof it.img !== "string" || it.img.indexOf("data:image/") !== 0) return false;
+    const id = Number(it.id) || Date.now();
+    if (bookCache.some((d) => d.id === id)) return false;
+    const m = { id, prompt: String(it.prompt || "Dibujo").slice(0, 80), by: String(it.by || "").slice(0, 20), date: it.date || new Date().toISOString(), src: it.src || "", thumb: it.img };
+    if (!idb) m.img = it.img;
+    bookCache.push(m);
+    bookCache.sort((a, b) => b.id - a.id);
+    fullCache.set(id, it.img);
+    storeItem(m, it.img);
+    return true;
+  }
   /** Cambia datos de un dibujo (p. ej. su nombre) sin tocar la imagen */
   function updateBookMeta(id, patch) {
     const m = bookCache.find((d) => d.id === id);
@@ -4204,6 +4220,17 @@
     show("s-draw");
   }
   function exitSolo(silent) {
+    if (soloGame && soloMode) {
+      // «Salir» en mitad de Memoria o Criaturas: se termina esa partida
+      const g = soloGame;
+      soloGame = null;
+      clearInterval(soloTimer);
+      soloTimer = null;
+      exitSoloQuiet();
+      if (!silent) SFX.play("click");
+      track(g === "memo" ? "memoria_abandona" : "criaturas_abandona");
+      return show("s-home");
+    }
     if (faceMode) closeFace();
     faceDraft = false;
     faceRetouch = null;
@@ -4329,6 +4356,7 @@
       empty.appendChild(el("strong", "", "Tu cuaderno está vacío"));
       empty.appendChild(el("span", "", "Dibuja algo y pulsa «Guardar» para tenerlo aquí."));
       grid.appendChild(empty);
+      grid.appendChild(transferLink("📥 ¿Tienes un cuaderno en otro dispositivo? Pásalo aquí"));
       return;
     }
     list.forEach((d, k) => {
@@ -4348,8 +4376,118 @@
       tip.innerHTML = `📲 <strong>Para que tu cuaderno no se borre</strong>, instala Dibulíos: toca ${IOS_SHARE} Compartir y luego «Añadir a pantalla de inicio».`;
       grid.prepend(tip);
     }
+    grid.appendChild(transferLink("⇄ Pasar el cuaderno a otro dispositivo"));
     grid.appendChild(el("p", "book-foot", `${list.length} ${list.length === 1 ? "dibujo" : "dibujos"} · se guardan solo en este móvil · máximo ${BOOK_MAX}`));
   }
+  // ---------- pasar el cuaderno a otro dispositivo (con un código que dura 10 minutos) ----------
+  function transferLink(text) {
+    const b = el("button", "lobby-book-link transfer-link", text);
+    b.type = "button";
+    b.addEventListener("click", () => openTransfer());
+    return b;
+  }
+  let transferTick = null;
+  function transferView(nodes) {
+    const body = $("transferBody");
+    body.innerHTML = "";
+    for (const n of nodes) body.appendChild(n);
+  }
+  function openTransfer() {
+    SFX.play("click");
+    clearInterval(transferTick);
+    const n = bookCache.length;
+    const send = el("button", "btn primary big", `📤 Enviar mi cuaderno (${n} ${n === 1 ? "dibujo" : "dibujos"})`);
+    send.type = "button";
+    send.disabled = !n;
+    send.addEventListener("click", transferSend);
+    const recv = el("button", "btn secondary big", "📥 Recibir con un código");
+    recv.type = "button";
+    recv.addEventListener("click", transferReceiveForm);
+    transferView([
+      el("p", "transfer-text", "Para tener los mismos dibujos en el móvil y en la tableta. En el que tiene los dibujos pulsa «Enviar»; te dará un código. En el otro, «Recibir» y escribe el código. Los dibujos se suman, no se borra nada."),
+      send,
+      recv,
+    ]);
+    $("transferSheet").hidden = false;
+  }
+  async function transferSend() {
+    const status = el("p", "transfer-text center", "Preparando tus dibujos…");
+    transferView([status]);
+    try {
+      const items = [];
+      for (const [i, m] of bookCache.entries()) {
+        status.textContent = `Preparando tus dibujos… ${i + 1} de ${bookCache.length}`;
+        const img = await getBookImg(m.id);
+        if (img) items.push({ id: m.id, prompt: m.prompt, by: m.by, date: m.date, src: m.src, img });
+      }
+      status.textContent = "Enviando…";
+      const r = await fetch("/api/traspaso", { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(items) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.ok) throw new Error(j.error || "No se pudo enviar.");
+      const until = Date.now() + j.minutes * 60000;
+      const code = el("p", "transfer-code", j.code);
+      const left = el("p", "transfer-text center", "");
+      const tick = () => {
+        const s = Math.max(0, Math.round((until - Date.now()) / 1000));
+        left.textContent = s ? `Caduca en ${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}` : "Ha caducado. Vuelve a enviarlo.";
+        if (!s) clearInterval(transferTick);
+      };
+      tick();
+      transferTick = setInterval(tick, 1000);
+      SFX.play("point");
+      track("cuaderno_enviado", { dibujos: items.length });
+      transferView([
+        el("p", "transfer-text center", "En el otro dispositivo, abre «Tu cuaderno» → «Pasar a otro dispositivo» → «Recibir» y escribe:"),
+        code,
+        left,
+        el("p", "transfer-text small center", "Se borra del servidor en cuanto se recibe, o al caducar."),
+      ]);
+    } catch (e) {
+      transferView([el("p", "transfer-text center", e.message || "No se pudo enviar. Revisa la conexión.")]);
+    }
+  }
+  function transferReceiveForm() {
+    const inp = el("input", "input code-input transfer-input");
+    inp.maxLength = 6;
+    inp.placeholder = "CÓDIGO";
+    inp.autocapitalize = "characters";
+    inp.autocomplete = "off";
+    inp.addEventListener("input", () => (inp.value = inp.value.toUpperCase().replace(/[^A-Z]/g, "")));
+    const err = el("p", "error", "");
+    const go = el("button", "btn primary big", "Recibir");
+    go.type = "button";
+    const run = async () => {
+      if (inp.value.length !== 6) return (err.textContent = "El código tiene 6 letras.");
+      go.disabled = true;
+      go.textContent = "Recibiendo…";
+      try {
+        const r = await fetch("/api/traspaso/" + inp.value, { cache: "no-store" });
+        const data = await r.json().catch(() => null);
+        if (!r.ok || !Array.isArray(data)) throw new Error((data && data.error) || "Ese código no existe o ya ha caducado.");
+        let added = 0;
+        for (const it of data) if (importBookItem(it)) added++;
+        trimBook();
+        persistStorage();
+        renderBook();
+        SFX.play("point");
+        track("cuaderno_recibido", { dibujos: added });
+        transferView([el("p", "transfer-text center big-ok", added ? `✔ Se han añadido ${added} ${added === 1 ? "dibujo" : "dibujos"} a tu cuaderno` : "✔ Ya tenías todos esos dibujos")]);
+      } catch (e) {
+        err.textContent = e.message;
+        go.disabled = false;
+        go.textContent = "Recibir";
+      }
+    };
+    go.addEventListener("click", run);
+    inp.addEventListener("keydown", (e) => e.key === "Enter" && run());
+    transferView([el("p", "transfer-text", "Escribe el código que te sale en el otro dispositivo:"), inp, err, go]);
+    setTimeout(() => inp.focus(), 200);
+  }
+  $("transferClose").addEventListener("click", () => {
+    clearInterval(transferTick);
+    $("transferSheet").hidden = true;
+  });
+
   // ---------- visor del cuaderno: a pantalla completa, deslizando para pasar ----------
   let viewing = null;
   let viewIdx = 0;
@@ -4831,6 +4969,416 @@
   $("againBtn").addEventListener("click", () => socket.emit("lobby"));
 
   ["gesturestart", "gesturechange"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
+
+  // =====================================================================================
+  // ---------- JUGAR SOLO: «Memoria» (copiar de memoria y puntuar) y «Criaturas» --------
+  // =====================================================================================
+  let soloGame = null; // "memo" | "crit" mientras se juega solo
+  let soloTimer = null;
+  const soloBody = () => $("soloBody");
+  function soloScreen(title, bodyNodes, actions) {
+    $("soloTitle").textContent = title;
+    const b = soloBody();
+    b.innerHTML = "";
+    for (const n of [].concat(bodyNodes)) if (n) b.appendChild(n);
+    const a = $("soloActions");
+    a.innerHTML = "";
+    for (const [label, fn, cls] of actions || []) {
+      const btn = el("button", "btn " + (cls || "primary"), label);
+      btn.type = "button";
+      btn.addEventListener("click", fn);
+      a.appendChild(btn);
+    }
+    show("s-solo");
+  }
+  function endSoloGame() {
+    clearInterval(soloTimer);
+    soloTimer = null;
+    soloGame = null;
+    if (soloMode) exitSolo(true);
+    show("s-home");
+  }
+  $("soloBack").addEventListener("click", () => {
+    SFX.play("click");
+    endSoloGame();
+  });
+  /** Prepara el lienzo para jugar solo (como el dibujo libre, pero sin guardar en el cuaderno) */
+  function soloPad(opts) {
+    soloMode = true;
+    bookOpen = false;
+    editingId = null;
+    document.body.classList.add("solo");
+    document.body.classList.remove("pairs-draw", "triptych-draw");
+    ensurePad();
+    pad.shared = false;
+    pad.forcePortrait = !!opts.portrait;
+    pad.forceLandscape = !!opts.landscape;
+    pad.setGuide(null);
+    pad.setLock(null);
+    pad.reset();
+    pad.setRule(null);
+    applyRuleToolbar(null);
+    closePops();
+    $("drawStep").textContent = opts.step;
+    $("drawWhat").textContent = opts.what;
+    $("drawWhat").classList.toggle("long", opts.what.length > 26);
+    $("rerollBtn").hidden = true;
+    $("soloBookBtn").hidden = true;
+    $("soloExitBtn").hidden = false;
+    $("drawTimer").hidden = !opts.seconds;
+    $("drawDone").textContent = opts.done || "¡Listo!";
+    $("pauseBar").hidden = true;
+    show("s-draw");
+    try {
+      pad.setScreenLandscape(window.matchMedia(LANDSCAPE).matches);
+    } catch (_) {}
+    updateToolbar();
+    clearInterval(soloTimer);
+    if (opts.seconds) {
+      const end = Date.now() + opts.seconds * 1000;
+      const tick = () => {
+        const left = Math.max(0, Math.ceil((end - Date.now()) / 1000));
+        $("drawTimer").textContent = timeLabel ? timeLabel(left) : left + " s";
+        $("drawTimer").classList.toggle("urgent", left <= 5);
+        if (left <= 0) {
+          clearInterval(soloTimer);
+          soloTimer = null;
+          if (soloGame && document.body.dataset.screen === "s-draw") $("drawDone").click();
+        }
+      };
+      tick();
+      soloTimer = setInterval(tick, 250);
+    }
+  }
+  const getJSON = (u) => fetch(u, { cache: "no-store" }).then((r) => (r.ok ? r.json() : Promise.reject(new Error("red"))));
+
+  // ---------------------------------- MEMORIA ----------------------------------
+  const MEMO_DIFF = {
+    facil: { name: "Fácil", view: [9, 8, 7, 6, 6], draw: 90 },
+    normal: { name: "Normal", view: [6, 5, 5, 4, 4], draw: 60 },
+    dificil: { name: "Difícil", view: [4, 4, 3, 3, 2], draw: 45 },
+  };
+  let memo = null;
+  const memoBest = (d) => Number(store.get("tg-memo-best-" + d, "0")) || 0;
+  function memoIntro() {
+    SFX.play("pop");
+    soloGame = "memo";
+    const diff = store.get("tg-memo-diff", "normal");
+    const src = store.get("tg-memo-src", "dibulios");
+    const p = el("p", "solo-lead", "Verás un dibujo unos segundos. Luego, dibújalo de memoria lo más parecido que puedas: forma, sitio y colores. Cinco rondas, cada vez con menos tiempo para mirarlo.");
+    const seg = (label, opts, cur, key) => {
+      const wrap = el("div", "solo-setting");
+      wrap.appendChild(el("span", "label", label));
+      const g = el("div", "seg");
+      for (const [v, t, disabled] of opts) {
+        const b = el("button", "", t);
+        b.type = "button";
+        b.disabled = !!disabled;
+        b.setAttribute("aria-pressed", String(v === cur));
+        b.addEventListener("click", () => {
+          store.set(key, v);
+          SFX.play("click");
+          for (const x of g.children) x.setAttribute("aria-pressed", String(x === b));
+          paintBest();
+        });
+        g.appendChild(b);
+      }
+      wrap.appendChild(g);
+      return wrap;
+    };
+    const few = bookCache.length < 3;
+    const best = el("p", "solo-best");
+    const paintBest = () => {
+      const d = store.get("tg-memo-diff", "normal");
+      const b = memoBest(d);
+      best.textContent = b ? `🏆 Tu récord en ${MEMO_DIFF[d].name}: ${b} puntos` : "Aún no tienes récord en este nivel.";
+    };
+    paintBest();
+    soloScreen("🧠 Memoria", [
+      p,
+      seg("Dificultad", Object.entries(MEMO_DIFF).map(([k, v]) => [k, v.name]), diff, "tg-memo-diff"),
+      seg("Dibujos para copiar", [["dibulios", "De Dibulíos"], ["cuaderno", few ? "Mi cuaderno (pocos)" : "Mi cuaderno", few]], few ? "dibulios" : src, "tg-memo-src"),
+      best,
+    ], [["Empezar", memoStart]]);
+  }
+  function memoStart() {
+    const diff = store.get("tg-memo-diff", "normal");
+    let src = store.get("tg-memo-src", "dibulios");
+    if (src === "cuaderno" && bookCache.length < 3) src = "dibulios";
+    memo = { diff, src, round: 0, rounds: 5, results: [], seen: [] };
+    track("memoria_empieza", { dificultad: diff, dibujos: src });
+    memoRound();
+  }
+  async function memoPickOriginal() {
+    if (memo.src === "cuaderno") {
+      const pool = bookCache.filter((d) => !memo.seen.includes(d.id));
+      const d = (pool.length ? pool : bookCache)[Math.floor(Math.random() * (pool.length || bookCache.length))];
+      memo.seen.push(d.id);
+      return { url: await getBookImg(d.id), name: d.prompt || "Tu dibujo" };
+    }
+    const r = await getJSON("/api/arte/tema?no=" + encodeURIComponent(memo.seen.join(",")));
+    memo.seen.push(r.key);
+    return { url: r.url, name: r.name };
+  }
+  async function memoRound() {
+    soloScreen(`Ronda ${memo.round + 1} de ${memo.rounds}`, [el("p", "solo-wait", "Preparando el dibujo…")], []);
+    let orig;
+    try {
+      orig = await memoPickOriginal();
+    } catch (_) {
+      return soloScreen("🧠 Memoria", [el("p", "solo-lead", "No se pudo cargar el dibujo. Revisa la conexión e inténtalo otra vez.")], [["Reintentar", memoRound], ["Salir", endSoloGame, "secondary"]]);
+    }
+    memo.cur = orig;
+    const secs = MEMO_DIFF[memo.diff].view[memo.round] || 4;
+    const frame = el("div", "memo-frame");
+    const img = el("img");
+    img.src = orig.url;
+    img.alt = "";
+    frame.appendChild(img);
+    const count = el("p", "memo-count", `Memoriza… ${secs}`);
+    const bar = el("div", "memo-bar");
+    const fill = el("span");
+    bar.appendChild(fill);
+    soloScreen(`Ronda ${memo.round + 1} de ${memo.rounds} · ¡Fíjate bien!`, [frame, bar, count], []);
+    SFX.play("page");
+    const start = Date.now();
+    fill.style.transition = `transform ${secs}s linear`;
+    requestAnimationFrame(() => requestAnimationFrame(() => (fill.style.transform = "scaleX(0)")));
+    clearInterval(soloTimer);
+    soloTimer = setInterval(() => {
+      const left = Math.ceil(secs - (Date.now() - start) / 1000);
+      count.textContent = left > 0 ? `Memoriza… ${left}` : "¡A dibujar!";
+      if (left <= 0) {
+        clearInterval(soloTimer);
+        soloTimer = null;
+        memoDraw();
+      }
+    }, 200);
+  }
+  function memoDraw() {
+    soloPad({ portrait: true, step: `Ronda ${memo.round + 1} de ${memo.rounds} · De memoria`, what: "Dibuja lo que has visto", seconds: MEMO_DIFF[memo.diff].draw });
+  }
+  const MEMO_VERDICT = [[90, "¡Calcado! 🤯"], [75, "¡Muy bien! 👏"], [60, "¡Bastante bien!"], [45, "Se parece 🙂"], [25, "Se parece un poco…"], [0, "Mmm… ¿seguro? 😅"]];
+  async function memoFinish() {
+    clearInterval(soloTimer);
+    soloTimer = null;
+    const mine = pad.dirty ? pad.toDataURL("image/png") : null;
+    exitSoloQuiet();
+    soloScreen(`Ronda ${memo.round + 1} de ${memo.rounds}`, [el("p", "solo-wait", "Comparando…")], []);
+    let res = { score: 0, parts: { forma: 0, composicion: 0, colores: 0, detalle: 0 } };
+    try {
+      if (mine) {
+        const [a, b] = await Promise.all([loadImg(memo.cur.url), loadImg(mine)]);
+        res = window.Similarity.compare(a, b);
+      }
+    } catch (_) {}
+    memo.results.push({ name: memo.cur.name, orig: memo.cur.url, mine, score: res.score });
+    track("memoria_ronda", { puntos: res.score });
+    const pair = el("div", "memo-pair");
+    for (const [src, cap] of [[memo.cur.url, "Original"], [mine, "El tuyo"]]) {
+      const f = el("figure", "memo-fig");
+      if (src) {
+        const im = el("img");
+        im.src = src;
+        im.alt = cap;
+        f.appendChild(im);
+      } else f.appendChild(el("div", "memo-empty", "(en blanco)"));
+      f.appendChild(el("figcaption", "", cap));
+      pair.appendChild(f);
+    }
+    const big = el("div", "memo-score");
+    big.appendChild(el("strong", "", String(res.score)));
+    big.appendChild(el("span", "", (MEMO_VERDICT.find(([m]) => res.score >= m) || [0, ""])[1]));
+    const bars = el("div", "memo-bars");
+    for (const [k, t] of [["forma", "Forma"], ["composicion", "Sitio"], ["colores", "Colores"], ["detalle", "Detalle"]]) {
+      const row = el("div", "memo-barrow");
+      row.appendChild(el("span", "", t));
+      const b = el("div", "memo-bar small");
+      const f = el("span");
+      f.style.transform = `scaleX(${(res.parts[k] || 0) / 100})`;
+      b.appendChild(f);
+      row.appendChild(b);
+      row.appendChild(el("b", "", String(res.parts[k] || 0)));
+      bars.appendChild(row);
+    }
+    SFX.play(res.score >= 60 ? "point" : "pop");
+    memo.round++;
+    const last = memo.round >= memo.rounds;
+    soloScreen(`Ronda ${memo.round} de ${memo.rounds} · ${memo.cur.name}`, [big, pair, bars], [[last ? "Ver resultado" : "Siguiente ronda", last ? memoEnd : memoRound]]);
+  }
+  function memoEnd() {
+    const total = Math.round(memo.results.reduce((a, r) => a + r.score, 0) / memo.results.length);
+    const prev = memoBest(memo.diff);
+    const record = total > prev;
+    if (record) store.set("tg-memo-best-" + memo.diff, String(total));
+    track("memoria_fin", { puntos: total, dificultad: memo.diff });
+    const big = el("div", "memo-score");
+    big.appendChild(el("strong", "", String(total)));
+    big.appendChild(el("span", "", record ? "🏆 ¡Nuevo récord!" : prev ? `Tu récord: ${prev}` : "puntos de media"));
+    const strip = el("div", "memo-strip");
+    for (const r of memo.results) {
+      const f = el("figure", "memo-mini");
+      if (r.mine) {
+        const im = el("img");
+        im.src = r.mine;
+        im.alt = "";
+        f.appendChild(im);
+      } else f.appendChild(el("div", "memo-empty", "—"));
+      f.appendChild(el("figcaption", "", String(r.score)));
+      strip.appendChild(f);
+    }
+    SFX.play(record ? "end" : "point");
+    const saveBtn = ["📒 Guardar mis copias", () => {
+      let n = 0;
+      for (const r of memo.results) if (r.mine) { addToBook({ prompt: `Memoria: ${r.name} (${r.score})` }, r.mine); n++; }
+      toast(n ? `✔ ${n} ${n === 1 ? "dibujo guardado" : "dibujos guardados"} en tu cuaderno` : "No hay dibujos que guardar");
+      $("soloActions").firstChild.disabled = true;
+    }, "secondary"];
+    soloScreen(`🧠 Memoria · ${MEMO_DIFF[memo.diff].name}`, [big, strip], [saveBtn, ["Otra partida", memoStart]]);
+  }
+
+  // ---------------------------------- CRIATURAS ----------------------------------
+  let crit = null;
+  const PART_ES = { head: "la cabeza", body: "el cuerpo", legs: "las piernas" };
+  function critIntro() {
+    SFX.play("pop");
+    soloGame = "crit";
+    soloScreen("🧩 Criaturas", [
+      el("p", "solo-lead", "Haces criaturas con los robots: tú dibujas una parte (cabeza, cuerpo o piernas) viendo solo la unión, y ellos el resto sin que lo veas. Al final… ¡tachán! Tres criaturas, y en cada una te toca una parte distinta."),
+      el("p", "solo-best", "Los robots usan los colores de tu parte para que la criatura pegue."),
+    ], [["Empezar", critStart]]);
+  }
+  function critStart() {
+    const order = ["head", "body", "legs"].sort(() => Math.random() - 0.5);
+    crit = { i: 0, order, done: [] };
+    track("criaturas_empieza");
+    critRound();
+  }
+  /** El color principal de un dibujo (sin blancos ni negros), para que los robots sigan con él */
+  function mainColor(url) {
+    return loadImg(url).then((im) => {
+      if (!im) return null;
+      const c = document.createElement("canvas");
+      c.width = 90;
+      c.height = 60;
+      const x = c.getContext("2d", { willReadFrequently: true });
+      x.drawImage(im, 0, 0, 90, 60);
+      const d = x.getImageData(0, 0, 90, 60).data;
+      const buckets = new Map();
+      for (let i = 0; i < d.length; i += 4) {
+        const r = d[i], g = d[i + 1], b = d[i + 2];
+        const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 510, s = mx === mn ? 0 : (mx - mn) / (255 - Math.abs(mx + mn - 255) + 1);
+        if (l > 0.9 || l < 0.15 || s < 0.25) continue;
+        const k = ((r >> 5) << 6) | ((g >> 5) << 3) | (b >> 5);
+        const o = buckets.get(k) || { n: 0, r: 0, g: 0, b: 0 };
+        o.n++; o.r += r; o.g += g; o.b += b;
+        buckets.set(k, o);
+      }
+      let best = null;
+      for (const o of buckets.values()) if (!best || o.n > best.n) best = o;
+      if (!best || best.n < 20) return null;
+      return "#" + [best.r, best.g, best.b].map((v) => Math.round(v / best.n).toString(16).padStart(2, "0")).join("");
+    });
+  }
+  async function critRound() {
+    const part = crit.order[crit.i];
+    const idx = ["head", "body", "legs"].indexOf(part);
+    soloScreen(`Criatura ${crit.i + 1} de 3`, [el("p", "solo-wait", "Los robots están dibujando…")], []);
+    crit.parts = [null, null, null];
+    try {
+      // las partes de antes de la tuya (tú ves la unión de la última)
+      for (let p = 0; p < idx; p++) crit.parts[p] = (await getJSON("/api/arte/parte?p=" + ["head", "body", "legs"][p])).url;
+    } catch (_) {
+      return soloScreen("🧩 Criaturas", [el("p", "solo-lead", "No se pudo hablar con los robots. Revisa la conexión.")], [["Reintentar", critRound], ["Salir", endSoloGame, "secondary"]]);
+    }
+    crit.part = part;
+    crit.idx = idx;
+    bandWarned = false;
+    soloPad({ landscape: true, step: `Criatura ${crit.i + 1} de 3 · Te toca ${PART_ES[part]}`, what: TRIPTYCH_WHAT[part], done: "¡Listo!" });
+    const BAND = 90;
+    pad.setLock(part !== "head" ? [pad.visualRect(0, 0, 900, BAND)] : []);
+    pad.setGuide({
+      top: idx > 0 ? crit.parts[idx - 1] : null,
+      topLabel: "👆 Empieza desde aquí",
+      bottom: part === "head" ? "👇 ¡Sigue el cuello hasta el borde!" : part === "body" ? "👇 ¡Sigue las piernas hasta el borde!" : null,
+    });
+  }
+  async function critFinish() {
+    if (!pad.dirty) return toast("Dibuja tu parte primero 🙂");
+    if (crit.part !== "legs" && !bandWarned && !pad.inkIn(0, 515, 900, 79)) {
+      bandWarned = true;
+      return toast(crit.part === "head" ? "¡Ojo! El cuello no llega abajo: pulsa ¡Listo! otra vez para seguir igual." : "¡Ojo! Las piernas no llegan abajo: pulsa ¡Listo! otra vez para seguir igual.");
+    }
+    const mine = pad.toDataURL("image/jpeg", 0.9);
+    exitSoloQuiet();
+    crit.parts[crit.idx] = mine;
+    soloScreen(`Criatura ${crit.i + 1} de 3`, [el("p", "solo-wait", "Los robots terminan la criatura…")], []);
+    try {
+      const skin = await mainColor(mine).catch(() => null);
+      for (let p = crit.idx + 1; p < 3; p++) crit.parts[p] = (await getJSON("/api/arte/parte?p=" + ["head", "body", "legs"][p] + (skin ? "&skin=" + encodeURIComponent(skin) : ""))).url;
+    } catch (_) {}
+    const full = await composeTriptych(crit.parts);
+    crit.done.push({ url: full, part: crit.part });
+    const wrap = el("div", "crit-reveal");
+    const img = el("img");
+    img.src = full;
+    img.alt = "Tu criatura";
+    wrap.appendChild(img);
+    const who = ["head", "body", "legs"].map((p) => `${{ head: "Cabeza", body: "cuerpo", legs: "piernas" }[p]}: ${p === crit.part ? "tú" : "robot"}`).join(" · ");
+    SFX.play("reveal");
+    crit.i++;
+    const last = crit.i >= 3;
+    let saved = false;
+    soloScreen(`Criatura ${crit.i} de 3 · ¡Tachán!`, [wrap, el("p", "solo-best", who)], [
+      ["📒 Guardar", (e) => {
+        if (saved) return;
+        saved = true;
+        addToBook({ prompt: "Criatura con los robots" }, full);
+        e.target.textContent = "✔ Guardada";
+        SFX.play("point");
+      }, "secondary"],
+      ["Compartir", () => shareCreature(full), "secondary"],
+      [last ? "Ver las tres" : "Siguiente criatura", last ? critEnd : critRound],
+    ]);
+    requestAnimationFrame(() => wrap.classList.add("go"));
+  }
+  async function shareCreature(url) {
+    try {
+      const file = await toJpegFile(url, "dibulios-criatura.jpg");
+      if (navigator.canShare && navigator.canShare({ files: [file] })) return navigator.share({ files: [file], text: "Nuestra criatura en Dibulíos 🎨 " + location.origin }).catch(() => {});
+      saveFile(file);
+    } catch (_) {
+      toast("No se pudo compartir.");
+    }
+  }
+  function critEnd() {
+    const strip = el("div", "crit-strip");
+    for (const c of crit.done) {
+      const im = el("img");
+      im.src = c.url;
+      im.alt = "";
+      strip.appendChild(im);
+    }
+    track("criaturas_fin");
+    soloScreen("🧩 Tus criaturas", [strip], [["Otra vez", critStart]]);
+  }
+  /** Sale del lienzo sin volver al inicio (seguimos dentro del juego en solitario) */
+  function exitSoloQuiet() {
+    soloMode = false;
+    document.body.classList.remove("solo");
+    $("soloExitBtn").hidden = true;
+    $("drawTimer").hidden = false;
+    $("drawDone").textContent = "¡Listo!";
+    if (pad) {
+      pad.forcePortrait = false;
+      pad.forceLandscape = false;
+      pad.setGuide(null);
+      pad.setLock(null);
+    }
+  }
+  $("memoBtn").addEventListener("click", memoIntro);
+  $("critBtn").addEventListener("click", critIntro);
+
   buildEmojiGrid();
   show("s-home");
   window.__appReady = true;

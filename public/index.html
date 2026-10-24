@@ -120,6 +120,11 @@
       <button class="btn primary small-btn" id="installBtn" type="button">Instalar</button>
       <button class="install-x" id="installClose" type="button" aria-label="No mostrar más">✕</button>
     </div>
+    <div class="solo-row">
+      <span class="solo-label">Jugar solo</span>
+      <button class="btn-ghost solo-btn" id="memoBtn" type="button">🧠 Memoria</button>
+      <button class="btn-ghost solo-btn" id="critBtn" type="button">🧩 Criaturas</button>
+    </div>
     <button class="hello-row home-book" id="homeBook" type="button">
       <span class="home-book-ico" aria-hidden="true">📒</span>
       <span class="hello-text"><strong>Tu cuaderno</strong><small id="homeBookCount"></small></span>
@@ -379,6 +384,16 @@
     </div>
   </main>
 
+  <!-- JUGAR SOLO (Memoria y Criaturas) -->
+  <main class="screen fit-screen solo-screen" id="s-solo" hidden>
+    <div class="row-between">
+      <h2 class="h2" id="soloTitle"></h2>
+      <button class="btn-ghost small" id="soloBack" type="button">Salir</button>
+    </div>
+    <div class="solo-body grow" id="soloBody"></div>
+    <div class="solo-actions" id="soloActions"></div>
+  </main>
+
   <div class="viewer" id="bookView" role="dialog" aria-modal="true" aria-labelledby="bookPrompt" hidden>
     <div class="viewer-top">
       <button class="viewer-x" id="bookClose" type="button" aria-label="Cerrar"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
@@ -441,6 +456,16 @@
   </div>
 
   <!-- Cómo se juega -->
+  <!-- Pasar el cuaderno a otro dispositivo -->
+  <div class="sheet-backdrop" id="transferSheet" hidden>
+    <div class="sheet transfer-sheet" role="dialog" aria-modal="true" aria-labelledby="transferTitle">
+      <div class="sheet-head">
+        <h2 class="h2" id="transferTitle">Pasar a otro dispositivo</h2>
+        <button class="btn-ghost small" id="transferClose" type="button">Cerrar</button>
+      </div>
+      <div id="transferBody"></div>
+    </div>
+  </div>
   <!-- Bienvenida: la primera vez, antes de entrar en una sala -->
   <div class="sheet-backdrop" id="welcomeSheet" hidden>
     <div class="sheet welcome-sheet" role="dialog" aria-modal="true" aria-labelledby="welcomeTitle">
@@ -565,6 +590,7 @@
 </script>
 <script src="/socket.io/socket.io.js"></script>
 <script src="frases.js?v=__V__"></script>
+<script src="similarity.js?v=__V__"></script>
 <script src="sfx.js?v=__V__"></script>
 <script src="avatars.js?v=__V__"></script>
 <script src="pad.js?v=__V__"></script>

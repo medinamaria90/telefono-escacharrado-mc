@@ -54,6 +54,51 @@ app.get("/salud", (_req, res) => res.send("ok"));
 // Para Google: se puede indexar la portada (las salas no)
 const SITE = process.env.SITE_URL || "https://dibulios.onrender.com";
 app.get("/robots.txt", (_req, res) => res.type("text/plain").send(`User-agent: *\nAllow: /\nDisallow: /img/\nSitemap: ${SITE}/sitemap.xml\n`));
+// Pasar el cuaderno a otro dispositivo: se sube, se da un código de 6 letras y se borra al descargarlo
+// (o a los 10 minutos). Nada se queda guardado en el servidor.
+const TRANSFERS = new Map(); // código -> { data, until, bytes }
+const TRANSFER_MS = 10 * 60 * 1000;
+const TRANSFER_MAX_TOTAL = 160 * 1024 * 1024;
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, t] of TRANSFERS) if (t.until < now) TRANSFERS.delete(k);
+}, 30000).unref();
+function transferCode() {
+  const L = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+  let c;
+  do c = Array.from({ length: 6 }, () => L[crypto.randomInt(L.length)]).join("");
+  while (TRANSFERS.has(c));
+  return c;
+}
+app.post("/api/traspaso", express.text({ type: "*/*", limit: "60mb" }), (req, res) => {
+  const body = typeof req.body === "string" ? req.body : "";
+  if (!body || body[0] !== "[") return res.status(400).json({ ok: false, error: "Nada que enviar." });
+  const used = [...TRANSFERS.values()].reduce((a, t) => a + t.bytes, 0);
+  if (used + body.length > TRANSFER_MAX_TOTAL) return res.status(503).json({ ok: false, error: "Ahora mismo hay mucha gente pasando cuadernos. Prueba en un rato." });
+  const code = transferCode();
+  TRANSFERS.set(code, { data: body, bytes: body.length, until: Date.now() + TRANSFER_MS });
+  res.json({ ok: true, code, minutes: TRANSFER_MS / 60000 });
+});
+app.get("/api/traspaso/:code", (req, res) => {
+  const code = String(req.params.code || "").toUpperCase().replace(/[^A-Z]/g, "");
+  const t = TRANSFERS.get(code);
+  res.set("Cache-Control", "no-store");
+  if (!t || t.until < Date.now()) return res.status(404).json({ ok: false, error: "Ese código no existe o ya ha caducado." });
+  TRANSFERS.delete(code); // se borra en cuanto se descarga
+  res.type("application/json").send(t.data);
+});
+// Dibujos de los robots para jugar solo (Memoria y Criaturas): se generan al momento, no se guardan
+app.get("/api/arte/tema", (req, res) => {
+  res.set("Cache-Control", "no-store");
+  const not = String(req.query.no || "").split(",").filter(Boolean);
+  res.json(ART.original ? ART.original(not) : ART.draw({}));
+});
+app.get("/api/arte/parte", (req, res) => {
+  res.set("Cache-Control", "no-store");
+  const part = ["head", "body", "legs"].includes(req.query.p) ? req.query.p : "head";
+  const hex = (v) => (/^#[0-9a-f]{6}$/i.test(String(v || "")) ? String(v) : undefined);
+  res.json({ url: ART.drawPart(part, { skin: hex(req.query.skin), accent: hex(req.query.accent) }) });
+});
 // Guías (páginas de texto para buscadores; la app no las enlaza): /como-jugar, etc.
 const GUIDES = ["como-jugar", "juego-de-dibujar-y-adivinar", "juegos-para-jugar-en-familia"];
 for (const g of GUIDES) {
