@@ -517,7 +517,8 @@ body.solo .draw-prompt { order: 2; flex-basis: 100%; }
 .pad-over { position: absolute; left: 0; top: 0; pointer-events: none; opacity: .5; mix-blend-mode: multiply; border-radius: 4px; }
 .pad[data-tool="marker"] .pad-stage { cursor: crosshair; }
 .home-screen { position: relative; }
-.theme-fab { position: absolute; top: calc(10px + env(safe-area-inset-top, 0px)); right: max(12px, env(safe-area-inset-right, 0px)); background: var(--card); z-index: 5; }
+.home-fabs { position: absolute; top: calc(10px + env(safe-area-inset-top, 0px)); right: max(12px, env(safe-area-inset-right, 0px)); z-index: 5; display: flex; gap: 8px; }
+.home-fabs .btn-ghost { background: var(--card); }
 
 /* versión nueva e instalación */
 .update-bar { display: flex; align-items: center; gap: 10px; justify-content: space-between; margin: 6px max(8px, env(safe-area-inset-right, 0px)) 0 max(8px, env(safe-area-inset-left, 0px)); padding: 8px 10px 8px 14px; border-radius: 14px; background: var(--ink); color: var(--bg); font-weight: 700; font-size: .9rem; }
@@ -650,7 +651,7 @@ body.vote-end .end-center { gap: 8px; }
   .size-pop { flex-wrap: wrap; justify-content: center; }
 }
 @media (orientation: landscape) and (max-height: 540px) {
-  .theme-fab { top: auto; right: auto; bottom: max(10px, env(safe-area-inset-bottom, 0px)); left: max(12px, env(safe-area-inset-left, 0px)); }
+  .home-fabs { top: auto; right: auto; bottom: max(10px, env(safe-area-inset-bottom, 0px)); left: max(12px, env(safe-area-inset-left, 0px)); }
 }
 @media (orientation: landscape) and (max-height: 540px) {
   .draw-prompt { flex: none; order: -1; }
@@ -1066,3 +1067,9 @@ body.has-tabbar .book-fab { bottom: calc(86px + env(safe-area-inset-bottom)); }
 /* inicio: el bloque centrado, un poco por encima del centro (centro óptico) */
 .home-screen > .home-book-link { margin-bottom: auto; align-self: center; }
 body.has-tabbar .home-screen { padding-bottom: calc(110px + env(safe-area-inset-bottom)); }
+
+/* inicio: el cuaderno, una fila sobria como la de «Hola» */
+.home-screen > .home-book { margin-bottom: auto; background: var(--card); box-shadow: var(--shadow); }
+.home-book-ico { width: 46px; height: 46px; display: grid; place-items: center; font-size: 1.6rem; border-radius: 50%; background: var(--bg); }
+
+.form-card .error:empty { display: none; }

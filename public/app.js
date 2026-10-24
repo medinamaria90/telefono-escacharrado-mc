@@ -257,14 +257,18 @@
     })
   );
 
+  const muteBtns = () => [$("muteBtn"), ...document.querySelectorAll(".mute-btn")];
   function paintMute() {
-    $("muteBtn").textContent = SFX.muted ? "🔇" : "🔊";
-    $("muteBtn").setAttribute("aria-label", SFX.muted ? "Activar sonidos" : "Silenciar sonidos");
+    for (const b of muteBtns()) {
+      b.textContent = SFX.muted ? "🔇" : "🔊";
+      b.setAttribute("aria-label", SFX.muted ? "Activar sonidos" : "Silenciar sonidos");
+    }
   }
-  $("muteBtn").addEventListener("click", () => {
-    SFX.toggle();
-    paintMute();
-  });
+  for (const b of muteBtns())
+    b.addEventListener("click", () => {
+      SFX.toggle();
+      paintMute();
+    });
   paintMute();
 
   socket.on("gallery", (g) => {
@@ -379,13 +383,7 @@
     }
     for (const s of screens) $(s).hidden = s !== id;
     document.body.dataset.screen = id;
-    // barra de abajo (Jugar · Cuaderno · Tú): solo fuera de una sala
-    const tabs = !state && (id === "s-home" || id === "s-book" || id === "s-me");
-    $("tabbar").hidden = !tabs;
-    document.body.classList.toggle("has-tabbar", tabs);
-    $("tabPlay").classList.toggle("on", id === "s-home");
-    $("tabBook").classList.toggle("on", id === "s-book");
-    $("tabMe").classList.toggle("on", id === "s-me");
+    if (id === "s-home") renderHomeBook();
     trackScreen(id);
     if (id === "s-draw" && pad) requestAnimationFrame(() => pad.layout());
   }
@@ -573,9 +571,7 @@
     $("faceBookTxt").textContent = src ? "Otro dibujo" : "Usar un dibujo";
     $("faceDrawTxt").textContent = src ? "Dibujar nueva" : "Dibujar mi carita";
     $("faceActions").classList.toggle("two", !src);
-    const dark = document.documentElement.dataset.theme === "dark";
-    $("meThemeSw").classList.toggle("on", dark);
-    $("meSoundSw").classList.toggle("on", !SFX.muted);
+
   }
   // «Tú» es una pantalla (no una ventana): se entra desde la barra de abajo o tocando tu ficha en la sala,
   // y se sale yendo a otra pestaña o con «Volver» (en la sala).
@@ -586,7 +582,7 @@
     meOpen = true;
     backToMe = false;
     renderMe();
-    $("emojiClose").hidden = !state && !welcomeBack;
+    $("emojiClose").hidden = false;
     show("s-me");
   }
   function leaveMeFor() {
@@ -626,18 +622,6 @@
   }
   $("meName").addEventListener("change", syncMeName);
   $("meName").addEventListener("blur", syncMeName);
-  $("meTheme").addEventListener("click", () => {
-    const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
-    store.set("tg-theme", next);
-    applyTheme(next);
-    SFX.play("click");
-    renderMe();
-  });
-  $("meSound").addEventListener("click", () => {
-    SFX.toggle();
-    paintMute();
-    renderMe();
-  });
   $("faceRetouchBtn").addEventListener("click", () => {
     const src = faceSource();
     if (!src) return;
@@ -665,29 +649,15 @@
     const hf = $("helloFace");
     hf.innerHTML = "";
     hf.appendChild(AVATARS.avatarEl(me.emoji));
-    const tf = $("tabFace");
-    tf.innerHTML = "";
-    tf.appendChild(AVATARS.avatarEl(me.emoji));
+
   }
   $("whoHello").addEventListener("click", () => openMe());
-  $("tabPlay").addEventListener("click", () => {
-    if (meOpen) return closeMe(() => show("s-home"));
-    if (bookOpen) $("bookBack").click();
-    else show("s-home");
-  });
-  $("tabBook").addEventListener("click", () => {
-    if (meOpen) return closeMe(() => openBook("tab"));
-    if (!bookOpen) openBook("tab");
-  });
-  $("homeBookBtn").addEventListener("click", () => openBook("tab"));
-  $("tabMe").addEventListener("click", () => {
-    if (meOpen) return;
-    if (bookOpen) {
-      bookOpen = false;
-      document.body.classList.remove("solo");
-    }
-    openMe();
-  });
+  // Inicio: el cuaderno como tarjeta (tus últimos dibujos), en vez de un enlace perdido
+  function renderHomeBook() {
+    const n = bookCache.length;
+    $("homeBookCount").textContent = n ? `${n} ${n === 1 ? "dibujo" : "dibujos"} · dibuja a tu aire` : "Dibuja a tu aire y guárdalo aquí";
+  }
+  $("homeBook").addEventListener("click", () => openBook("home"));
   if (me.name.trim()) store.set("tg-named", "1");
   renderWho();
   setTimeout(() => !state && renderChrome(), 0);
@@ -959,7 +929,6 @@
     $("welcomeSheet").hidden = true;
     welcomeBack = true;
     openMe();
-    $("emojiClose").hidden = false;
   });
   let welcomeBack = false;
   function welcomeGo() {
@@ -1239,9 +1208,7 @@
     const inRoom = !!state;
     $("roomChip").hidden = !inRoom;
     $("leaveBtn").hidden = !inRoom;
-    // fuera de una sala, sonido y tema están en «Tú»
 
-    document.querySelectorAll(".theme-btn").forEach((b) => (b.hidden = !inRoom));
     $("topbar").classList.toggle("in-room", inRoom);
     if (inRoom) $("roomChip").textContent = state.code;
   }
@@ -4213,7 +4180,7 @@
       return openMe();
     }
     if (state) render();
-    else if (soloFrom === "book" && !silent) openBook("tab");
+    else if (soloFrom === "book" && !silent) openBook("home");
     else showHome();
   }
   function saveToBook() {
@@ -4249,7 +4216,7 @@
     SFX.play("click");
     bookOpen = true;
     bookReturn = from;
-    $("bookBack").hidden = from === "tab" && !state; // desde la barra de abajo no hace falta «Volver»
+    $("bookBack").hidden = false;
     setBookCols(bookCols());
     renderBook();
     show("s-book");
