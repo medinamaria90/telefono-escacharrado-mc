@@ -568,8 +568,8 @@
     const src = faceSource();
     $("faceRetouchBtn").hidden = !src;
     $("faceCropBtn").hidden = !src;
-    $("faceBookTxt").textContent = src ? "Otro dibujo" : "Usar un dibujo";
-    $("faceDrawTxt").textContent = src ? "Dibujar nueva" : "Dibujar mi carita";
+    $("faceBookTxt").textContent = "Cuaderno";
+    $("faceDrawTxt").textContent = "Dibujar";
     $("faceActions").classList.toggle("two", !src);
 
   }
