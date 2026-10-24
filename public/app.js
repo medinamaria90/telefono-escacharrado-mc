@@ -1118,6 +1118,7 @@
         pad.setGuide({
           top: task.part !== "head" ? prevImg || null : null,
           topLabel: "👆 Empieza desde aquí",
+          hint: task.part !== "legs" && hintCount() < 3,
           bottom: task.part === "head" ? "👇 ¡Sigue el cuello hasta el borde!" : task.part === "body" ? "👇 ¡Sigue las piernas hasta el borde!" : null,
         });
       } else if (task.variant === "degrade") {
@@ -1880,6 +1881,15 @@
   let renderRecent = () => {};
   let renderPrev = () => {};
   let bandWarned = false;
+  // la animación del lápiz se enseña las primeras veces (en este móvil)
+  function hintCount() {
+    let n = 0;
+    try {
+      n = Number(localStorage.getItem("tg-trip-hint") || 0);
+      localStorage.setItem("tg-trip-hint", String(n + 1));
+    } catch (_) {}
+    return n;
+  }
   let prevColorsFor = null;
   // Saca los colores principales de un dibujo (sin el blanco del papel)
   function extractColors(url, done) {
