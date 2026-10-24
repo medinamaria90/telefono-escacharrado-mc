@@ -455,40 +455,101 @@
           g.setTransform(1, 0, 0, 1, 0, 0);
         } else g.drawImage(v, 0, 0, W, H);
       };
-      const dashed = (y, label, labelY) => {
+      const FONT = '"Atkinson Hyperlegible", system-ui, sans-serif';
+      if (opts.bottom) {
+        // Franja de abajo: es TUYA y sigue hasta el borde (lo que verá el siguiente)
+        const y0 = VH - BAND;
+        const gr = x.createLinearGradient(0, y0, 0, VH);
+        gr.addColorStop(0, "rgba(255,90,60,.04)");
+        gr.addColorStop(1, "rgba(255,90,60,.18)");
+        x.fillStyle = gr;
+        x.fillRect(0, y0, VW, BAND);
         x.save();
-        x.setLineDash([18, 14]);
-        x.lineWidth = 4;
-        x.strokeStyle = "rgba(255,90,60,.9)";
+        x.setLineDash([3, 9]);
+        x.lineCap = "round";
+        x.lineWidth = 2;
+        x.strokeStyle = "rgba(255,90,60,.45)";
         x.beginPath();
-        x.moveTo(0, y);
-        x.lineTo(VW, y);
+        x.moveTo(0, y0);
+        x.lineTo(VW, y0);
         x.stroke();
         x.restore();
-        x.font = '700 26px "Atkinson Hyperlegible", system-ui, sans-serif';
-        x.fillStyle = "rgba(255,90,60,.95)";
+        x.fillStyle = "#ff5a3c";
+        x.fillRect(0, VH - 6, VW, 6); // la meta: el borde de abajo
+        // flechitas hacia abajo
+        x.save();
+        x.strokeStyle = "rgba(255,90,60,.22)";
+        x.lineWidth = 4;
+        x.lineCap = "round";
+        for (const cx of [75, 825]) {
+          for (const dy of [0, 18]) {
+            x.beginPath();
+            x.moveTo(cx - 14, y0 + 30 + dy);
+            x.lineTo(cx, y0 + 42 + dy);
+            x.lineTo(cx + 14, y0 + 30 + dy);
+            x.stroke();
+          }
+        }
+        x.restore();
         x.textAlign = "center";
-        x.fillText(label, VW / 2, labelY);
-      };
-      if (opts.bottom) {
-        x.fillStyle = "rgba(255,90,60,.07)";
-        x.fillRect(0, VH - BAND, VW, BAND);
-        dashed(VH - BAND, opts.bottom, VH - BAND - 14);
+        x.fillStyle = "rgba(255,90,60,.95)";
+        x.font = `700 30px ${FONT}`;
+        x.fillText(opts.bottom, VW / 2, y0 + 44);
+        x.font = `700 20px ${FONT}`;
+        x.fillStyle = "rgba(255,90,60,.6)";
+        x.fillText("👀 esto lo verá el siguiente", VW / 2, y0 + 72);
       }
       if (opts.top) {
         const im = new Image();
         im.onload = () => {
-          // de la parte anterior, solo su franja de abajo
+          // de la parte anterior, solo su franja de abajo (bloqueada: gris y rayada)
           const sh = im.naturalHeight * 0.15;
           x.globalAlpha = 0.55;
           x.drawImage(im, 0, im.naturalHeight - sh, im.naturalWidth, sh, 0, 0, VW, BAND);
           x.globalAlpha = 1;
-          dashed(BAND, opts.topLabel || "", BAND + 34);
+          x.save();
+          x.beginPath();
+          x.rect(0, 0, VW, BAND);
+          x.clip();
+          x.strokeStyle = "rgba(40,50,70,.09)";
+          x.lineWidth = 2;
+          for (let k = -BAND; k < VW; k += 12) {
+            x.beginPath();
+            x.moveTo(k, BAND);
+            x.lineTo(k + BAND, 0);
+            x.stroke();
+          }
+          x.restore();
+          x.strokeStyle = "rgba(40,50,70,.35)";
+          x.lineWidth = 2;
+          x.beginPath();
+          x.moveTo(0, BAND);
+          x.lineTo(VW, BAND);
+          x.stroke();
+          x.font = `700 22px ${FONT}`;
+          x.textAlign = "left";
+          x.fillStyle = "rgba(40,50,70,.55)";
+          x.fillText("🔒", 12, 30);
+          x.textAlign = "center";
+          x.font = `700 24px ${FONT}`;
+          x.fillText(opts.topLabel || "", VW / 2, BAND + 32);
           paint();
         };
         im.src = opts.top;
       }
       paint();
+    }
+    /** ¿Hay algo dibujado en este rectángulo (coordenadas de pantalla)? */
+    inkIn(vx, vy, vw, vh) {
+      try {
+        const r = this.visualRect(vx, vy, vw, vh);
+        const d = this.ctx.getImageData(Math.round(r.x), Math.round(r.y), Math.round(r.w), Math.round(r.h)).data;
+        let n = 0;
+        for (let i = 0; i < d.length; i += 16) if (d[i + 3] > 40 && d[i] + d[i + 1] + d[i + 2] < 720) n++;
+        return n > 6;
+      } catch (_) {
+        return true;
+      }
     }
     /** Rectángulo en coordenadas de pantalla (franja visible) -> coordenadas internas del lienzo */
     visualRect(vx, vy, vw, vh) {

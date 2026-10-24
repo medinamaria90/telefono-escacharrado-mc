@@ -428,7 +428,7 @@
     t.textContent = msg;
     t.hidden = false;
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => (t.hidden = true), 2800);
+    toastTimer = setTimeout(() => (t.hidden = true), msg.length > 70 ? 5000 : 2800);
   }
   function el(tag, cls, text) {
     const e = document.createElement(tag);
@@ -1105,6 +1105,7 @@
       pad.setGuide(null);
       pad.setLock(null);
       setPrevColors(null);
+      bandWarned = false;
       if (task.variant === "triptych") {
         // La franja de arriba es de la parte anterior: se ve, pero no se pinta en ella
         // (y el cubo de pintura se para ahí). La de abajo es tuya: se dibuja hasta el borde.
@@ -1116,8 +1117,8 @@
         setPrevColors(task.part !== "head" ? prevImg : null);
         pad.setGuide({
           top: task.part !== "head" ? prevImg || null : null,
-          topLabel: "↑ Sigue desde aquí",
-          bottom: task.part === "head" ? "↓ Asoma el cuello hasta aquí" : task.part === "body" ? "↓ Asoma las piernas hasta aquí" : null,
+          topLabel: "👆 Empieza desde aquí",
+          bottom: task.part === "head" ? "👇 ¡Sigue el cuello hasta el borde!" : task.part === "body" ? "👇 ¡Sigue las piernas hasta el borde!" : null,
         });
       } else if (task.variant === "degrade") {
         const copying = task.prompt && task.prompt.kind === "image";
@@ -1381,6 +1382,14 @@
     if (faceMode) return saveFace();
     if (soloMode) return saveToBook();
     if (!pad.dirty) return sendBlank(); // sin dibujar: va el lienzo en blanco, sin avisos
+    // Tríptico: si no has bajado hasta la franja de abajo, se avisa una vez
+    const t = state.task;
+    if (t && t.variant === "triptych" && t.part !== "legs" && !bandWarned && !pad.inkIn(0, 515, 900, 79)) {
+      bandWarned = true;
+      SFX.play("pop");
+      toast(t.part === "head" ? "¡Ojo! El cuello no llega abajo y el siguiente no sabrá seguir. Pulsa ¡Listo! otra vez para enviarlo igual." : "¡Ojo! Las piernas no llegan abajo y el siguiente no sabrá seguir. Pulsa ¡Listo! otra vez para enviarlo igual.");
+      return;
+    }
     sendDrawing();
   });
   $("rerollBtn").addEventListener("click", () => {
@@ -1870,6 +1879,7 @@
   let recentColors = [];
   let renderRecent = () => {};
   let renderPrev = () => {};
+  let bandWarned = false;
   let prevColorsFor = null;
   // Saca los colores principales de un dibujo (sin el blanco del papel)
   function extractColors(url, done) {
@@ -2489,7 +2499,7 @@
   }
   // ---------- tríptico: una criatura en tres partes ----------
   const TRIPTYCH_NAME = { head: "La cabeza", body: "El cuerpo", legs: "Las piernas" };
-  const TRIPTYCH_WHAT = { head: "Dibuja una cabeza (de lo que quieras)", body: "Dibuja un cuerpo, con sus brazos", legs: "Dibuja las piernas y los pies" };
+  const TRIPTYCH_WHAT = { head: "Una cabeza… ¡y el cuello hasta abajo del todo!", body: "Un cuerpo con brazos… ¡y las piernas hasta abajo!", legs: "Sigue el cuerpo: piernas y pies" };
   const TRIPTYCH_PART = ["head", "body", "legs"];
   const composed = new Map();
   /** Junta las partes en una sola imagen vertical: cada parte monta su franja de arriba sobre la anterior */
