@@ -305,7 +305,7 @@ function botContent(room, botId) {
       return { content: d.url, meta: d.key };
     }
     if (game.stepType === "guess") {
-      const subj = prev.botKey ? ART.SUBJECTS.find((x) => x.key === prev.botKey) : null;
+      const subj = prev.botKey ? ART.subjectByMeta(prev.botKey) : null;
       return { content: subj && crypto.randomInt(10) < 7 ? subj.name : pick(FRASES) };
     }
   }

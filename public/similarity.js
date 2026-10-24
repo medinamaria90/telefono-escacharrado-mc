@@ -193,7 +193,7 @@
     const raw = shape * w.shape + overlap * w.overlap + layout * w.layout + color * w.color + place * w.place + amount * w.amount;
     const wsum = w.shape + w.overlap + w.layout + w.color + w.place + w.amount;
     // Curva: por debajo de lo que saca un garabato cualquiera es 0; un dibujo idéntico, 100
-    const floor = opts.floor ?? 0.36, gamma = opts.gamma ?? 0.85;
+    const floor = opts.floor ?? 0.42, gamma = opts.gamma ?? 0.88;
     const score = Math.round(100 * clamp01((raw / wsum - floor) / (1 - floor)) ** gamma);
     const pct = (v) => Math.round(100 * clamp01(v));
     return {
