@@ -875,11 +875,6 @@ input, textarea, select { font-size: max(16px, 1em) !important; }
   body.triptych-draw .pad-hint { display: block; position: absolute; top: 14px; left: 0; right: 0; margin: 0; text-align: center; font-weight: 700; font-size: .9rem; color: var(--muted); pointer-events: none; z-index: 1; }
 }
 
-/* Safari (iPad/iPhone): la app mide exactamente lo visible, sin quedar nada bajo sus barras */
-@supports (height: 100dvh) {
-  html, body { height: 100dvh; }
-  .app { height: 100dvh; }
-}
 /* Tablet u ordenador en horizontal: sala en dos columnas, con «Empezar partida» siempre a la vista */
 @media (orientation: landscape) and (min-width: 900px) and (max-height: 900px) {
   #s-lobby {
