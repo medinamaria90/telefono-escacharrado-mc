@@ -4229,6 +4229,7 @@
       exitSoloQuiet();
       if (!silent) SFX.play("click");
       track(g === "memo" ? "memoria_abandona" : "criaturas_abandona");
+      soloHere(false);
       return show("s-home");
     }
     if (faceMode) closeFace();
@@ -4995,6 +4996,7 @@
     clearInterval(soloTimer);
     soloTimer = null;
     soloGame = null;
+    soloHere(false);
     if (soloMode) exitSolo(true);
     show("s-home");
   }
@@ -5063,6 +5065,7 @@
   function memoIntro() {
     SFX.play("pop");
     soloGame = "memo";
+    soloHere(true);
     const diff = store.get("tg-memo-diff", "normal");
     const src = store.get("tg-memo-src", "dibulios");
     const p = el("p", "solo-lead", "Verás un dibujo unos segundos. Luego, dibújalo de memoria lo más parecido que puedas: forma, sitio y colores. Cinco rondas, cada vez con menos tiempo para mirarlo.");
@@ -5243,6 +5246,7 @@
   function critIntro() {
     SFX.play("pop");
     soloGame = "crit";
+    soloHere(true);
     soloScreen("🧩 Criaturas", [
       el("p", "solo-lead", "Haces criaturas con los robots: tú dibujas una parte (cabeza, cuerpo o piernas) viendo solo la unión, y ellos el resto sin que lo veas. Al final… ¡tachán! Tres criaturas, y en cada una te toca una parte distinta."),
       el("p", "solo-best", "Los robots usan los colores de tu parte para que la criatura pegue."),
@@ -5376,6 +5380,52 @@
       pad.setLock(null);
     }
   }
+  // ---------- partida pública (si hay 3 o más jugando solos a la vez) ----------
+  let soloHereOn = false;
+  let publicDismissed = false;
+  function soloHere(on) {
+    if (soloHereOn === on) return;
+    soloHereOn = on;
+    socket.emit("soloHere", on);
+    if (!on) $("publicBar").hidden = true;
+  }
+  socket.on("connect", () => soloHereOn && socket.emit("soloHere", true));
+  socket.on("soloCount", (m) => {
+    if (!soloGame || publicDismissed) return ($("publicBar").hidden = true);
+    const show = m.open || m.n >= m.min;
+    $("publicBar").hidden = !show;
+    if (!show) return;
+    $("publicText").textContent = m.open
+      ? "🌍 Hay una partida abierta con gente que estaba jugando sola. ¿Te unes?"
+      : `🌍 Hay ${m.n} personas jugando solas ahora mismo. ¿Jugáis juntos? (partida con desconocidos)`;
+  });
+  $("publicNo").addEventListener("click", () => {
+    publicDismissed = true;
+    $("publicBar").hidden = true;
+    SFX.play("click");
+  });
+  $("publicYes").addEventListener("click", () => {
+    SFX.play("click");
+    $("publicBar").hidden = true;
+    socket.emit("publicJoin", {}, (r) => {
+      if (!r) return;
+      if (r.wait) return toast("Alguien está abriendo la sala… en unos segundos te aparece para unirte.");
+      endSoloGame();
+      if (r.code) return joinCode(r.code);
+      // el primero que dice que sí crea la sala y es el anfitrión
+      const create = () => {
+        if (needName({ run: create })) return;
+        socket.emit("create", { name: me.name, emoji: me.emoji }, (res) => {
+          if (res && res.ok) {
+            socket.emit("publicCreated", { code: res.code });
+            track("sala_publica_creada");
+          }
+          entered(res);
+        });
+      };
+      create();
+    });
+  });
   $("memoBtn").addEventListener("click", memoIntro);
   $("critBtn").addEventListener("click", critIntro);
 

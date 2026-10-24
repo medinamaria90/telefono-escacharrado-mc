@@ -1313,7 +1313,41 @@ function broadcast(room) {
 }
 
 // ---------- conexiones ----------
+// ---------- partida pública: solo aparece si hay al menos 3 personas jugando solas a la vez ----------
+const SOLO = new Set(); // sockets jugando solos (Memoria, Criaturas)
+let publicRoom = null; // { code, at }
+let publicPending = null; // { socketId, at }: alguien está creando la sala pública
+const PUBLIC_MIN = 3;
+function openPublic() {
+  if (publicRoom && (Date.now() - publicRoom.at > 5 * 60 * 1000 || !rooms.has(publicRoom.code) || rooms.get(publicRoom.code).phase !== "lobby")) publicRoom = null;
+  return publicRoom;
+}
+function soloBroadcast() {
+  const pr = openPublic();
+  for (const id of SOLO) io.to(id).emit("soloCount", { n: SOLO.size, min: PUBLIC_MIN, open: pr ? pr.code : null });
+}
 io.on("connection", (socket) => {
+  socket.on("soloHere", (on) => {
+    if (on) SOLO.add(socket.id);
+    else SOLO.delete(socket.id);
+    soloBroadcast();
+  });
+  socket.on("publicJoin", (_d, ack) => {
+    if (typeof ack !== "function") return;
+    const pr = openPublic();
+    if (pr) return ack({ code: pr.code });
+    if (publicPending && Date.now() - publicPending.at < 15000 && publicPending.socketId !== socket.id) return ack({ wait: true });
+    publicPending = { socketId: socket.id, at: Date.now() };
+    ack({ create: true });
+  });
+  socket.on("publicCreated", (d) => {
+    const code = String(d?.code || "").toUpperCase();
+    if (!rooms.has(code) || !publicPending || publicPending.socketId !== socket.id) return;
+    publicRoom = { code, at: Date.now() };
+    publicPending = null;
+    SOLO.delete(socket.id);
+    soloBroadcast();
+  });
   socket.emit("version", BOOT);
   let room = null;
   let player = null;
@@ -1619,6 +1653,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
+    if (SOLO.delete(socket.id)) soloBroadcast();
     if (knock && knock.w.socketId === socket.id) {
       const { r, w } = knock;
       w.socketId = null;
