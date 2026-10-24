@@ -1073,3 +1073,8 @@ body.has-tabbar .home-screen { padding-bottom: calc(110px + env(safe-area-inset-
 .home-book-ico { width: 46px; height: 46px; display: grid; place-items: center; font-size: 1.6rem; border-radius: 50%; background: var(--bg); }
 
 .form-card .error:empty { display: none; }
+
+/* zoom en el visor del cuaderno */
+.viewer-track { touch-action: pan-x; }
+.viewer-track.zoomed { overflow-x: hidden; touch-action: none; cursor: grab; }
+.viewer-slide img { transform-origin: center center; will-change: transform; }

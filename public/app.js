@@ -4373,7 +4373,9 @@
       })
       .catch(() => {});
   }
+  let resetZoom = () => {};
   function viewMeta() {
+    resetZoom();
     const d = viewList[viewIdx];
     viewing = d;
     if (!d) return;
@@ -4415,6 +4417,7 @@
     viewMeta();
   }
   function closeViewer() {
+    resetZoom();
     $("bookView").hidden = true;
     disarmDel();
   }
@@ -4446,7 +4449,142 @@
       });
     });
     // tocar el dibujo: se esconden/enseñan las barras (para verlo solo)
-    track.addEventListener("click", () => $("bookView").classList.toggle("bare"));
+    track.addEventListener("click", () => {
+      if (Date.now() - zoomTouchedAt < 400) return;
+      $("bookView").classList.toggle("bare");
+    });
+    // ---- zoom: pellizcar (o doble toque) para ampliar; con zoom, un dedo mueve el dibujo ----
+    const z = { s: 1, x: 0, y: 0, img: null };
+    let g = null; // gesto en curso
+    let lastTap = 0, lastTapX = 0, lastTapY = 0;
+    const curImg = () => (track.children[viewIdx] ? track.children[viewIdx].firstChild : null);
+    const applyZ = (anim) => {
+      if (!z.img) return;
+      z.img.style.transition = anim ? "transform .22s ease" : "none";
+      z.img.style.transform = z.s > 1 ? `translate(${z.x}px, ${z.y}px) scale(${z.s})` : "";
+      track.classList.toggle("zoomed", z.s > 1);
+    };
+    const clampPan = () => {
+      if (!z.img) return;
+      const w = z.img.offsetWidth, h = z.img.offsetHeight;
+      const mx = Math.max(0, (w * z.s - track.clientWidth) / 2 + 20), my = Math.max(0, (h * z.s - track.clientHeight) / 2 + 20);
+      z.x = Math.max(-mx, Math.min(mx, z.x));
+      z.y = Math.max(-my, Math.min(my, z.y));
+    };
+    const zoomTo = (s2, px, py, anim) => {
+      z.img = z.img || curImg();
+      if (!z.img) return;
+      const r = z.img.getBoundingClientRect();
+      const cx = r.left + r.width / 2 - z.x, cy = r.top + r.height / 2 - z.y; // centro sin desplazar
+      const ux = (px - cx - z.x) / z.s, uy = (py - cy - z.y) / z.s;
+      z.s = Math.max(1, Math.min(5, s2));
+      z.x = px - cx - z.s * ux;
+      z.y = py - cy - z.s * uy;
+      if (z.s <= 1.01) {
+        z.s = 1;
+        z.x = z.y = 0;
+      }
+      clampPan();
+      applyZ(anim);
+    };
+    resetZoom = () => {
+      if (z.img) {
+        z.img.style.transition = "";
+        z.img.style.transform = "";
+      }
+      z.s = 1;
+      z.x = z.y = 0;
+      z.img = null;
+      track.classList.remove("zoomed");
+    };
+    let zoomTouchedAt = 0;
+    const mid = (t) => ({ x: (t[0].clientX + t[1].clientX) / 2, y: (t[0].clientY + t[1].clientY) / 2, d: Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY) });
+    track.addEventListener("touchstart", (e) => {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        z.img = z.img || curImg();
+        const m = mid(e.touches);
+        g = { pinch: true, m, s: z.s };
+        zoomTouchedAt = Date.now();
+      } else if (e.touches.length === 1 && z.s > 1) {
+        e.preventDefault();
+        g = { pan: true, px: e.touches[0].clientX, py: e.touches[0].clientY, x: z.x, y: z.y, moved: false };
+      } else g = { tap: true, px: e.touches[0].clientX, py: e.touches[0].clientY, moved: false };
+    }, { passive: false });
+    track.addEventListener("touchmove", (e) => {
+      if (!g) return;
+      if (g.pinch && e.touches.length === 2) {
+        e.preventDefault();
+        const m = mid(e.touches);
+        // primero se mueve con los dedos, luego se escala alrededor de ellos
+        z.x += m.x - g.m.x;
+        z.y += m.y - g.m.y;
+        zoomTo(g.s * (m.d / g.m.d), m.x, m.y, false);
+        g.s = z.s;
+        g.m = m;
+      } else if (g.pan && e.touches.length === 1) {
+        e.preventDefault();
+        z.x = g.x + e.touches[0].clientX - g.px;
+        z.y = g.y + e.touches[0].clientY - g.py;
+        if (Math.abs(e.touches[0].clientX - g.px) + Math.abs(e.touches[0].clientY - g.py) > 8) g.moved = true;
+        clampPan();
+        applyZ(false);
+      } else if (g.tap && e.touches[0] && Math.abs(e.touches[0].clientX - g.px) + Math.abs(e.touches[0].clientY - g.py) > 10) g.moved = true;
+    }, { passive: false });
+    track.addEventListener("touchend", (e) => {
+      if (!g) return;
+      if (g.pinch && e.touches.length < 2) {
+        zoomTouchedAt = Date.now();
+        if (z.s <= 1.05) {
+          zoomTo(1, 0, 0, true);
+          resetZoom();
+        }
+        g = e.touches.length === 1 && z.s > 1 ? { pan: true, px: e.touches[0].clientX, py: e.touches[0].clientY, x: z.x, y: z.y } : null;
+        return;
+      }
+      if ((g.tap || (g.pan && !g.moved)) && e.changedTouches[0]) {
+        // doble toque: amplía donde tocas (o vuelve a tamaño normal)
+        const t = e.changedTouches[0], now = Date.now();
+        if (now - lastTap < 320 && Math.abs(t.clientX - lastTapX) + Math.abs(t.clientY - lastTapY) < 30) {
+          zoomTouchedAt = now;
+          if (z.s > 1) {
+            z.s = 1.0001;
+            zoomTo(1, t.clientX, t.clientY, true);
+          } else zoomTo(2.5, t.clientX, t.clientY, true);
+          lastTap = 0;
+          e.preventDefault();
+        } else {
+          lastTap = now;
+          lastTapX = t.clientX;
+          lastTapY = t.clientY;
+        }
+      }
+      if (g.pan && g.moved) zoomTouchedAt = Date.now();
+      g = null;
+    });
+    // ordenador: rueda para ampliar, doble clic, y arrastrar con el ratón cuando está ampliado
+    track.addEventListener("wheel", (e) => {
+      if (!e.ctrlKey && Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+      e.preventDefault();
+      zoomTo(z.s * (e.deltaY < 0 ? 1.15 : 1 / 1.15), e.clientX, e.clientY, false);
+    }, { passive: false });
+    track.addEventListener("dblclick", (e) => {
+      zoomTouchedAt = Date.now();
+      zoomTo(z.s > 1 ? 1 : 2.5, e.clientX, e.clientY, true);
+    });
+    let drag = null;
+    track.addEventListener("mousedown", (e) => {
+      if (z.s > 1) drag = { px: e.clientX, py: e.clientY, x: z.x, y: z.y };
+    });
+    window.addEventListener("mousemove", (e) => {
+      if (!drag) return;
+      z.x = drag.x + e.clientX - drag.px;
+      z.y = drag.y + e.clientY - drag.py;
+      clampPan();
+      applyZ(false);
+      zoomTouchedAt = Date.now();
+    });
+    window.addEventListener("mouseup", () => (drag = null));
     // al girar el móvil, que no se quede a medias entre dos dibujos
     window.addEventListener("resize", () => {
       if (!$("bookView").hidden) goSlide(viewIdx, false);
