@@ -752,14 +752,24 @@
   function askLeave(fromLogo) {
     SFX.play("click");
     $("leaveTitle").textContent = fromLogo ? "¿Volver al inicio?" : "¿Salir de la sala?";
-    $("leaveText").textContent =
-      state && state.phase !== "lobby" ? "Saldrás de la partida y tus turnos se saltarán." : "Saldrás de la sala. Puedes volver a entrar con el código.";
+    const hostInGame = !!(state && state.phase !== "lobby" && isHost());
+    $("leaveText").textContent = hostInGame
+      ? "¿Te has equivocado de modo? Vuelve con todos a la sala (con el mismo código) y elige otro. O sal tú solo."
+      : state && state.phase !== "lobby"
+        ? "Saldrás de la partida y tus turnos se saltarán."
+        : "Saldrás de la sala. Puedes volver a entrar con el código.";
+    $("leaveLobby").hidden = !hostInGame;
     $("leaveSheet").hidden = false;
   }
   $("leaveBtn").addEventListener("click", () => askLeave(false));
   $("brandBtn").addEventListener("click", () => {
     if (state) askLeave(true);
     else show("s-home");
+  });
+  $("leaveLobby").addEventListener("click", () => {
+    $("leaveSheet").hidden = true;
+    SFX.play("click");
+    socket.emit("cancelGame");
   });
   $("leaveNo").addEventListener("click", () => {
     SFX.play("click");
@@ -871,13 +881,13 @@
   // ---------- sala de espera ----------
   // Modos de juego (el menú de la sala)
   const MODES = [
-    { v: "telefono", emoji: "✏️", name: "Clásico", desc: "Frase → dibujo → adivina… y al final se ve cómo ha cambiado cada historia. Con 2 se juega en Dúo." },
-    { v: "votacion", emoji: "⭐", name: "Votación", desc: "Todos dibujáis la misma frase y puntuáis los dibujos de los demás del 1 al 5." },
-    { v: "retratos", emoji: "🖼️", name: "Retratos", desc: "Te toca retratar en secreto a otro jugador; todos puntúan el parecido." },
-    { v: "parejas", emoji: "👯", name: "Por parejas", desc: "Por parejas que cambian cada ronda, los dos a la vez en el mismo lienzo. Luego todos puntúan del 1 al 5. Desde 4 jugadores." },
-    { v: "degradado", emoji: "🌀", name: "Degradado", desc: "Uno se inventa un dibujo en 3 min; los siguientes lo ven 10 s y lo copian de memoria con cada vez menos tiempo, hasta 15 s." },
-    { v: "triptico", emoji: "🧩", name: "Tríptico", desc: "Uno dibuja la cabeza, otro el cuerpo y otro las piernas, viendo solo la unión. Al final, ¡a ver qué criaturas salen! Desde 3 jugadores." },
-    { v: "extremo", emoji: "🔥", name: "Dibujo extremo", desc: "Como el clásico, pero en cada vuelta de dibujo toca una limitación: solo círculos, solo cuadrados o sin levantar el lápiz." },
+    { v: "telefono", emoji: "✏️", name: "Clásico", desc: "Frase, dibujo, adivina… ¡y mirad cómo cambia la historia!" },
+    { v: "votacion", emoji: "⭐", name: "Votación", desc: "Todos dibujáis la misma frase y os puntuáis del 1 al 5." },
+    { v: "retratos", emoji: "🖼️", name: "Retratos", desc: "Retratas en secreto a otro jugador; todos puntúan el parecido." },
+    { v: "parejas", emoji: "👯", name: "Por parejas", min: "desde 4", desc: "De dos en dos en el mismo lienzo, y luego todos puntúan." },
+    { v: "degradado", emoji: "🌀", name: "Degradado", desc: "Copiad un dibujo de memoria, cada vez con menos tiempo." },
+    { v: "triptico", emoji: "🧩", name: "Tríptico", min: "desde 3", desc: "Cabeza, cuerpo y piernas, cada parte de alguien distinto." },
+    { v: "extremo", emoji: "🔥", name: "Dibujo extremo", desc: "Como el clásico, pero con limitaciones locas al dibujar." },
   ];
   const modeInfo = (v) => MODES.find((m) => m.v === v) || MODES[0];
   function buildModeList() {
@@ -890,7 +900,9 @@
       b.setAttribute("aria-pressed", String(state && state.settings.mode === m.v));
       b.appendChild(el("span", "mi-emoji", m.emoji));
       const t = el("span", "mi-text");
-      t.appendChild(el("strong", "", m.name));
+      const nm = el("strong", "", m.name);
+      if (m.min) nm.appendChild(el("small", "mi-min", m.min));
+      t.appendChild(nm);
       t.appendChild(el("span", "", m.desc));
       b.appendChild(t);
       b.addEventListener("click", () => {

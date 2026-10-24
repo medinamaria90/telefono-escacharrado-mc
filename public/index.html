@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es">
+<html lang="es" class="fonts-wait">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
@@ -26,6 +26,14 @@
 <script defer src="https://cloud.umami.is/script.js" data-website-id="e90283f4-94e1-4097-bab9-cadfc3cdd271" data-domains="dibulios.onrender.com" data-exclude-search="true" data-auto-track="false"></script>
 </head>
 <body>
+<script>
+  // Mientras llega la letra de Dibulíos, el inicio no se enseña (si no, el logo «salta» al cambiar la letra)
+  (function () {
+    var done = function () { document.documentElement.classList.remove("fonts-wait"); };
+    setTimeout(done, 1200);
+    try { Promise.all([document.fonts.load('400 40px "Bagel Fat One"'), document.fonts.load('400 16px "Atkinson Hyperlegible"')]).then(done, done); } catch (e) { done(); }
+  })();
+</script>
 <div class="app">
 
   <header class="topbar" id="topbar">
@@ -426,6 +434,7 @@
         <button class="btn secondary" id="leaveNo" type="button">Seguir jugando</button>
         <button class="btn danger-btn" id="leaveYes" type="button">Salir</button>
       </div>
+      <button class="btn primary leave-lobby" id="leaveLobby" type="button" hidden>↩️ Volver todos a la sala</button>
     </div>
   </div>
 

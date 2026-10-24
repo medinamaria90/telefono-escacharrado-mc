@@ -767,6 +767,7 @@ body.face-mode .pad-inner { overflow: hidden; }
 .mode-item .mi-emoji { font-size: 1.8rem; line-height: 1; flex: none; }
 .mode-item .mi-text { display: flex; flex-direction: column; gap: 2px; }
 .mode-item .mi-text span { font-size: .85rem; opacity: .85; line-height: 1.3; }
+.mode-item .mi-min { margin-left: 8px; font-size: .7rem; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--line); opacity: .9; vertical-align: 2px; }
 /* degradado: mirar 10 segundos */
 .memorize { position: fixed; inset: 0; z-index: 45; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 16px; padding-top: calc(16px + env(safe-area-inset-top, 0px)); }
 .memorize img { flex: 1 1 auto; min-height: 0; max-width: 100%; object-fit: contain; background: #fff; border: 2px solid var(--ink); border-radius: 14px; box-shadow: var(--shadow); }
@@ -901,3 +902,9 @@ input, textarea, select { font-size: max(16px, 1em) !important; }
 .share-preview img { max-width: 100%; max-height: calc(100dvh - 250px); width: auto; height: auto; border-radius: 12px; border: 2px solid var(--ink); box-shadow: var(--shadow); background: #fff; }
 .share-wait { margin: 40px 0; color: var(--muted); font-weight: 700; }
 .share-close { align-self: center; }
+
+.leave-lobby { width: 100%; margin-top: 10px; }
+
+/* sin «salto» al abrir: el inicio aparece cuando ya está su letra */
+.fonts-wait #s-home { opacity: 0; }
+#s-home { transition: opacity .18s ease; }

@@ -1449,6 +1449,11 @@ io.on("connection", (socket) => {
     duoApprove(room, player.id, drawerId);
   });
 
+  // El anfitrión cancela la partida en marcha y todos vuelven a la sala (mismo código)
+  socket.on("cancelGame", () => {
+    if (!isHost() || room.phase === "lobby") return;
+    backToLobby(room);
+  });
   socket.on("lobby", () => {
     if (!isHost() || (room.phase !== "end" && room.phase !== "reveal")) return;
     backToLobby(room);
