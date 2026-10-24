@@ -3217,8 +3217,6 @@
   let shareVid = null;
   async function shareFiles(files, kind) {
     const st = sharing || {};
-    const owner = st.owner && st.owner.name ? st.owner.name : "";
-    const who = artistNames(st);
     const text = (st.variant === "triptych" ? "Nuestra criatura en Dibulíos 🎨 " : "Nuestra historia en Dibulíos ✏️ ") + location.origin;
     if (navigator.canShare && navigator.canShare({ files })) {
       try {
