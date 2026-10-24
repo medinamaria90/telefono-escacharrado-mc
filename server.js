@@ -213,9 +213,13 @@ function addBots(room) {
 function botContent(room, botId) {
   const game = room.game;
   const idx = game.order.indexOf(botId);
+  if (game.mode === "chain" && game.variant === "triptych" && game.stepType === "draw") return { content: ART.drawPart(TRIPTYCH_PARTS[game.step]) };
   if (game.mode === "chain" && game.step > 0) {
     const book = game.books[chainBookIndex(game, idx)];
     const prev = book.entries[game.step - 1];
+    if (game.stepType === "draw" && game.variant === "triptych") {
+      return { content: ART.drawPart(TRIPTYCH_PARTS[game.step]) };
+    }
     if (game.stepType === "draw") {
       if (prev.type === "draw") {
         // Degradado: copia de memoria, cada vez peor
@@ -374,7 +378,7 @@ function chainLength(n) {
   return n === 3 ? 5 : n;
 }
 function typeForChainStep(k, variant) {
-  if (variant === "degrade") return "draw"; // Degradado: todo son dibujos (el primero, inventado)
+  if (variant === "degrade" || variant === "triptych") return "draw"; // Degradado y Tríptico: todo son dibujos
   if (k === 0) return "write";
   return k % 2 === 1 ? "draw" : "guess";
 }
@@ -393,14 +397,17 @@ const degradeSteps = (n) => Math.min(8, Math.max(4, n));
 const RULES = ["circles", "squares", "oneline"];
 // Modos que se juegan por rondas con votación de estrellas
 const VOTE_MODES = ["votacion", "retratos", "parejas"];
-const MODES = ["telefono", ...VOTE_MODES, "degradado", "extremo"];
-const minPlayersFor = (mode) => (mode === "parejas" ? 4 : 2);
+const CHAIN_MODES = ["degradado", "extremo", "triptico"]; // siempre en cadena, aunque sean 2
+const MODES = ["telefono", ...VOTE_MODES, ...CHAIN_MODES];
+const minPlayersFor = (mode) => (mode === "parejas" ? 4 : mode === "triptico" ? 3 : 2);
+// Tríptico: cada criatura se dibuja en 3 partes, cada una de alguien distinto
+const TRIPTYCH_PARTS = ["head", "body", "legs"];
 
 function startGame(room) {
   const order = shuffle([...room.players.values()].filter((p) => !p.left).map((p) => p.id));
   const n = order.length;
   const game = {
-    mode: VOTE_MODES.includes(room.settings.mode) ? "vote" : ["degradado", "extremo"].includes(room.settings.mode) || n > 2 ? "chain" : "duo",
+    mode: VOTE_MODES.includes(room.settings.mode) ? "vote" : CHAIN_MODES.includes(room.settings.mode) || n > 2 ? "chain" : "duo",
     order,
     step: 0,
     stepType: null,
@@ -410,8 +417,8 @@ function startGame(room) {
   };
   if (game.mode === "chain") {
     // Dibujo extremo: como el clásico, pero en cada vuelta de dibujo todos tienen la misma limitación
-    game.variant = room.settings.mode === "degradado" ? "degrade" : room.settings.mode === "extremo" ? "extreme" : "classic";
-    game.steps = game.variant === "degrade" ? degradeSteps(n) : n === 2 ? 4 : chainLength(n);
+    game.variant = room.settings.mode === "degradado" ? "degrade" : room.settings.mode === "extremo" ? "extreme" : room.settings.mode === "triptico" ? "triptych" : "classic";
+    game.steps = game.variant === "degrade" ? degradeSteps(n) : game.variant === "triptych" ? 3 : n === 2 ? 4 : chainLength(n);
     game.stepRules = [];
     if (game.variant === "extreme") {
       // Las limitaciones se deciden al empezar, así quien escribe la frase ya sabe cómo se dibujará.
@@ -681,6 +688,7 @@ function taskFor(room, playerId) {
     base.totalSteps = game.steps;
     base.variant = game.variant;
     if (game.variant === "degrade") base.seconds = game.copySeconds;
+    if (game.variant === "triptych") base.part = TRIPTYCH_PARTS[game.step];
     if (game.variant === "extreme" && game.stepType === "draw") base.rule = game.stepRules[game.step];
     // Al escribir la frase: con qué limitación se va a dibujar
     if (game.variant === "extreme" && game.stepType === "write") base.nextRule = game.stepRules[game.step + 1];
@@ -1153,7 +1161,7 @@ function stateFor(room, playerId) {
     hostId: room.hostId,
     phase: room.phase,
     settings: room.settings,
-    mode: game ? game.mode : VOTE_MODES.includes(room.settings.mode) ? "vote" : ["degradado", "extremo"].includes(room.settings.mode) || players.length !== 2 ? "chain" : "duo",
+    mode: game ? game.mode : VOTE_MODES.includes(room.settings.mode) ? "vote" : CHAIN_MODES.includes(room.settings.mode) || players.length !== 2 ? "chain" : "duo",
     chainSteps: chainLength(Math.max(players.length, 3)),
     players: players.map((p) => ({
       id: p.id,

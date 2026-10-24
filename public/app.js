@@ -179,7 +179,7 @@
   });
   // Sonidos según lo que cambia entre un estado y el siguiente
   const modeName = (m, kind, variant) =>
-    m === "duo" ? "duo" : m === "vote" ? (kind === "portrait" ? "retratos" : kind === "pairs" ? "parejas" : "votacion") : variant === "degrade" ? "degradado" : variant === "extreme" ? "extremo" : "telefono";
+    m === "duo" ? "duo" : m === "vote" ? (kind === "portrait" ? "retratos" : kind === "pairs" ? "parejas" : "votacion") : variant === "degrade" ? "degradado" : variant === "extreme" ? "extremo" : variant === "triptych" ? "triptico" : "telefono";
   function trackGame(prev, next) {
     if (!prev || prev.code !== next.code || next.hostId !== next.you) return;
     const n = next.players.filter((p) => !p.left).length;
@@ -518,6 +518,8 @@
     ensurePad();
     pad.shared = false;
     pad.forcePortrait = true;
+    pad.forceLandscape = false;
+    pad.setGuide(null);
     pad.reset();
     pad.setRule(null);
     applyRuleToolbar(null);
@@ -852,6 +854,7 @@
     { v: "retratos", emoji: "🖼️", name: "Retratos", desc: "Te toca retratar en secreto a otro jugador; todos puntúan el parecido." },
     { v: "parejas", emoji: "👯", name: "Por parejas", desc: "Por parejas que cambian cada ronda, los dos a la vez en el mismo lienzo. Luego todos puntúan del 1 al 5. Desde 4 jugadores." },
     { v: "degradado", emoji: "🌀", name: "Degradado", desc: "Uno se inventa un dibujo en 3 min; los siguientes lo ven 10 s y lo copian de memoria con cada vez menos tiempo, hasta 15 s." },
+    { v: "triptico", emoji: "🧩", name: "Tríptico", desc: "Uno dibuja la cabeza, otro el cuerpo y otro las piernas, viendo solo la unión. Al final, ¡a ver qué criaturas salen! Desde 3 jugadores." },
     { v: "extremo", emoji: "🔥", name: "Dibujo extremo", desc: "Como el clásico, pero en cada vuelta de dibujo toca una limitación: solo círculos, solo cuadrados o sin levantar el lápiz." },
   ];
   const modeInfo = (v) => MODES.find((m) => m.v === v) || MODES[0];
@@ -897,6 +900,9 @@
       const txt = rule === "mix" ? "Como el clásico, pero cada vuelta de dibujo con una limitación distinta: ⭕ círculos, ⬛ cuadrados o 〰️ de un trazo." : rule === "circles" ? "Como el clásico, pero dibujando solo con círculos." : rule === "squares" ? "Como el clásico, pero dibujando solo con cuadrados." : "Como el clásico, pero cada dibujo de un solo trazo, sin levantar el lápiz.";
       return [`Dibujo extremo · ${steps} pasos por historia`, txt];
     }
+    if (state.settings.mode === "triptico") {
+      return ["Tríptico · cabeza, cuerpo y piernas", "Cada criatura la dibujan tres personas: cabeza, cuerpo y piernas, viendo solo la unión con la parte anterior. Al final se descubren enteras."];
+    }
     if (state.settings.mode === "parejas") {
       return [`Por parejas · ${state.settings.duoRounds} rondas`, "Uno elige qué dibujar y cada pareja lo dibuja a la vez en un lienzo compartido. Todos puntuáis del 1 al 5; los puntos son de cada uno y las parejas cambian cada ronda."];
     }
@@ -922,7 +928,7 @@
     $("shareLink").value = location.origin + "/?sala=" + state.code;
     $("playerCount").textContent = `${n} de ${state.maxPlayers}`;
     // Cuánta gente falta para empezar: en el cuadro de jugadores
-    const minP = state.settings.mode === "parejas" ? 4 : 2;
+    const minP = state.settings.mode === "parejas" ? 4 : state.settings.mode === "triptico" ? 3 : 2;
     const needed = minP - n;
     $("playersNeed").hidden = needed <= 0;
     if (needed > 0) $("playersNeed").textContent = (needed === 1 ? "Falta 1 jugador" : `Faltan ${needed} jugadores`) + " · comparte el enlace";
@@ -1048,7 +1054,7 @@
     if (task.type === "draw") {
       show("s-draw");
       const copying = task.variant === "degrade" && task.prompt && task.prompt.kind === "image";
-      $("drawWhat").textContent = copying ? "Cópialo de memoria" : task.variant === "degrade" ? "Invéntate un dibujo: lo que quieras" : task.secret != null ? task.secret : task.prompt ? (task.prompt.value || "(sin respuesta)") : "";
+      $("drawWhat").textContent = task.variant === "triptych" ? TRIPTYCH_WHAT[task.part] || "" : copying ? "Cópialo de memoria" : task.variant === "degrade" ? "Invéntate un dibujo: lo que quieras" : task.secret != null ? task.secret : task.prompt ? (task.prompt.value || "(sin respuesta)") : "";
       $("drawWhat").classList.toggle("long", $("drawWhat").textContent.length > 26);
       $("rerollBtn").hidden = !(task.secret != null && task.rerolls > 0);
       $("rerollBtn").textContent = `🎲 ${task.rerolls}`;
@@ -1070,8 +1076,11 @@
       pad.shared = pairs;
       pad.selfId = state.you;
       pad.forcePortrait = pairs;
+      // Tríptico: cada parte en una franja horizontal, como el papel doblado
+      pad.forceLandscape = task.variant === "triptych";
       pad.remote = {};
       document.body.classList.toggle("pairs-draw", pairs);
+      document.body.classList.toggle("triptych-draw", task.variant === "triptych");
       pad.reset();
       // Cada dibujo nuevo empieza con lápiz negro y tamaño estándar
       pad.tool = "pen";
@@ -1084,7 +1093,17 @@
       $("drawStep").textContent = stepLabel(task);
       pad.setRule(task.rule || null);
       applyRuleToolbar(task.rule || null);
-      if (task.variant === "degrade") {
+      pad.setGuide(null);
+      if (task.variant === "triptych") {
+        const n = { head: 1, body: 2, legs: 3 }[task.part] || 1;
+        $("drawStep").textContent = `Parte ${n} de 3 · ${TRIPTYCH_NAME[task.part]}`;
+        const prevImg = task.prompt && task.prompt.kind === "image" ? task.prompt.value : null;
+        pad.setGuide({
+          top: task.part !== "head" ? prevImg || null : null,
+          topLabel: "↑ Sigue desde aquí",
+          bottom: task.part === "head" ? "↓ Asoma el cuello hasta aquí" : task.part === "body" ? "↓ Asoma las piernas hasta aquí" : null,
+        });
+      } else if (task.variant === "degrade") {
         const copying = task.prompt && task.prompt.kind === "image";
         $("drawStep").textContent = stepLabel(task) + (copying ? ` · De memoria en ${timeLabel(task.seconds)}` : ` · Dibujo libre, ${timeLabel(task.seconds)}`);
         if (copying && task.viewUntil) showMemorize(task);
@@ -1812,7 +1831,7 @@
     document.querySelectorAll(".size-dot").forEach((d) => (d.style.background = ink));
     $("pad").dataset.tool = pad.tool;
     const ob = $("orientBtn");
-    ob.hidden = !!pad.forcePortrait || !pad.blank; // solo antes de empezar a dibujar
+    ob.hidden = !!pad.forcePortrait || !!pad.forceLandscape || !pad.blank; // solo antes de empezar a dibujar
     const toH = pad.orient !== "h";
     if (ob.dataset.to !== String(toH)) {
       ob.dataset.to = String(toH);
@@ -2313,18 +2332,64 @@
     d.appendChild(el("span", "", "Arte minimalista"));
     return d;
   }
-  function paintStory(o) {
-    show("s-reveal");
-    // Historia completa a la vista: se puede compartir
-    const full = SHARE_ENABLED && o.entries.length >= o.total;
-    $("shareStoryBtn").hidden = !full;
-    $("revealHead").classList.toggle("has-share", full);
-    sharing = full ? { owner: o.owner, entries: o.entries.slice() } : null;
-    $("revealCount").textContent = o.count;
-    setWho($("revealTitle"), "La historia de", o.owner);
-    const dots = $("revealDots");
-    dots.innerHTML = "";
-    for (let i = 0; i < o.total; i++) dots.appendChild(el("span", "dot" + (i < o.entries.length ? " on" : "") + (i === o.entries.length - 1 ? " now" : "")));
+  // ---------- tríptico: una criatura en tres partes ----------
+  const TRIPTYCH_NAME = { head: "La cabeza", body: "El cuerpo", legs: "Las piernas" };
+  const TRIPTYCH_WHAT = { head: "Dibuja una cabeza (de lo que quieras)", body: "Dibuja un cuerpo, con sus brazos", legs: "Dibuja las piernas y los pies" };
+  const TRIPTYCH_PART = ["head", "body", "legs"];
+  const composed = new Map();
+  /** Junta las partes en una sola imagen vertical: cada parte monta su franja de arriba sobre la anterior */
+  function composeTriptych(urls) {
+    const key = urls.map((u) => u || "-").join("|");
+    if (composed.has(key)) return composed.get(key);
+    const VW = 900, VH = 600, STEP = 510; // 90 px de unión
+    const pr = Promise.all(urls.map((u) => (u ? loadImg(u) : Promise.resolve(null)))).then((imgs) => {
+      const c = document.createElement("canvas");
+      c.width = VW;
+      c.height = VH + STEP * (imgs.length - 1);
+      const ctx = c.getContext("2d");
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, c.width, c.height);
+      imgs.forEach((im, i) => {
+        const y = i * STEP;
+        if (im) {
+          ctx.save();
+          ctx.globalCompositeOperation = "multiply"; // las uniones se ven las dos
+          ctx.drawImage(im, 0, y, VW, VH);
+          ctx.restore();
+        } else {
+          ctx.fillStyle = "#8a8e99";
+          ctx.font = '700 40px "Atkinson Hyperlegible", system-ui, sans-serif';
+          ctx.textAlign = "center";
+          ctx.fillText("🎨 (esta parte se quedó en blanco)", VW / 2, y + VH / 2);
+        }
+      });
+      return c.toDataURL("image/jpeg", 0.9);
+    });
+    composed.set(key, pr);
+    return pr;
+  }
+  function paintTriptych(o) {
+    const st = $("revealStage");
+    st.innerHTML = "";
+    $("revealPrev").hidden = true;
+    const by = el("div", "stage-by triptych-by");
+    o.entries.forEach((e, i) => {
+      if (i) by.appendChild(document.createTextNode(" · "));
+      by.appendChild(document.createTextNode(TRIPTYCH_NAME[TRIPTYCH_PART[i]] + ": "));
+      by.appendChild(who(e.by, ""));
+    });
+    st.appendChild(by);
+    const holder = el("div", "triptych-holder");
+    st.appendChild(holder);
+    const urls = o.entries.map((e) => e.content || null);
+    const title = "Criatura de " + (o.owner && o.owner.name ? o.owner.name : "alguien");
+    composeTriptych(urls).then((src) => {
+      if (!holder.isConnected) return;
+      holder.appendChild(stageImg(src, null, title));
+      if (o.entries.length >= o.total) st.appendChild(saveBtn(src, title, null));
+    });
+  }
+  function paintStoryStage(o) {
     const cur = o.entries[o.entries.length - 1];
     const prev = o.entries.length > 1 ? o.entries[o.entries.length - 2] : null;
     const guessOfDrawing = cur.type === "guess" && prev && prev.type === "draw" && prev.content;
@@ -2374,6 +2439,22 @@
         st.appendChild(el("p", "stage-bubble " + (cur.type === "write" ? "is-write" : "is-guess"), cur.content));
       }
     }
+  }
+  function paintStory(o) {
+    show("s-reveal");
+    // Historia completa a la vista: se puede compartir
+    const full = SHARE_ENABLED && o.entries.length >= o.total;
+    $("shareStoryBtn").hidden = !full;
+    $("revealHead").classList.toggle("has-share", full);
+    sharing = full ? { owner: o.owner, entries: o.entries.slice() } : null;
+    $("revealCount").textContent = o.count;
+    setWho($("revealTitle"), o.variant === "triptych" ? "La criatura de" : "La historia de", o.owner);
+    const dots = $("revealDots");
+    dots.innerHTML = "";
+    for (let i = 0; i < o.total; i++) dots.appendChild(el("span", "dot" + (i < o.entries.length ? " on" : "") + (i === o.entries.length - 1 ? " now" : "")));
+    if (o.variant === "triptych") paintTriptych(o);
+    else paintStoryStage(o);
+    const st = $("revealStage");
     if (o.animate) {
       $("zoomSheet").hidden = true; // pasa al siguiente: se cierra el visor
       st.classList.remove("pop-in");
@@ -2608,14 +2689,15 @@
     const lastBook = r.book >= r.totalBooks - 1;
     const hostP = state.players.find((p) => p.id === state.hostId);
     paintStory({
-      count: `Historia ${r.book + 1} de ${r.totalBooks}`,
+      variant: state.variant,
+      count: `${state.variant === "triptych" ? "Criatura" : "Historia"} ${r.book + 1} de ${r.totalBooks}`,
       owner: r.owner,
       entries: r.entries,
       total: r.totalEntries,
       animate: key !== lastRevealKey,
       controls: host,
       prevDisabled: r.book === 0 && r.entry === 0,
-      nextLabel: !atEnd ? "Siguiente" : lastBook ? "Terminar" : "Siguiente historia",
+      nextLabel: !atEnd ? "Siguiente" : lastBook ? "Terminar" : state.variant === "triptych" ? "Siguiente criatura" : "Siguiente historia",
       hint: host ? "" : `${nameOf(hostP, "El anfitrión")} va pasando las páginas.`,
     });
     lastRevealKey = key;
@@ -2642,7 +2724,8 @@
     const atEnd = viewer.entry >= b.entries.length - 1;
     const lastBook = viewer.book >= gallery.books.length - 1;
     paintStory({
-      count: `Historia ${viewer.book + 1} de ${gallery.books.length}`,
+      variant: gallery.variant,
+      count: `${gallery.variant === "triptych" ? "Criatura" : "Historia"} ${viewer.book + 1} de ${gallery.books.length}`,
       owner: b.owner,
       entries: b.entries.slice(0, viewer.entry + 1),
       total: b.entries.length,
@@ -2650,7 +2733,7 @@
       controls: true,
       prevDisabled: false,
       prevLabel: viewer.book === 0 && viewer.entry === 0 ? "Volver" : "Anterior",
-      nextLabel: !atEnd ? "Siguiente" : lastBook ? "Volver" : "Siguiente historia",
+      nextLabel: !atEnd ? "Siguiente" : lastBook ? "Volver" : gallery.variant === "triptych" ? "Siguiente criatura" : "Siguiente historia",
       hint: "Mantén el dedo sobre un dibujo para guardarlo.",
     });
   }
@@ -2680,31 +2763,91 @@
   let bookReturn = null; // a dónde volver al salir del cuaderno
   let editingId = null; // dibujo del cuaderno que se está editando
   const BOOK_KEY = "tg-cuaderno";
-  const BOOK_MAX = 40;
-  function readBook() {
+  const BOOK_MAX = 200;
+  // El cuaderno vive en IndexedDB (cabe mucho más que en localStorage, que se llena con ~40 dibujos).
+  // Se trabaja con una copia en memoria; cada cambio se guarda en segundo plano.
+  let bookCache = (() => {
     try {
       return JSON.parse(localStorage.getItem(BOOK_KEY) || "[]");
     } catch (_) {
       return [];
     }
+  })();
+  let bookWritten = false; // se ha guardado algo antes de terminar de cargar
+  let bookDb = null;
+  const idb = (() => {
+    try {
+      return window.indexedDB || null;
+    } catch (_) {
+      return null;
+    }
+  })();
+  function openBookDb() {
+    if (bookDb) return bookDb;
+    bookDb = new Promise((ok, ko) => {
+      if (!idb) return ko(new Error("sin IndexedDB"));
+      const rq = idb.open("dibulios", 1);
+      rq.onupgradeneeded = () => rq.result.createObjectStore("kv");
+      rq.onsuccess = () => ok(rq.result);
+      rq.onerror = () => ko(rq.error);
+    });
+    return bookDb;
+  }
+  function idbDo(mode, fn) {
+    return openBookDb().then((db) => new Promise((ok, ko) => {
+      const tx = db.transaction("kv", mode);
+      const rq = fn(tx.objectStore("kv"));
+      tx.oncomplete = () => ok(rq && rq.result);
+      tx.onerror = () => ko(tx.error);
+      tx.onabort = () => ko(tx.error);
+    }));
+  }
+  // Al abrir: se carga de IndexedDB; la primera vez, se mudan los dibujos de localStorage
+  idbDo("readonly", (st) => st.get("book"))
+    .then((saved) => {
+      if (Array.isArray(saved)) {
+        if (!bookWritten) bookCache = saved;
+        try {
+          localStorage.removeItem(BOOK_KEY);
+        } catch (_) {}
+      } else if (bookCache.length) {
+        return idbDo("readwrite", (st) => st.put(bookCache, "book")).then(() => {
+          try {
+            localStorage.removeItem(BOOK_KEY);
+          } catch (_) {}
+        });
+      }
+    })
+    .catch(() => {});
+  function readBook() {
+    return bookCache.slice();
   }
   function writeBook(list) {
-    if (!list.length) {
-      try {
-        localStorage.setItem(BOOK_KEY, "[]");
-      } catch (_) {}
+    if (list.length > BOOK_MAX) list.length = BOOK_MAX;
+    bookCache = list.slice();
+    bookWritten = true;
+    if (idb) {
+      idbDo("readwrite", (st) => st.put(bookCache, "book")).catch(() => saveBookLocal(bookCache.slice()));
       return true;
     }
+    return saveBookLocal(list);
+  }
+  /** Sin IndexedDB: localStorage, quitando los más antiguos si no cabe */
+  function saveBookLocal(list) {
     while (list.length) {
       try {
         localStorage.setItem(BOOK_KEY, JSON.stringify(list));
         return true;
       } catch (_) {
-        list.pop(); // sin espacio: se quita el más antiguo
+        list.pop();
       }
     }
-    return false;
+    try {
+      localStorage.setItem(BOOK_KEY, "[]");
+    } catch (_) {}
+    return !list.length;
   }
+
   /** Guarda en el cuaderno un dibujo que se ha visto en la partida (tuyo o de otra persona) */
   /** Los dibujos de la partida llegan como dirección; el cuaderno guarda la imagen en sí (la sala desaparece) */
   function asDataUrl(src) {
@@ -2766,10 +2909,12 @@
     bookOpen = false;
     editingId = edit ? edit.id : null;
     document.body.classList.add("solo");
-    document.body.classList.remove("pairs-draw");
+    document.body.classList.remove("pairs-draw", "triptych-draw");
     ensurePad();
     pad.shared = false;
     pad.forcePortrait = false;
+    pad.forceLandscape = false;
+    pad.setGuide(null);
     pad.reset();
     pad.setRule(null);
     applyRuleToolbar(null);

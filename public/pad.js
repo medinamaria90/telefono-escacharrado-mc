@@ -166,6 +166,7 @@
       this.blank = true; // lienzo sin tocar: su orientación sigue a la del móvil
       this.screenLandscape = false;
       this.forcePortrait = false; // p. ej. al dibujar la carita: siempre vertical
+      this.forceLandscape = false; // Tríptico: siempre una franja horizontal
       this.fillClip = null; // {cx, cy, r}: el cubo no pasa de este círculo (carita)
       this.rule = null; // dibujo extremo: "circles" | "squares" | "oneline"
       this.lineUsed = false;
@@ -179,6 +180,13 @@
       this.canvas.height = H;
       this.canvas.className = "pad-canvas";
       this.inner.appendChild(this.canvas);
+      // Guía (Tríptico): la unión con la parte anterior; se ve pero no forma parte del dibujo
+      this.guide = document.createElement("canvas");
+      this.guide.width = W;
+      this.guide.height = H;
+      this.guide.className = "pad-guide";
+      this.guide.hidden = true;
+      this.inner.appendChild(this.guide);
       // Capa del rotulador: el trazo se ve aquí y al soltar se funde con el dibujo
       this.over = document.createElement("canvas");
       this.over.width = W;
@@ -219,6 +227,7 @@
     setScreenLandscape(l) {
       this.screenLandscape = !!l;
       if (this.forcePortrait) return this._setRotated(false);
+      if (this.forceLandscape) return this._setRotated(true);
       if (this.blank && this.userOrient == null) this._setRotated(this.screenLandscape);
       this.onOrient(this.rotated !== this.screenLandscape);
     }
@@ -257,7 +266,7 @@
       const before = keepCenter || this._center();
       const a = this.baseWidth() * this.zoom; // ancho del lienzo vertical
       const b = (a * H) / W; // alto del lienzo vertical
-      for (const c of [this.canvas, this.over]) {
+      for (const c of [this.canvas, this.guide, this.over]) {
         c.style.position = "absolute";
         c.style.left = "0";
         c.style.top = "0";
@@ -379,7 +388,7 @@
       this.lineUsed = false;
       // Lienzo vacío otra vez: vuelve a seguir la orientación del móvil
       const want = this.userOrient != null ? this.userOrient : this.screenLandscape;
-      if (record && !this.forcePortrait && !!this.rotated !== want) {
+      if (record && !this.forcePortrait && !this.forceLandscape && !!this.rotated !== want) {
         this._setRotated(want);
         this.onOrient(false);
       }
@@ -398,13 +407,74 @@
       this.dirty = false;
       this.blank = true;
       this.userOrient = null;
-      this.rotated = this.forcePortrait ? false : this.screenLandscape;
+      this.rotated = this.forcePortrait ? false : this.forceLandscape ? true : this.screenLandscape;
       this.zoom = 1;
       this.tool = "pen";
       this.layout();
       this.stage.scrollLeft = 0;
       this.stage.scrollTop = 0;
       this.onChange();
+    }
+    /**
+     * Tríptico: guía de unión, dibujada en coordenadas de pantalla (franja de 900x600).
+     * top = imagen de la parte anterior (se ve solo su franja de abajo, arriba del lienzo);
+     * bottom = marcar abajo la zona que verá el siguiente.
+     */
+    setGuide(opts) {
+      const g = this.guide.getContext("2d");
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      g.clearRect(0, 0, W, H);
+      this.guide.hidden = !opts;
+      if (!opts) return;
+      const VW = H, VH = W, BAND = Math.round(VH * 0.15); // franja visible: 900x600, unión de 90 px
+      const v = document.createElement("canvas");
+      v.width = VW;
+      v.height = VH;
+      const x = v.getContext("2d");
+      const paint = () => {
+        g.setTransform(1, 0, 0, 1, 0, 0);
+        g.clearRect(0, 0, W, H);
+        if (this.rotated) {
+          g.translate(W, 0);
+          g.rotate(Math.PI / 2);
+          g.drawImage(v, 0, 0, H, W);
+          g.setTransform(1, 0, 0, 1, 0, 0);
+        } else g.drawImage(v, 0, 0, W, H);
+      };
+      const dashed = (y, label, labelY) => {
+        x.save();
+        x.setLineDash([18, 14]);
+        x.lineWidth = 4;
+        x.strokeStyle = "rgba(255,90,60,.9)";
+        x.beginPath();
+        x.moveTo(0, y);
+        x.lineTo(VW, y);
+        x.stroke();
+        x.restore();
+        x.font = '700 26px "Atkinson Hyperlegible", system-ui, sans-serif';
+        x.fillStyle = "rgba(255,90,60,.95)";
+        x.textAlign = "center";
+        x.fillText(label, VW / 2, labelY);
+      };
+      if (opts.bottom) {
+        x.fillStyle = "rgba(255,90,60,.07)";
+        x.fillRect(0, VH - BAND, VW, BAND);
+        dashed(VH - BAND, opts.bottom, VH - BAND - 14);
+      }
+      if (opts.top) {
+        const im = new Image();
+        im.onload = () => {
+          // de la parte anterior, solo su franja de abajo
+          const sh = im.naturalHeight * 0.15;
+          x.globalAlpha = 0.55;
+          x.drawImage(im, 0, im.naturalHeight - sh, im.naturalWidth, sh, 0, 0, VW, BAND);
+          x.globalAlpha = 1;
+          dashed(BAND, opts.topLabel || "", BAND + 34);
+          paint();
+        };
+        im.src = opts.top;
+      }
+      paint();
     }
     /** Carga una imagen guardada como punto de partida (para editar) */
     loadImage(src, done) {

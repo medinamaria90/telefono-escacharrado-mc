@@ -864,3 +864,13 @@ input, textarea, select { font-size: max(16px, 1em) !important; }
   #s-text { justify-content: center; }
   #s-text #textSpacer { display: none; }
 }
+.pad-guide { position: absolute; left: 0; top: 0; pointer-events: none; }
+
+/* Tríptico: la criatura entera, con quién dibujó cada parte */
+.triptych-by { text-align: center; font-size: .85rem; line-height: 1.5; }
+.triptych-holder { flex: 1 1 0; min-height: 0; display: flex; }
+.triptych-holder .stage-frame { flex: 1 1 auto; }
+.pad-hint { display: none; }
+@media (orientation: portrait) {
+  body.triptych-draw .pad-hint { display: block; position: absolute; top: 14px; left: 0; right: 0; margin: 0; text-align: center; font-weight: 700; font-size: .9rem; color: var(--muted); pointer-events: none; z-index: 1; }
+}
