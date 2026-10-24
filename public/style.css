@@ -1151,3 +1151,4 @@ body.has-tabbar .home-screen { padding-bottom: calc(110px + env(safe-area-inset-
 .transfer-code { margin: 4px 0; text-align: center; font-size: 2.6rem; font-weight: 800; letter-spacing: .18em; color: var(--accent); font-variant-numeric: tabular-nums; }
 .transfer-input { text-align: center; letter-spacing: .3em; font-size: 1.3rem; }
 .big-ok { font-weight: 800; font-size: 1.05rem; padding: 18px 0; }
+.how-more { margin: 4px 0 0; font-size: .88rem; line-height: 1.5; color: var(--muted); }
