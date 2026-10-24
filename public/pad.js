@@ -445,55 +445,16 @@
       v.width = VW;
       v.height = VH;
       const x = v.getContext("2d");
-      const token = (this._guideToken = (this._guideToken || 0) + 1);
-      const anim = document.createElement("canvas");
-      anim.width = VW;
-      anim.height = VH;
       const paint = () => {
         g.setTransform(1, 0, 0, 1, 0, 0);
         g.clearRect(0, 0, W, H);
-        for (const src of [v, anim]) {
-          if (this.rotated) {
-            g.translate(W, 0);
-            g.rotate(Math.PI / 2);
-            g.drawImage(src, 0, 0, H, W);
-            g.setTransform(1, 0, 0, 1, 0, 0);
-          } else g.drawImage(src, 0, 0, W, H);
-        }
+        if (this.rotated) {
+          g.translate(W, 0);
+          g.rotate(Math.PI / 2);
+          g.drawImage(v, 0, 0, H, W);
+          g.setTransform(1, 0, 0, 1, 0, 0);
+        } else g.drawImage(v, 0, 0, W, H);
       };
-      // Pista animada: un lápiz que baja trazando hasta el borde (dos veces), y desaparece
-      const hint = () => {
-        const a = anim.getContext("2d");
-        const t0 = performance.now(), LOOP = 1300, LOOPS = 2;
-        const x0 = 150, yA = VH - BAND - 70, yB = VH - 4;
-        const step = (now) => {
-          if (token !== this._guideToken || this.guide.hidden) return;
-          const t = now - t0;
-          a.clearRect(0, 0, VW, VH);
-          if (t < LOOP * LOOPS + 300) {
-            const k = Math.min(1, (t % LOOP) / (LOOP * 0.8));
-            const e = 1 - Math.pow(1 - k, 3);
-            const fade = t > LOOP * LOOPS ? 1 - (t - LOOP * LOOPS) / 300 : 1;
-            const y = yA + (yB - yA) * e;
-            a.globalAlpha = 0.85 * fade;
-            a.strokeStyle = "#ff5a3c";
-            a.lineWidth = 7;
-            a.lineCap = "round";
-            a.beginPath();
-            a.moveTo(x0, yA);
-            a.quadraticCurveTo(x0 - 18, (yA + y) / 2, x0, y);
-            a.stroke();
-            a.font = "56px system-ui, sans-serif";
-            a.textAlign = "left";
-            a.fillText("✏️", x0 - 6, y - 4);
-            a.globalAlpha = 1;
-            paint();
-            requestAnimationFrame(step);
-          } else paint();
-        };
-        requestAnimationFrame(step);
-      };
-      if (opts.hint) setTimeout(hint, 500);
       const FONT = '"Atkinson Hyperlegible", system-ui, sans-serif';
       if (opts.bottom) {
         // Franja de abajo: es TUYA y sigue hasta el borde (lo que verá el siguiente)
