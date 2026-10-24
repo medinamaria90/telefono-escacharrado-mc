@@ -373,7 +373,20 @@
   // iPhone: Safari ignora «no ampliar» y, con un doble toque o un pellizco fuera del lienzo,
   // amplía toda la página (y cuesta quitarlo). Se bloquea; el lienzo y el visor tienen su propio zoom.
   const OWN_ZOOM = ".pad-stage, .zoom-wrap, .hue-bar, .shade-bar";
-  document.addEventListener("gesturestart", (e) => e.preventDefault());
+  // Si la página ya está ampliada (p. ej. al escribir), se deja pellizcar para volver a su tamaño
+  const pageZoomed = () => (window.visualViewport ? window.visualViewport.scale : 1) > 1.01;
+  document.addEventListener("gesturestart", (e) => {
+    if (!pageZoomed()) e.preventDefault();
+  });
+  // Al terminar de escribir, si Safari amplió la página, se devuelve a su tamaño
+  document.addEventListener("focusout", (e) => {
+    if (!typing(e.target) || !pageZoomed()) return;
+    const vp = document.querySelector('meta[name="viewport"]');
+    if (!vp) return;
+    const orig = vp.getAttribute("content");
+    vp.setAttribute("content", orig.replace(/maximum-scale=[^,]*/, "") + ", maximum-scale=1");
+    setTimeout(() => vp.setAttribute("content", orig), 300);
+  });
   // Mantener pulsado: ni selección azul ni menú de «guardar imagen» (salvo al escribir)
   const typing = (t) => t && t.closest && t.closest("input, textarea, [contenteditable='true']");
   document.addEventListener("selectstart", (e) => {
@@ -389,7 +402,7 @@
   document.addEventListener("touchend", (e) => {
     const t = Date.now();
     // segundo toque rápido sobre algo que no es un botón ni un campo: no se deja ampliar
-    if (t - lastTouchEnd < 350 && !e.target.closest("button, input, textarea, select, a, label, " + OWN_ZOOM)) e.preventDefault();
+    if (t - lastTouchEnd < 350 && !pageZoomed() && !e.target.closest("button, input, textarea, select, a, label, " + OWN_ZOOM)) e.preventDefault();
     lastTouchEnd = t;
   }, { passive: false });
   /** Confirmación dentro del propio botón (en vez de un aviso que tape nada) */
@@ -1055,6 +1068,7 @@
       // Por parejas: lienzo compartido, siempre vertical y sin deshacer (deshacer borraría lo del otro)
       const pairs = task.kind === "pairs";
       pad.shared = pairs;
+      pad.selfId = state.you;
       pad.forcePortrait = pairs;
       pad.remote = {};
       document.body.classList.toggle("pairs-draw", pairs);
@@ -1096,6 +1110,7 @@
     if (task.type === "vote") {
       votes = {};
       vIdx = 0;
+      vKey = null;
       delete $("voteGuess").dataset.k;
       $("voteGuess").value = "";
       return;
@@ -1238,6 +1253,15 @@
     });
     SFX.play("send");
   }
+  /** Lienzo en blanco: se manda «nada» (en la partida se ve como lienzo en blanco) */
+  function sendBlank() {
+    const key = currentStepKey;
+    $("drawDone").disabled = true;
+    socket.emit("submit", { stepKey: key, content: null }, () => {
+      $("drawDone").disabled = false;
+    });
+    SFX.play("send");
+  }
   // Latido: cada pocos segundos el móvil comprueba que el servidor le sigue teniendo dentro.
   // Si no contesta (conexión «zombi» tras bloquear la pantalla o cambiar de app), se reconecta.
   function checkAlive() {
@@ -1286,10 +1310,7 @@
   $("drawDone").addEventListener("click", () => {
     if (faceMode) return saveFace();
     if (soloMode) return saveToBook();
-    if (!pad.dirty) {
-      toast("Dibuja algo antes de terminar.");
-      return;
-    }
+    if (!pad.dirty) return sendBlank(); // sin dibujar: va el lienzo en blanco, sin avisos
     sendDrawing();
   });
   $("rerollBtn").addEventListener("click", () => {
@@ -1478,6 +1499,10 @@
     fill: '<path d="M3.5 10.5l6.5-6.5 7 7-6.5 6.5a1.5 1.5 0 01-2.1 0L3.5 12.6a1.5 1.5 0 010-2.1z" fill="var(--paint)" fill-opacity=".9"/><path d="M8 5.5L6 3.5"/><path d="M19 13.5s2.5 3 2.5 4.8a2.5 2.5 0 01-5 0c0-1.8 2.5-4.8 2.5-4.8z" fill="var(--paint)"/>',
     marker: '<path d="M14.5 4.5l5 5-8 8-5-5z" fill="var(--paint)" fill-opacity=".55"/><path d="M6.5 12.5l-2 6 1 1 6-2"/><path d="M4.5 18.5l-1.5 1.5"/>',
     water: '<path d="M14 4l6 6-7 7-6-6z"/><path d="M7 11c-2 1-3 3-3 5 0 1.5-.8 2.5-2 3 3 1 7 .5 8.5-1.5" fill="var(--paint)" fill-opacity=".45"/>',
+    line: '<path d="M5 19L19 5"/>',
+    rect: '<rect x="4.5" y="6.5" width="15" height="11" rx="1"/>',
+    ellipse: '<ellipse cx="12" cy="12" rx="8" ry="6"/>',
+    tri: '<path d="M12 5l8 14H4z"/>',
     spray: '<rect x="4" y="9" width="8" height="12" rx="2" fill="var(--paint)" fill-opacity=".9"/><path d="M6 9V6h4v3"/><path d="M8 6V4h3"/><circle cx="16" cy="4" r=".9" fill="currentColor" stroke="none"/><circle cx="19" cy="6" r=".9" fill="currentColor" stroke="none"/><circle cx="16.5" cy="8" r=".9" fill="currentColor" stroke="none"/><circle cx="20" cy="9.5" r=".9" fill="currentColor" stroke="none"/><circle cx="18" cy="11.5" r=".9" fill="currentColor" stroke="none"/>',
     undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 010 10h-3"/>',
     redo: '<path d="M15 14l5-5-5-5"/><path d="M20 9H9a5 5 0 000 10h3"/>',
@@ -1724,14 +1749,14 @@
     recentColors = [c].concat(recentColors.filter((x) => x !== c)).slice(0, RECENT_MAX);
     renderRecent();
   }
-  const POPS = [["brushes", "brushBtn"], ["sizes", "sizeToggle"], ["colors", "colorToggle"]];
+  const POPS = [["brushes", "brushBtn"], ["shapes", "shapeBtn"], ["sizes", "sizeToggle"], ["colors", "colorToggle"]];
   function togglePop(popId, open) {
     for (const [pid, bid] of POPS) {
       const pop = $(pid);
       const next = pid === popId ? (open == null ? pop.hidden : open) : false;
       pop.hidden = !next;
       $(bid).setAttribute("aria-expanded", String(next));
-      if (bid !== "brushBtn") $(bid).classList.toggle("active", next);
+      if (bid !== "brushBtn" && bid !== "shapeBtn") $(bid).classList.toggle("active", next);
     }
   }
   function closePops() {
@@ -1752,7 +1777,17 @@
   function updateToolbar() {
     if (!pad) return;
     const ink = pad.tool === "eraser" ? "#ffffff" : pad.color;
-    document.querySelectorAll("[data-tool]").forEach((b) => b.classList.toggle("active", b.id === "brushBtn" ? isBrush(pad.tool) : b.dataset.tool === pad.tool));
+    document.querySelectorAll("[data-tool]").forEach((b) => b.classList.toggle("active", b.id === "brushBtn" ? isBrush(pad.tool) : b.id === "shapeBtn" ? isShape(pad.tool) : b.dataset.tool === pad.tool));
+    if (isShape(pad.tool)) lastShape = pad.tool;
+    const sb = $("shapeBtn");
+    if (sb.dataset.shown !== lastShape) {
+      sb.dataset.shown = lastShape;
+      sb.innerHTML = svg(ICONS[lastShape]);
+      const nm = SHAPE_KINDS.find((x) => x.k === lastShape).name;
+      sb.title = nm;
+      sb.setAttribute("aria-label", nm + " (toca otra vez para elegir otra forma)");
+    }
+    document.querySelectorAll(".shape-opt").forEach((b) => b.classList.toggle("active", b.dataset.shape === pad.tool));
     if (isBrush(pad.tool)) lastBrush = pad.tool;
     const bb = $("brushBtn");
     if (bb.dataset.shown !== lastBrush) {
@@ -1796,7 +1831,7 @@
     }
   }
   document.querySelectorAll("[data-tool]").forEach((b) => {
-    if (b.id === "brushBtn") return;
+    if (b.id === "brushBtn" || b.id === "shapeBtn") return;
     b.addEventListener("click", () => {
       SFX.play("click");
       pad.tool = b.dataset.tool;
@@ -1835,6 +1870,38 @@
     updateToolbar();
   });
   let lastBrush = "pen";
+  // Formas: línea recta y figuras (se arrastra de una esquina a la otra)
+  const SHAPE_KINDS = [
+    { k: "line", name: "Línea" },
+    { k: "rect", name: "Rectángulo" },
+    { k: "ellipse", name: "Círculo" },
+    { k: "tri", name: "Triángulo" },
+  ];
+  const isShape = (t) => SHAPE_KINDS.some((x) => x.k === t);
+  let lastShape = "line";
+  SHAPE_KINDS.forEach((sh) => {
+    const b = el("button", "brush-opt shape-opt");
+    b.type = "button";
+    b.dataset.shape = sh.k;
+    b.innerHTML = svg(ICONS[sh.k]);
+    b.appendChild(el("span", "", sh.name));
+    b.addEventListener("click", () => {
+      SFX.play("click");
+      pad.tool = sh.k;
+      closePops();
+      updateToolbar();
+    });
+    $("shapes").appendChild(b);
+  });
+  $("shapeBtn").addEventListener("click", () => {
+    SFX.play("click");
+    if (isShape(pad.tool)) togglePop("shapes");
+    else {
+      pad.tool = lastShape;
+      closePops();
+    }
+    updateToolbar();
+  });
   $("undoBtn").addEventListener("click", () => {
     SFX.play("undo");
     pad.undo();
@@ -1938,6 +2005,13 @@
   // ---------- votación ----------
   let votes = {}; // dibujo -> estrellas
   let vIdx = 0;
+  let vKey = null; // dibujo que se está puntuando (por su clave: si llega uno tarde, no se cambia)
+  function goVote(i) {
+    const items = (state.task && state.task.items) || [];
+    vIdx = Math.max(0, Math.min(i, items.length - 1));
+    vKey = items[vIdx] ? items[vIdx].k : null;
+    paintVote();
+  }
   const STAR_TEXT = ["Toca las estrellas para puntuar", "😬 Mejorable", "🙂 Regular", "😊 Bien", "😃 ¡Muy bien!", "🤩 ¡Obra maestra!"];
   const LIKE_TEXT = ["¿Cuánto se parece? Toca las estrellas", "😬 Ni de lejos", "🙂 Algo tiene", "😊 Se parece", "😃 ¡Muy parecido!", "🤩 ¡Clavado!"];
   function paintVote() {
@@ -1959,8 +2033,13 @@
       $("voteNextBtn").disabled = false;
       return;
     }
+    if (vKey != null) {
+      const j = items.findIndex((x) => x.k === vKey);
+      if (j >= 0) vIdx = j;
+    }
     vIdx = Math.min(vIdx, items.length - 1);
     const it = items[vIdx];
+    vKey = it.k;
     if ($("voteImg").getAttribute("src") !== it.image) $("voteImg").src = it.image;
     if (portrait) setWho($("votePhrase"), "Retrato de", it.target);
     const guessing = task.kind === "extreme";
@@ -1999,16 +2078,7 @@
     if (!it) return;
     votes[it.k] = Number(b.dataset.s);
     SFX.play("color");
-    paintVote();
-    // Pasa solo al siguiente dibujo, con un momento para ver las estrellas
-    const at = vIdx;
-    if (at < items.length - 1)
-      setTimeout(() => {
-        if (vIdx === at && state.task && state.task.type === "vote") {
-          vIdx++;
-          paintVote();
-        }
-      }, 450);
+    paintVote(); // se queda en este dibujo: se pasa al siguiente con «Siguiente»
   });
   $("voteGuess").addEventListener("input", (e) => {
     const k = e.target.dataset.k;
@@ -2024,23 +2094,20 @@
   });
   $("votePrev").addEventListener("click", () => {
     if (vIdx > 0) {
-      vIdx--;
       SFX.play("click");
-      paintVote();
+      goVote(vIdx - 1);
     }
   });
   $("voteNextBtn").addEventListener("click", () => {
     const items = (state.task && state.task.items) || [];
     if (vIdx < items.length - 1) {
-      vIdx++;
       SFX.play("page");
-      return paintVote();
+      return goVote(vIdx + 1);
     }
     const missing = items.findIndex((it) => !String(votes[it.k] || "").trim());
     if (missing >= 0) {
-      vIdx = missing;
       toast(state.task.kind === "extreme" ? "Te falta adivinar este dibujo." : "Te falta puntuar este dibujo.");
-      return paintVote();
+      return goVote(missing);
     }
     socket.emit("submit", { stepKey: currentStepKey, content: votes });
     SFX.play("send");

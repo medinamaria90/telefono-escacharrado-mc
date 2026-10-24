@@ -101,6 +101,40 @@
     tx.restore();
     return [bx, by, bw, bh];
   }
+  // Formas geométricas: se arrastra de una esquina a la contraria
+  const SHAPES = ["line", "rect", "ellipse", "tri"];
+  function drawGeom(ctx, kind, a, b, color, size, rotated) {
+    ctx.save();
+    ctx.globalCompositeOperation = "source-over";
+    ctx.strokeStyle = color;
+    ctx.lineWidth = size;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.beginPath();
+    const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y), w = Math.abs(b.x - a.x), h = Math.abs(b.y - a.y);
+    if (kind === "line") {
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+    } else if (kind === "rect") ctx.rect(x, y, Math.max(w, 1), Math.max(h, 1));
+    else if (kind === "ellipse") ctx.ellipse(x + w / 2, y + h / 2, Math.max(w / 2, 1), Math.max(h / 2, 1), 0, 0, Math.PI * 2);
+    else if (kind === "tri" && rotated) {
+      // lienzo horizontal (girado por dentro): «arriba» en pantalla es el lado derecho del lienzo interno
+      const tipX = b.x <= a.x ? x + w : x, baseX = b.x <= a.x ? x : x + w;
+      ctx.moveTo(tipX, y + h / 2);
+      ctx.lineTo(baseX, y + h);
+      ctx.lineTo(baseX, y);
+      ctx.closePath();
+    } else if (kind === "tri") {
+      // la punta hacia donde se empezó a arrastrar (arriba o abajo)
+      const tipY = b.y >= a.y ? y : y + h, baseY = b.y >= a.y ? y + h : y;
+      ctx.moveTo(x + w / 2, tipY);
+      ctx.lineTo(x + w, baseY);
+      ctx.lineTo(x, baseY);
+      ctx.closePath();
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
   function tempCanvas(owner, key) {
     const t = owner[key] || (owner[key] = document.createElement("canvas"));
     if (t.width !== W || t.height !== H) {
@@ -120,6 +154,15 @@
       this.onOp = opts.onOp || (() => {});
       this.shared = false;
       this.remote = {}; // trazos a medias de los compañeros
+      // Historial compartido (por parejas): cada trazo, de quien sea, en orden. Deshacer quita
+      // solo los propios: se marcan como quitados (en los dos móviles) y se redibuja todo.
+      this.selfId = null;
+      this.hist = [];
+      this._cur = null; // trazo propio en curso
+      this._rcur = {}; // trazo en curso de cada compañero
+      this._sredo = [];
+      this._kpre = Math.random().toString(36).slice(2, 7);
+      this._kn = 0;
       this.blank = true; // lienzo sin tocar: su orientación sigue a la del móvil
       this.screenLandscape = false;
       this.forcePortrait = false; // p. ej. al dibujar la carita: siempre vertical
@@ -278,7 +321,25 @@
       if (this.undoStack.length > MAX_UNDO) this.undoStack.shift();
       this.redoStack = [];
     }
+    /** Por parejas: último trazo propio que se puede quitar */
+    _lastOwn() {
+      for (let i = this.hist.length - 1; i >= 0; i--) {
+        const h = this.hist[i];
+        if (h.from === this.selfId && !h.undone && h !== this._cur) return h;
+      }
+      return null;
+    }
     undo() {
+      if (this.shared) {
+        const h = this._lastOwn();
+        if (!h) return;
+        h.undone = true;
+        this._sredo.push(h.k);
+        this.onOp({ t: "u", k: h.k });
+        this._rerender();
+        this.dirty = true;
+        return this.onChange();
+      }
       if (!this.undoStack.length) return;
       this.redoStack.push(this.ctx.getImageData(0, 0, W, H));
       this.ctx.putImageData(this.undoStack.pop(), 0, 0);
@@ -288,6 +349,16 @@
       this.onChange();
     }
     redo() {
+      if (this.shared) {
+        const k = this._sredo.pop();
+        const h = k && this.hist.find((x) => x.k === k);
+        if (!h) return this.onChange();
+        h.undone = false;
+        this.onOp({ t: "r", k });
+        this._rerender();
+        this.dirty = true;
+        return this.onChange();
+      }
       if (!this.redoStack.length) return;
       this.undoStack.push(this.ctx.getImageData(0, 0, W, H));
       this.ctx.putImageData(this.redoStack.pop(), 0, 0);
@@ -297,7 +368,7 @@
     }
     clear(record = true) {
       if (record) this._snapshot();
-      if (record && this.shared) this.onOp({ t: "c" });
+      if (record && this.shared) this._out({ t: "c", k: this._key() });
       this.ctx.save();
       this.ctx.globalCompositeOperation = "source-over";
       this.ctx.fillStyle = "#ffffff";
@@ -318,6 +389,11 @@
       if (this.octx) this.octx.clearRect(0, 0, W, H);
       this.undoStack = [];
       this.redoStack = [];
+      this.hist = [];
+      this._cur = null;
+      this._rcur = {};
+      this._sredo = [];
+      this.remote = {};
       this.clear(false);
       this.dirty = false;
       this.blank = true;
@@ -376,6 +452,7 @@
       }
     }
     _drawShape(ctx, a, b) {
+      if (this.shape && this.shape.kind) return drawGeom(ctx, this.shape.kind, a, b, this.color, this.size, this.rotated);
       ctx.save();
       ctx.globalCompositeOperation = "source-over";
       ctx.strokeStyle = this.color;
@@ -386,9 +463,11 @@
       ctx.restore();
     }
     canUndo() {
+      if (this.shared) return !!this._lastOwn();
       return this.undoStack.length > 0;
     }
     canRedo() {
+      if (this.shared) return this._sredo.length > 0;
       return this.redoStack.length > 0;
     }
     /** Imagen tal y como la ve quien dibuja: vertical (600x900) u horizontal (900x600) */
@@ -452,15 +531,31 @@
         // Dos dedos: cancelar el trazo y pasar a mover/ampliar
         if (this.shape) {
           this.octx.clearRect(0, 0, W, H);
-          this.ctx.putImageData(this.undoStack.pop(), 0, 0);
+          const snap = this.undoStack.pop();
           this.shape = null;
+          if (this.shared) this._rerender();
+          else this.ctx.putImageData(snap, 0, 0);
           this.onStroke("end");
         }
         if (this.stroke) {
           clearInterval(this.sprayTimer);
           this.octx.clearRect(0, 0, W, H);
-          this.ctx.putImageData(this.undoStack.pop(), 0, 0);
+          const snap = this.undoStack.pop();
+          const st = this.stroke;
           this.stroke = null;
+          if (this.shared && this._cur) {
+            const h = this._cur;
+            this._cur = null;
+            if (st.buf) this.hist.splice(this.hist.indexOf(h), 1); // aún no se había mandado: fuera sin más
+            else {
+              // ya lo estaba viendo el compañero: se cierra y se quita en los dos
+              h.ops.push({ t: "e" });
+              h.undone = true;
+              this.onOp({ t: "e" });
+              this.onOp({ t: "u", k: h.k });
+            }
+            this._rerender();
+          } else this.ctx.putImageData(snap, 0, 0);
           this.onStroke("end");
           this.onChange();
         }
@@ -496,6 +591,16 @@
         this.onBlocked("oneline");
         return;
       }
+      if (!this.rule && SHAPES.includes(this.tool)) {
+        // Línea o figura: se arrastra; se ve tal cual quedará
+        this._snapshot();
+        this.over.style.opacity = "1";
+        this.over.style.mixBlendMode = "normal";
+        this.shape = { a: p, b: p, kind: this.tool };
+        this.dirty = true;
+        this.onStroke("start", "pen");
+        return;
+      }
       if (this.rule === "circles" || this.rule === "squares") {
         // Solo círculos / cuadrados: se arrastra para darle tamaño
         this._snapshot();
@@ -522,7 +627,9 @@
       if (this.shared) {
         // Se retiene un momento: si resulta ser un pellizco (dos dedos), no se manda
         const st = this.stroke;
-        st.buf = [{ t: "s", tool: this.tool, c: this.color, z: this.size, x: p.x, y: p.y, w: st.wet }];
+        const op = { t: "s", tool: this.tool, c: this.color, z: this.size, x: p.x, y: p.y, w: st.wet, k: this._key() };
+        this._rec(op);
+        st.buf = [op];
         setTimeout(() => this.stroke === st && this._flushHeld(), 140);
       }
       this.onStroke("start", this.tool);
@@ -564,7 +671,11 @@
       const events = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
       for (const ev of events.length ? events : [e]) {
         const p = this._pt(ev);
-        if (this.shared) this._emit({ t: "m", p: [p.x, p.y] });
+        if (this.shared) {
+          const op = { t: "m", p: [p.x, p.y] };
+          this._rec(op);
+          this._emit(op);
+        }
         if (this.tool === "spray") {
           // rociar a lo largo del recorrido
           const d = Math.hypot(p.x - this.stroke.last.x, p.y - this.stroke.last.y);
@@ -606,7 +717,7 @@
         if (!cancelled && this.pointers.size === 0 && !this.gesture) {
           this._snapshot();
           this.floodFill(Math.floor(pf.p.x), Math.floor(pf.p.y), this.color);
-          if (this.shared) this.onOp({ t: "f", x: Math.floor(pf.p.x), y: Math.floor(pf.p.y), c: this.color });
+          if (this.shared) this._out({ t: "f", x: Math.floor(pf.p.x), y: Math.floor(pf.p.y), c: this.color, k: this._key() });
           this.dirty = true;
           this.onStroke("fill");
           this.onChange();
@@ -615,6 +726,8 @@
       if (this.shape) {
         this.octx.clearRect(0, 0, W, H);
         this._drawShape(this.ctx, this.shape.a, this.shape.b);
+        const sh = this.shape;
+        if (this.shared && sh.kind) this._out({ t: "g", kind: sh.kind, x1: sh.a.x, y1: sh.a.y, x2: sh.b.x, y2: sh.b.y, c: this.color, z: this.size, k: this._key() });
         this.shape = null;
         this.onStroke("end");
         this.onChange();
@@ -622,6 +735,7 @@
       if (this.stroke && this.rule === "oneline") this.lineUsed = true;
       if (this.stroke && this.shared) {
         this._flushHeld();
+        this._rec({ t: "e" });
         this.onOp({ t: "e" });
       }
       if (this.stroke && this.tool === "spray") {
@@ -649,6 +763,26 @@
       if (this.pointers.size === 0) this.pan = null;
     }
     // ---- lienzo compartido ----
+    _key() {
+      return this._kpre + "-" + ++this._kn;
+    }
+    /** Anota un trozo propio en el historial compartido */
+    _rec(op) {
+      if (op.t === "s" || op.t === "f" || op.t === "c" || op.t === "g") {
+        const h = { k: op.k, from: this.selfId, ops: [op], undone: false };
+        this.hist.push(h);
+        this._sredo = []; // algo nuevo: ya no se puede rehacer lo quitado
+        if (op.t === "s") this._cur = h;
+      } else if (this._cur) {
+        this._cur.ops.push(op);
+        if (op.t === "e") this._cur = null;
+      }
+    }
+    /** Anota y manda (trazos de un solo golpe: relleno, borrar todo, figura) */
+    _out(op) {
+      this._rec(op);
+      this.onOp(op);
+    }
     _emit(op) {
       if (this.stroke && this.stroke.buf) this.stroke.buf.push(op);
       else this.onOp(op);
@@ -660,8 +794,45 @@
       st.buf = null;
       buf.forEach((op) => this.onOp(op));
     }
-    /** Pinta lo que mandan los compañeros (cada uno con su trazo a medias) */
+    /** Redibuja el lienzo desde el historial (sin lo quitado) */
+    _rerender() {
+      const ctx = this.ctx;
+      ctx.save();
+      ctx.globalCompositeOperation = "source-over";
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, W, H);
+      ctx.restore();
+      this.remote = {};
+      for (const h of this.hist) if (!h.undone) this._drawOps(h.from, h.ops);
+    }
+    /** Pinta lo que mandan los compañeros (cada uno con su trazo a medias) y lo anota */
     applyRemote(from, ops) {
+      let redraw = false;
+      for (const op of ops) {
+        if (op.t === "u" || op.t === "r") {
+          const h = this.hist.find((x) => x.k === op.k);
+          if (h) {
+            h.undone = op.t === "u";
+            redraw = true;
+          }
+          continue;
+        }
+        if (op.t === "s" || op.t === "f" || op.t === "c" || op.t === "g") {
+          const h = { k: op.k || "x" + this._kn++, from, ops: [op], undone: false };
+          this.hist.push(h);
+          if (op.t === "s") this._rcur[from] = h;
+        } else if (this._rcur[from]) {
+          this._rcur[from].ops.push(op);
+          if (op.t === "e") delete this._rcur[from];
+        }
+        if (!redraw) this._drawOps(from, [op]);
+      }
+      if (redraw) this._rerender();
+      this.blank = false;
+      this.dirty = true;
+      this.onChange();
+    }
+    _drawOps(from, ops) {
       const ctx = this.ctx;
       for (const op of ops) {
         if (op.t === "s") {
@@ -745,6 +916,8 @@
               ctx.restore();
             }
           }
+        } else if (op.t === "g") {
+          drawGeom(ctx, op.kind, { x: op.x1, y: op.y1 }, { x: op.x2, y: op.y2 }, op.c, op.z);
         } else if (op.t === "f") {
           this.floodFill(Math.floor(op.x), Math.floor(op.y), op.c);
         } else if (op.t === "c") {
@@ -756,9 +929,6 @@
           this.remote = {};
         }
       }
-      this.blank = false;
-      this.dirty = true;
-      this.onChange();
     }
 
     /** Subrayador y acuarela se pintan primero en la capa de encima y luego se funden, transparentes */

@@ -276,6 +276,8 @@ function scheduleBots(room) {
 
 // ---------- por parejas: lienzo compartido ----------
 const TOOLS = ["pen", "marker", "water", "spray", "eraser"];
+const GEOMS = ["line", "rect", "ellipse", "tri"];
+const okKey = (k) => typeof k === "string" && /^[\w-]{1,24}$/.test(k);
 const num = (v, lo, hi) => (typeof v === "number" && isFinite(v) ? Math.max(lo, Math.min(hi, Math.round(v * 10) / 10)) : null);
 /** Trazos que manda un móvil: solo se dejan pasar campos conocidos y números en rango */
 function cleanOps(ops) {
@@ -287,6 +289,7 @@ function cleanOps(ops) {
       const x = num(o.x, 0, 900), y = num(o.y, 0, 900), z = num(o.z, 1, 80);
       if (x == null || y == null || z == null || !TOOLS.includes(o.tool) || !/^#[0-9a-f]{6}$/i.test(o.c || "")) continue;
       const op = { t: "s", tool: o.tool, c: o.c, z, x, y };
+      if (okKey(o.k)) op.k = o.k;
       if (Array.isArray(o.w)) op.w = o.w.slice(0, 6).map((L) => ({ amp: num(L?.amp, 0, 1) || 0, k: num(L?.k, 0, 2) || 1, a: num(L?.a, 0, 1) || 0.3, p1: num(L?.p1, 0, 7) || 0, p2: num(L?.p2, 0, 7) || 0, p3: num(L?.p3, 0, 7) || 0 }));
       out.push(op);
     } else if (o.t === "m" && Array.isArray(o.p)) {
@@ -297,10 +300,16 @@ function cleanOps(ops) {
         p.push(n);
       }
       if (p.length >= 2) out.push({ t: "m", p: p.length % 2 ? p.slice(0, -1) : p });
-    } else if (o.t === "e" || o.t === "c") out.push({ t: o.t });
+    } else if (o.t === "e") out.push({ t: "e" });
+    else if (o.t === "c") out.push(okKey(o.k) ? { t: "c", k: o.k } : { t: "c" });
+    else if ((o.t === "u" || o.t === "r") && okKey(o.k)) out.push({ t: o.t, k: o.k }); // deshacer / rehacer lo propio
     else if (o.t === "f") {
       const x = num(o.x, 0, 900), y = num(o.y, 0, 900);
-      if (x != null && y != null && /^#[0-9a-f]{6}$/i.test(o.c || "")) out.push({ t: "f", x, y, c: o.c });
+      if (x != null && y != null && /^#[0-9a-f]{6}$/i.test(o.c || "")) out.push(okKey(o.k) ? { t: "f", x, y, c: o.c, k: o.k } : { t: "f", x, y, c: o.c });
+    } else if (o.t === "g" && GEOMS.includes(o.kind)) {
+      // línea o figura
+      const x1 = num(o.x1, -300, 1200), y1 = num(o.y1, -300, 1200), x2 = num(o.x2, -300, 1200), y2 = num(o.y2, -300, 1200), z = num(o.z, 1, 80);
+      if ([x1, y1, x2, y2, z].every((v) => v != null) && /^#[0-9a-f]{6}$/i.test(o.c || "")) out.push({ t: "g", kind: o.kind, x1, y1, x2, y2, c: o.c, z, ...(okKey(o.k) ? { k: o.k } : {}) });
     }
   }
   return out;

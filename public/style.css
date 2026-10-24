@@ -501,7 +501,7 @@ body.solo .draw-prompt { order: 2; flex-basis: 100%; }
 .trash-btn { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; height: 32px; min-width: 32px; padding: 0 7px; border-radius: 10px; border: 1.5px solid var(--line); background: var(--bg); color: var(--muted); cursor: pointer; font-weight: 700; font-size: .8rem; }
 .trash-btn.armed { background: var(--accent); border-color: var(--accent); color: #fff; }
 .book-sheet .sheet-actions .btn { flex: 1 1 0; }
-.tool-row { grid-template-columns: repeat(9, minmax(0, 1fr)); }
+.tool-row { grid-template-columns: repeat(10, minmax(0, 1fr)); }
 /* Lápiz: la esquinita indica que al tocarlo se elige el tipo de trazo */
 .brush-btn { position: relative; }
 .brush-btn::after { content: ""; position: absolute; right: 3px; bottom: 3px; border-style: solid; border-width: 0 0 7px 7px; border-color: transparent transparent currentColor transparent; opacity: .75; }
@@ -838,9 +838,6 @@ body.face-mode .pad-inner { overflow: hidden; }
 .orient-btn { position: absolute; top: 8px; left: 8px; z-index: 5; display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px 4px 7px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--card); color: var(--ink); font: inherit; font-weight: 700; font-size: .78rem; box-shadow: 0 4px 12px -6px #0006; cursor: pointer; touch-action: manipulation; opacity: .92; }
 .orient-btn.armed { background: var(--accent); border-color: var(--accent); color: #fff; }
 
-/* por parejas: en el lienzo compartido no hay deshacer (borraría lo del compañero) */
-body.pairs-draw #undoBtn, body.pairs-draw #redoBtn { display: none; }
-@media (orientation: portrait) { body.pairs-draw .tool-row { grid-template-columns: repeat(7, minmax(0, 1fr)); } }
 .wait-badge.thinking { background: var(--accent-2); color: #3b2a00; }
 
 /* iPhone: el doble toque no amplía la página en ningún sitio (el lienzo y el visor tienen su propio zoom) */
@@ -856,3 +853,14 @@ html, body, * { -webkit-user-select: none; user-select: none; -webkit-touch-call
 input, textarea, [contenteditable="true"] { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
 img, canvas { -webkit-user-drag: none; user-drag: none; }
 .pad, .pad-stage, .pad-inner, .pad-canvas, .pad-over { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+.shape-opt svg { width: 26px; height: 26px; }
+.pad[data-tool="line"] .pad-stage, .pad[data-tool="rect"] .pad-stage, .pad[data-tool="ellipse"] .pad-stage, .pad[data-tool="tri"] .pad-stage { cursor: crosshair; }
+
+/* iPhone/iPad: con letra de menos de 16 px, Safari amplía la página al tocar un campo de texto */
+input, textarea, select { font-size: max(16px, 1em) !important; }
+
+/* Portátil u ordenador: al escribir, la frase y el campo juntos en el centro (sin el hueco del teclado del móvil) */
+@media (min-width: 900px) and (pointer: fine) {
+  #s-text { justify-content: center; }
+  #s-text #textSpacer { display: none; }
+}
