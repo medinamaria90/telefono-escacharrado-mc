@@ -302,7 +302,6 @@
   <!-- REVELACIÓN (CADENA) -->
   <main class="screen fit-screen" id="s-reveal" hidden>
     <div class="reveal-head" id="revealHead">
-      <button class="btn-ghost small share-story" id="shareStoryBtn" type="button" hidden>📤 Compartir</button>
       <span class="step-mini" id="revealCount"></span>
       <h2 class="h2" id="revealTitle"></h2>
       <div class="dots" id="revealDots" aria-hidden="true"></div>
@@ -310,6 +309,7 @@
     <div class="reveal-prev" id="revealPrev" hidden></div>
     <div class="reveal-stage grow" id="revealStage"></div>
     <div class="bottom-controls" id="revealControls">
+      <button class="btn share-cta" id="shareStoryBtn" type="button" hidden><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg><span>Compartir esta historia</span></button>
       <button class="btn secondary" id="revPrev" type="button">Anterior</button>
       <button class="btn primary" id="revNext" type="button">Siguiente</button>
     </div>
@@ -411,13 +411,16 @@
   <!-- Compartir una historia -->
   <div class="sheet-backdrop" id="shareSheet" hidden>
     <div class="sheet share-sheet" role="dialog" aria-modal="true" aria-labelledby="shareTitle">
-      <h2 class="h2" id="shareTitle">Compartir</h2>
-      <div class="share-preview"><img id="sharePreview" alt="Vista previa de lo que se comparte" hidden><p class="share-wait" id="shareWait">Preparando…</p></div>
-      <div class="sheet-actions">
-        <button class="btn secondary" id="shareGifBtn" type="button">🎞️ Compartir como GIF</button>
-        <button class="btn primary" id="shareImgBtn" type="button" disabled>📤 Compartir imagen</button>
+      <div class="share-head">
+        <h2 class="h2" id="shareTitle">Compartir</h2>
+        <button class="viewer-x share-x" id="shareClose" type="button" aria-label="Cerrar"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
-      <button class="btn-ghost small share-close" id="shareClose" type="button">Cerrar</button>
+      <div class="share-tabs" id="shareTabs" role="tablist">
+        <button class="share-tab" id="shareTabImg" type="button" role="tab" aria-selected="true">🖼️ Imagen</button>
+        <button class="share-tab" id="shareTabGif" type="button" role="tab" aria-selected="false">🎞️ GIF</button>
+      </div>
+      <div class="share-preview"><img id="sharePreview" alt="Vista previa de lo que se comparte" hidden><p class="share-wait" id="shareWait">Preparando…</p></div>
+      <button class="btn primary share-go" id="shareGo" type="button" disabled><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg><span>Compartir</span></button>
     </div>
   </div>
 

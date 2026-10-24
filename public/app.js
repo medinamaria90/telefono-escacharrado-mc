@@ -2773,7 +2773,6 @@
     // Historia completa a la vista: se puede compartir
     const full = SHARE_ENABLED && o.entries.length >= o.total;
     $("shareStoryBtn").hidden = !full;
-    $("revealHead").classList.toggle("has-share", full);
     sharing = full ? { owner: o.owner, entries: o.entries.slice(), variant: o.variant } : null;
     $("revealCount").textContent = o.count;
     setWho($("revealTitle"), o.variant === "triptych" ? "La criatura de" : "La historia de", o.owner);
@@ -3195,41 +3194,71 @@
       document.head.appendChild(el2);
     });
   }
-  /** GIF de la historia: cada paso entra con su transición y se queda un rato; arriba Dibulíos, abajo el enlace */
-  async function storyGif(st, onProgress) {
+  /**
+   * GIF de la historia: un carrusel sin transiciones, cada paso ocupando casi toda la imagen.
+   * Arriba, una franja fina con «Dibulíos» y el enlace; debajo, quién lo hizo.
+   */
+  async function storyGif(st) {
     try {
-      await Promise.all([document.fonts.load(`96px "Bagel Fat One"`), document.fonts.load(`700 46px "Atkinson Hyperlegible"`)]);
+      await Promise.all([document.fonts.load(`44px "Bagel Fat One"`), document.fonts.load(`700 26px "Atkinson Hyperlegible"`)]);
     } catch (_) {}
     await loadScript("vendor/gifenc.js?v=1");
     const { GIFEncoder, quantize, applyPalette } = window.gifenc;
-    const scenes = await videoScenes(st);
-    const GW = 480, GH = 854;
+    const GW = 640, GH = 1000, HEAD = 72, CAP = 48, M = 14;
     const c = document.createElement("canvas");
     c.width = GW;
     c.height = GH;
     const ctx = c.getContext("2d", { willReadFrequently: true });
     const enc = GIFEncoder();
-    const TR = [0.05, 0.12, 0.19, 0.27, 0.36]; // fotogramas de la transición
-    const STEP_MS = 70;
-    const total = scenes.length * (TR.length + 1);
-    let done = 0;
-    const frame = (p, delay) => {
-      ctx.setTransform(GW / SW, 0, 0, GH / SH, 0, 0);
-      scenes[k].draw(ctx, p);
+    const n = st.entries.length;
+    const imgs = await Promise.all(st.entries.map((e) => (e.type === "draw" && e.content ? loadImg(e.content) : null)));
+    for (let i = 0; i < n; i++) {
+      const e = st.entries[i];
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.fillStyle = "#eef3fb";
+      ctx.fillRect(0, 0, GW, GH);
+      // franja de arriba: marca y enlace
+      ctx.fillStyle = "#ff5a3c";
+      ctx.fillRect(0, 0, GW, HEAD);
+      ctx.fillStyle = "#fff";
+      ctx.textAlign = "left";
+      ctx.font = `40px ${SHARE_FONT}`;
+      ctx.fillText("Dibulíos", 20, 50);
+      ctx.textAlign = "right";
+      ctx.font = `700 22px ${SHARE_TEXT}`;
+      ctx.fillText(location.host, GW - 20, 45);
+      // quién lo hizo
+      const by = e.by && e.by.name ? e.by.name : "Alguien";
+      const prevDraw = i > 0 && st.entries[i - 1].type === "draw";
+      const verb = e.type === "draw" && prevDraw ? "lo copió" : VERB_SHARE[e.type] || "";
+      ctx.fillStyle = "#1d2747";
+      ctx.textAlign = "center";
+      fitText(ctx, `${i + 1}/${n} · ${by} ${verb}`, GW / 2, HEAD + 34, GW - 40, 26);
+      // el paso, ocupando casi todo
+      const x = M, y = HEAD + CAP, w = GW - M * 2, h = GH - y - M;
+      if (e.type === "draw") {
+        const im = imgs[i];
+        ctx.save();
+        roundRect(ctx, x, y, w, h, 18);
+        ctx.fillStyle = "#fff";
+        ctx.fill();
+        ctx.clip();
+        if (im) {
+          const k = Math.min(w / im.naturalWidth, h / im.naturalHeight);
+          const dw = im.naturalWidth * k, dh = im.naturalHeight * k;
+          ctx.drawImage(im, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+        }
+        ctx.restore();
+        ctx.save();
+        roundRect(ctx, x, y, w, h, 18);
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = "#1d2747";
+        ctx.stroke();
+        ctx.restore();
+      } else textBox(ctx, e.content, x, y + h * 0.18, w, h * 0.64, e.type === "write");
       const { data } = ctx.getImageData(0, 0, GW, GH);
       const palette = quantize(data, 256);
-      enc.writeFrame(applyPalette(data, palette), GW, GH, { palette, delay });
-      done++;
-      if (onProgress) onProgress(done / total);
-    };
-    let k = 0;
-    for (k = 0; k < scenes.length; k++) {
-      const sc = scenes[k];
-      for (const p of TR) {
-        frame(p, STEP_MS);
-        await new Promise((r) => setTimeout(r, 0));
-      }
-      frame(1, Math.max(900, sc.dur - TR.length * STEP_MS));
+      enc.writeFrame(applyPalette(data, palette), GW, GH, { palette, delay: i === n - 1 ? 2600 : 1300 });
       await new Promise((r) => setTimeout(r, 0));
     }
     enc.finish();
@@ -3338,54 +3367,75 @@
     }
     track("historia_descargada", { formato: kind });
   }
+  // Ventana de compartir: vista previa grande, «Imagen | GIF» y un solo botón. Las dos cosas se preparan
+  // nada más abrirla, para que al pulsar «Compartir» salga el menú del móvil al instante.
+  let shareKind = "img";
+  let shareGifUrl = null;
+  function paintShare() {
+    const isGif = shareKind === "gif";
+    $("shareTabImg").setAttribute("aria-selected", String(!isGif));
+    $("shareTabGif").setAttribute("aria-selected", String(isGif));
+    const ready = isGif ? shareGif : shareImg;
+    const prev = $("sharePreview");
+    if (ready) {
+      prev.src = isGif ? shareGifUrl : shareImgUrl;
+      prev.hidden = false;
+      $("shareWait").hidden = true;
+    } else {
+      prev.hidden = true;
+      $("shareWait").hidden = false;
+      $("shareWait").textContent = isGif ? "Preparando el GIF…" : "Preparando…";
+    }
+    $("shareGo").disabled = !ready;
+  }
+  let shareImgUrl = null;
   $("shareStoryBtn").addEventListener("click", async () => {
     if (!sharing) return;
     SFX.play("page");
     const st = sharing;
     shareImg = null;
     shareGif = null;
-    $("sharePreview").hidden = true;
-    $("shareWait").hidden = false;
-    $("shareWait").textContent = "Preparando…";
-    $("shareImgBtn").disabled = true;
-    $("shareImgBtn").textContent = "📤 Compartir imagen";
-    $("shareGifBtn").disabled = false;
-    $("shareGifBtn").textContent = "🎞️ Compartir como GIF";
-    $("shareGifBtn").hidden = st.variant === "triptych"; // las criaturas, solo en imagen
+    if (shareGifUrl) URL.revokeObjectURL(shareGifUrl);
+    shareGifUrl = null;
+    shareKind = "img";
+    const canGif = st.variant !== "triptych"; // las criaturas, solo en imagen
+    $("shareTabs").hidden = !canGif;
+    $("shareTitle").textContent = st.variant === "triptych" ? "Compartir la criatura" : "Compartir la historia";
+    paintShare();
     $("shareSheet").hidden = false;
     try {
       const r = await storyComic(st);
       if (sharing !== st) return;
       shareImg = r.file;
-      $("sharePreview").src = r.url;
-      $("sharePreview").hidden = false;
-      $("shareWait").hidden = true;
-      $("shareImgBtn").disabled = false;
+      shareImgUrl = r.url;
+      paintShare();
     } catch (_) {
       $("shareWait").textContent = "No se pudo preparar la imagen.";
     }
-  });
-  $("shareImgBtn").addEventListener("click", () => shareImg && shareFiles([shareImg], "imagen"));
-  $("shareGifBtn").addEventListener("click", async () => {
-    const btn = $("shareGifBtn");
-    // segundo toque: el GIF ya está hecho (el móvil exige un toque para abrir «compartir»)
-    if (shareGif) return shareFiles([shareGif], "gif");
-    if (!sharing) return;
-    const st = sharing;
-    btn.disabled = true;
-    btn.textContent = "🎞️ Creando el GIF… 0 %";
+    if (!canGif) return;
     try {
-      const g = await storyGif(st, (p) => (btn.textContent = `🎞️ Creando el GIF… ${Math.round(p * 100)} %`));
+      const g = await storyGif(st);
       if (sharing !== st) return;
       shareGif = g;
-      btn.disabled = false;
-      btn.textContent = "📤 Compartir GIF";
-      SFX.play("point");
+      shareGifUrl = URL.createObjectURL(g);
+      paintShare();
     } catch (_) {
-      btn.disabled = false;
-      btn.textContent = "🎞️ Compartir como GIF";
-      toast("No se pudo crear el GIF.");
+      if (shareKind === "gif") $("shareWait").textContent = "No se pudo preparar el GIF.";
     }
+  });
+  $("shareTabImg").addEventListener("click", () => {
+    SFX.play("click");
+    shareKind = "img";
+    paintShare();
+  });
+  $("shareTabGif").addEventListener("click", () => {
+    SFX.play("click");
+    shareKind = "gif";
+    paintShare();
+  });
+  $("shareGo").addEventListener("click", () => {
+    if (shareKind === "gif" && shareGif) shareFiles([shareGif], "gif");
+    else if (shareImg) shareFiles([shareImg], "imagen");
   });
   $("shareClose").addEventListener("click", () => ($("shareSheet").hidden = true));
   $("shareSheet").addEventListener("click", (e) => {

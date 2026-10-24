@@ -849,8 +849,7 @@ html, *, *::before, *::after { touch-action: manipulation; }
 
 /* compartir la historia completa (Instagram, TikTok, WhatsApp…) */
 .reveal-head { position: relative; padding-right: 0; }
-.reveal-head .share-story { position: absolute; top: 0; right: 0; }
-.reveal-head.has-share { padding-right: 118px; }
+
 
 /* iPad/iPhone: mantener pulsado no selecciona (la mancha azul) ni abre menús; solo se puede seleccionar al escribir */
 html, body, * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
@@ -958,3 +957,18 @@ input, textarea, select { font-size: max(16px, 1em) !important; }
 .knock-card .btn { width: 100%; }
 .req-bar .req-text { flex: 1; min-width: 0; }
 .req-bar .btn.small { padding: 6px 14px; flex-shrink: 0; }
+
+/* ---------- compartir ---------- */
+.bottom-controls:has(.share-cta:not([hidden])) { flex-wrap: wrap; }
+.share-cta { flex: 1 1 100% !important; display: inline-flex; align-items: center; justify-content: center; gap: 10px; background: var(--accent-2); color: #3b2a00; border-color: var(--ink); animation: share-in .45s ease both; }
+.share-cta[hidden] { display: none; }
+@keyframes share-in { from { opacity: 0; transform: translateY(8px) scale(.97); } }
+.share-sheet { gap: 12px; }
+.share-head { display: flex; align-items: center; justify-content: space-between; }
+.share-x { background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink); }
+.share-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 14px; background: color-mix(in srgb, var(--ink) 7%, transparent); }
+.share-tabs[hidden] { display: none; }
+.share-tab { border: 0; border-radius: 10px; padding: 9px 8px; font: inherit; font-weight: 700; font-size: .9rem; background: transparent; color: var(--muted); cursor: pointer; }
+.share-tab[aria-selected="true"] { background: var(--card); color: var(--ink); box-shadow: 0 1px 4px #0002; }
+.share-preview img { max-height: calc(100dvh - 290px); }
+.share-go { display: inline-flex; align-items: center; justify-content: center; gap: 10px; width: 100%; }
