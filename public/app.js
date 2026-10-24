@@ -4035,9 +4035,9 @@
     setBookCols(bookCols());
     renderBook();
     show("s-book");
-    if (bookCache.length > 6 && !store.get("tg-tip-pinch", "")) {
-      store.set("tg-tip-pinch", "1");
-      setTimeout(() => toast("Pellizca con dos dedos para ver más o menos dibujos"), 600);
+    if (bookCache.length > 6 && !store.get("tg-tip-zoom", "")) {
+      store.set("tg-tip-zoom", "1");
+      setTimeout(() => toast("Cambia el tamaño con ▦ arriba, o pellizcando con dos dedos"), 600);
     }
   }
   // Cuántos dibujos por fila: se cambia pellizcando (o Ctrl + rueda en el ordenador)
@@ -4052,7 +4052,20 @@
     $("bookGrid").style.setProperty("--book-cols", n);
     $("bookGrid").classList.toggle("dense", n >= 4);
     store.set(wideBook() ? "tg-book-cols-w" : "tg-book-cols", String(n));
+    // el botón de tamaño marca el más cercano
+    const p = zoomPresets();
+    const near = p.reduce((a, b) => (Math.abs(b - n) < Math.abs(a - n) ? b : a));
+    for (const b of $("bookZoom").children) b.setAttribute("aria-pressed", String(p[presetIdx(b)] === near));
     return n;
+  }
+  // tres tamaños a mano (grandes, medianos, pequeños); pellizcar ajusta entre medias
+  const zoomPresets = () => (wideBook() ? [3, 5, 8] : [1, 2, 4]);
+  const presetIdx = (b) => ({ "1": 0, "0": 1, "-1": 2 })[b.dataset.cols];
+  for (const b of $("bookZoom").children) {
+    b.addEventListener("click", () => {
+      SFX.play("click");
+      setBookCols(zoomPresets()[presetIdx(b)]);
+    });
   }
   (() => {
     const grid = $("bookGrid");

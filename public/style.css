@@ -991,3 +991,13 @@ input, textarea, select { font-size: max(16px, 1em) !important; }
 .crop-mask::after { content: ""; position: absolute; inset: 0; border-radius: 50%; box-shadow: inset 0 0 0 3px #fff; }
 .crop-bar { padding: 12px 16px calc(14px + env(safe-area-inset-bottom)); display: flex; justify-content: center; }
 .crop-bar .btn { width: min(100%, 420px); }
+
+/* tamaño de las miniaturas del cuaderno */
+.book-zoom { display: inline-flex; gap: 2px; padding: 3px; border-radius: 12px; background: color-mix(in srgb, var(--ink) 7%, transparent); margin-left: auto; margin-right: 8px; }
+.book-zoom button { width: 34px; height: 30px; display: grid; place-items: center; border: 0; border-radius: 9px; background: transparent; color: var(--muted); cursor: pointer; padding: 0; }
+.book-zoom button[aria-pressed="true"] { background: var(--card); color: var(--ink); box-shadow: 0 1px 4px #0002; }
+.book-screen > .row-between { flex-wrap: nowrap; gap: 6px; }
+.book-screen > .row-between .h2 { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.book-screen > .row-between #bookBack { flex-shrink: 0; }
+.book-zoom { flex-shrink: 0; margin-right: 2px; }
+.book-zoom button { width: 30px; }
