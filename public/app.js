@@ -1106,10 +1106,10 @@
       pad.setLock(null);
       setPrevColors(null);
       if (task.variant === "triptych") {
-        // La franja de arriba es de la parte anterior: se ve, pero no se pinta en ella.
-        // La línea de unión de abajo hace de pared para el cubo de pintura.
+        // La franja de arriba es de la parte anterior: se ve, pero no se pinta en ella
+        // (y el cubo de pintura se para ahí). La de abajo es tuya: se dibuja hasta el borde.
         const BAND = 90;
-        pad.setLock(task.part !== "head" ? [pad.visualRect(0, 0, 900, BAND)] : [], task.part !== "legs" ? [pad.visualRect(0, 600 - BAND - 1, 900, 2)] : []);
+        pad.setLock(task.part !== "head" ? [pad.visualRect(0, 0, 900, BAND)] : []);
         const n = { head: 1, body: 2, legs: 3 }[task.part] || 1;
         $("drawStep").textContent = `Parte ${n} de 3 · ${TRIPTYCH_NAME[task.part]}`;
         const prevImg = task.prompt && task.prompt.kind === "image" ? task.prompt.value : null;
@@ -1710,20 +1710,34 @@
       updateToolbar();
     };
     renderRecent();
-    // Tríptico: los colores que usó la parte anterior, abajo del todo, para seguir igual
-    const prevBox = el("div", "prev-colors");
-    prevBox.hidden = true;
+    // Tríptico: los colores que usó la parte anterior van DENTRO de la paleta, cada uno
+    // en el sitio del color normal más parecido (así hay los mismos colores de siempre)
+    const stdBtns = [...cs.querySelectorAll(":scope > .color-btn")];
+    const hex2rgb = (h) => [1, 3, 5].map((k) => parseInt(h.slice(k, k + 2), 16));
+    const dist = (a, b) => Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]);
+    let prevBtns = [];
     renderPrev = (list) => {
-      prevBox.innerHTML = "";
-      prevBox.hidden = !list.length;
-      if (!list.length) return;
-      prevBox.appendChild(el("div", "prev-colors-label", "Colores de la parte anterior"));
-      list.forEach((c) => {
-        const b = el("button", "color-btn");
+      prevBtns.forEach((b) => b.remove());
+      prevBtns = [];
+      stdBtns.forEach((b) => { b.hidden = false; b.classList.remove("from-prev"); });
+      const used = new Set();
+      list.slice(0, 8).forEach((c) => {
+        const rgb = hex2rgb(c);
+        let best = null, bd = 1e9;
+        for (const b of stdBtns) {
+          if (used.has(b)) continue;
+          const d = dist(rgb, hex2rgb(b.dataset.color));
+          if (d < bd) { bd = d; best = b; }
+        }
+        if (!best) return;
+        used.add(best);
+        if (bd < 36) { best.classList.add("from-prev"); return; } // ya está en la paleta: solo se marca
+        const b = el("button", "color-btn from-prev");
         b.type = "button";
         b.style.setProperty("--c", c);
         b.dataset.color = c;
-        b.setAttribute("aria-label", "Color " + c);
+        b.setAttribute("aria-label", "Color de la parte anterior");
+        b.title = "Color de la parte anterior";
         b.addEventListener("click", () => {
           SFX.play("color");
           pad.color = c;
@@ -1732,7 +1746,9 @@
           updateToolbar();
           closePops();
         });
-        prevBox.appendChild(b);
+        best.hidden = true;
+        best.before(b);
+        prevBtns.push(b);
       });
       updateToolbar();
     };
@@ -1750,7 +1766,6 @@
     free.appendChild(hueBar);
     free.appendChild(shadeBar);
     cs.appendChild(free);
-    cs.appendChild(prevBox); // abajo del todo
     let hue = 0;
     let light = 50;
     let sat = 100;
@@ -2680,6 +2695,37 @@
     ctx.fillText(location.host, SW / 2, SH - 110);
   }
   const VERB_SHARE = { write: "escribió", draw: "dibujó", guess: "dijo que era" };
+  /** «Mary, Jaime y Ana»: quién ha participado, en orden y sin repetir */
+  function artistNames(st) {
+    const seen = [];
+    for (const e of st.entries || []) {
+      const nm = e.by && e.by.name;
+      if (nm && !seen.includes(nm)) seen.push(nm);
+    }
+    if (!seen.length) return "";
+    return seen.length === 1 ? seen[0] : seen.slice(0, -1).join(", ") + " y " + seen[seen.length - 1];
+  }
+  function fitText(ctx, text, x, y, maxW, size, weight) {
+    let sz = size;
+    do {
+      ctx.font = `${weight || 700} ${sz}px ${SHARE_TEXT}`;
+      sz -= 2;
+    } while (ctx.measureText(text).width > maxW && sz > 22);
+    ctx.fillText(text, x, y);
+  }
+  /** Cartel final del Tríptico: la criatura entera y quién dibujó cada parte */
+  function drawCreaturePoster(ctx, st, im, a) {
+    const owner = st.owner && st.owner.name ? st.owner.name : "alguien";
+    slideBase(ctx, `La criatura de ${owner}`, "");
+    const parts = ["Cabeza", "cuerpo", "piernas"];
+    const credit = st.entries.map((e, k) => `${parts[k] || ""} de ${e.by && e.by.name ? e.by.name : "alguien"}`).join(" · ");
+    ctx.fillStyle = "#5b6687";
+    ctx.textAlign = "center";
+    fitText(ctx, credit, SW / 2, 365, SW - 120, 40);
+    ctx.globalAlpha = a == null ? 1 : a;
+    drawCard(ctx, im, SW / 2, 420, 980, 1330);
+    ctx.globalAlpha = 1;
+  }
   async function storySlides(st) {
     try {
       await Promise.all([document.fonts.load(`96px "Bagel Fat One"`), document.fonts.load(`700 46px "Atkinson Hyperlegible"`)]);
@@ -2901,7 +2947,7 @@
         const prevIm = k > 1 ? await loadImg(await composeTriptych(urls.slice(0, k - 1))) : null;
         const e = st.entries[k - 1];
         scenes.push({
-          dur: k === n ? 3400 : 2400,
+          dur: 2400,
           draw(ctx, p) {
             slideBase(ctx, title, `${k} de ${n}`);
             ctx.fillStyle = "#1d2747";
@@ -2917,6 +2963,8 @@
           },
         });
       }
+      const full = await loadImg(await composeTriptych(urls));
+      scenes.push({ dur: 3400, poster: true, draw: (ctx, p) => drawCreaturePoster(ctx, st, full, Math.min(1, 0.6 + p * 2)) });
     } else {
       for (let i = 0; i < n; i++) {
         const e = st.entries[i];
@@ -3119,12 +3167,16 @@
     const owner = st.owner && st.owner.name ? st.owner.name : "alguien";
     if (st.variant === "triptych") {
       const scenes = await videoScenes(st);
-      scenes[scenes.length - 2].draw(ctx, 1); // la criatura entera
+      scenes.find((x) => x.poster).draw(ctx, 1); // la criatura entera, con quién dibujó cada parte
     } else {
       slideBase(ctx, `La historia de ${owner}`, "");
+      ctx.fillStyle = "#5b6687";
+      ctx.textAlign = "center";
+      const who = artistNames(st);
+      if (who) fitText(ctx, `Entre ${who}`, SW / 2, 352, SW - 120, 36);
       const n = st.entries.length;
       const cols = n <= 3 ? 1 : 2, rows = Math.ceil(n / cols);
-      const top = 340, bottom = SH - 170, gap = 26, mx = 40;
+      const top = 400, bottom = SH - 170, gap = 26, mx = 40;
       const cw = (SW - mx * 2 - gap * (cols - 1)) / cols, ch = (bottom - top - gap * (rows - 1)) / rows;
       for (let i = 0; i < n; i++) {
         const e = st.entries[i];
@@ -3164,7 +3216,13 @@
   let shareImg = null; // imagen ya preparada (para compartir al tocar, sin esperas)
   let shareVid = null;
   async function shareFiles(files, kind) {
-    const text = "Mirad cómo acabó nuestra historia en Dibulíos 😂 " + location.origin;
+    const st = sharing || {};
+    const owner = st.owner && st.owner.name ? st.owner.name : "";
+    const who = artistNames(st);
+    const text =
+      st.variant === "triptych"
+        ? `«La criatura${owner ? " de " + owner : ""}», dibujada${who ? " entre " + who : " a varias manos"} en Dibulíos 🎨 ¿Te atreves con la tuya? ${location.origin}`
+        : `«La historia${owner ? " de " + owner : ""}» en Dibulíos: empezó con una frase${who ? " y pasó por " + who : ""}. A ver si adivinas cómo acabó ✏️ ${location.origin}`;
     if (navigator.canShare && navigator.canShare({ files })) {
       try {
         await navigator.share({ files, title: "Dibulíos", text });
