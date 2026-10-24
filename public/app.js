@@ -733,6 +733,19 @@
     $("createBtn").classList.add("secondary");
     $("createBtn").textContent = "Crear otra sala";
     $("homeActions").classList.add("invited");
+    // Si la sala del enlace ya no existe (p. ej. abres la pestaña horas después), inicio normal
+    const checkInvite = () => {
+      const s = session.get();
+      if (s && s.code === inviteCode) return; // la vuelta a tu sala ya lo comprueba
+      socket.emit("roomInfo", { code: inviteCode }, (r) => {
+        if (r && r.exists === false && !state) {
+          clearInvite();
+          toast(`La partida de la sala ${inviteCode} ya terminó. Crea una nueva o únete con otro código.`);
+        }
+      });
+    };
+    if (socket.connected) checkInvite();
+    else socket.once("connect", checkInvite);
   }
 
   // ---------- salir, logo y botón atrás ----------

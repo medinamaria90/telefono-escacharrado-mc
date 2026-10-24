@@ -1331,6 +1331,12 @@ io.on("connection", (socket) => {
   const isHost = () => room && player && room.hostId === player.id;
 
   // Latido: el móvil pregunta «¿sigo dentro?». Si el servidor le había dado por perdido, vuelve a entrar.
+  // ¿Sigue existiendo esta sala? (para no enseñar invitaciones a salas que ya cerraron)
+  socket.on("roomInfo", (data, ack) => {
+    if (typeof ack !== "function") return;
+    const code = String(data?.code || "").toUpperCase().trim();
+    ack({ exists: code === PRACTICE_CODE || rooms.has(code) });
+  });
   socket.on("alive", (data, ack) => {
     if (typeof ack !== "function") return;
     if (!room || !player || !rooms.has(room.code)) return ack({ ok: false });
