@@ -1047,7 +1047,8 @@ body.has-tabbar .book-fab { bottom: calc(86px + env(safe-area-inset-bottom)); }
 .switch.on::after { transform: translateX(18px); }
 /* sala: tu ficha se puede tocar; y un solo enlace al cuaderno */
 .me-chip { cursor: pointer; }
-.me-edit { margin-left: 4px; color: var(--accent); font-weight: 800; }
+.me-edit { margin-left: 6px; padding: 3px 10px; border-radius: 999px; background: var(--accent); color: #fff; font-size: .75rem; font-weight: 800; white-space: nowrap; }
+.me-chip { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent); }
 .lobby-book-link { align-self: center; margin-top: 4px; padding: 8px 12px; border: 0; background: none; color: var(--muted); font: inherit; font-size: .88rem; font-weight: 700; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
 
 /* bienvenida */
@@ -1056,3 +1057,12 @@ body.has-tabbar .book-fab { bottom: calc(86px + env(safe-area-inset-bottom)); }
 .welcome-face { align-self: center; display: flex; flex-direction: column; align-items: center; gap: 4px; border: 0; background: none; cursor: pointer; color: var(--accent); font: inherit; font-weight: 700; font-size: .8rem; }
 .welcome-face .avatar { width: 92px; height: 92px; font-size: 58px; }
 .welcome-sheet .error:empty { display: none; }
+
+/* «Tú» como pantalla */
+.me-screen { overflow-y: auto; }
+.me-wrap { display: flex; flex-direction: column; gap: 14px; max-width: 560px; width: 100%; margin: 0 auto; }
+.me-screen .emoji-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(56px, 1fr)); gap: 8px; }
+.me-screen #emojiClose[hidden] { display: none; }
+/* inicio: el bloque centrado, un poco por encima del centro (centro óptico) */
+.home-screen > .home-book-link { margin-bottom: auto; align-self: center; }
+body.has-tabbar .home-screen { padding-bottom: calc(110px + env(safe-area-inset-bottom)); }

@@ -371,7 +371,7 @@
   });
 
   // ---------- utilidades de interfaz ----------
-  const screens = ["s-knock", "s-home", "s-lobby", "s-text", "s-draw", "s-vote", "s-wait", "s-result", "s-reveal", "s-end", "s-book"];
+  const screens = ["s-me", "s-knock", "s-home", "s-lobby", "s-text", "s-draw", "s-vote", "s-wait", "s-result", "s-reveal", "s-end", "s-book"];
   function show(id) {
     if (document.body.dataset.screen !== id) {
       $("zoomSheet").hidden = true;
@@ -380,11 +380,12 @@
     for (const s of screens) $(s).hidden = s !== id;
     document.body.dataset.screen = id;
     // barra de abajo (Jugar · Cuaderno · Tú): solo fuera de una sala
-    const tabs = !state && (id === "s-home" || id === "s-book");
+    const tabs = !state && (id === "s-home" || id === "s-book" || id === "s-me");
     $("tabbar").hidden = !tabs;
     document.body.classList.toggle("has-tabbar", tabs);
     $("tabPlay").classList.toggle("on", id === "s-home");
     $("tabBook").classList.toggle("on", id === "s-book");
+    $("tabMe").classList.toggle("on", id === "s-me");
     trackScreen(id);
     if (id === "s-draw" && pad) requestAnimationFrame(() => pad.layout());
   }
@@ -488,7 +489,6 @@
         for (const x of g.children) x.setAttribute("aria-checked", String(x.dataset.id === e));
         paintCurrentAvatar();
         SFX.play("pop");
-        $("emojiSheet").hidden = true;
         if (state && state.phase === "lobby") socket.emit("profile", { name: me.name, emoji: me.emoji });
       });
       g.appendChild(b);
@@ -501,7 +501,7 @@
     c.appendChild(AVATARS.avatarEl(me.emoji));
     try {
       renderWho();
-      if (!$("emojiSheet").hidden) renderMe();
+      if (meOpen) renderMe();
     } catch (_) {}
   }
   // Persona con su carita, para frases como "Abuela dibujó"
@@ -530,7 +530,7 @@
   // en el cuaderno y se pasa a encuadrarla. Así solo hay un sitio para dibujar y otro para elegir.
   let faceDraft = false;
   function openFace() {
-    $("emojiSheet").hidden = true;
+    leaveMeFor();
     startSolo();
     faceDraft = true;
     $("drawStep").textContent = "Tu carita";
@@ -577,19 +577,43 @@
     $("meThemeSw").classList.toggle("on", dark);
     $("meSoundSw").classList.toggle("on", !SFX.muted);
   }
+  // «Tú» es una pantalla (no una ventana): se entra desde la barra de abajo o tocando tu ficha en la sala,
+  // y se sale yendo a otra pestaña o con «Volver» (en la sala).
+  let meOpen = false;
+  let backToMe = false; // al terminar de dibujar/encuadrar la carita, se vuelve aquí
   function openMe() {
     SFX.play("click");
+    meOpen = true;
+    backToMe = false;
     renderMe();
-    $("emojiSheet").hidden = false;
+    $("emojiClose").hidden = !state && !welcomeBack;
+    show("s-me");
   }
-  function closeMe() {
+  function leaveMeFor() {
+    // se sale de «Tú» para dibujar o encuadrar la carita; luego se vuelve
+    if (meOpen) {
+      syncMeName();
+      meOpen = false;
+      backToMe = true;
+    }
+  }
+  function closeMe(go) {
     syncMeName();
-    $("emojiSheet").hidden = true;
+    meOpen = false;
+    backToMe = false;
     if (welcomeBack) {
       welcomeBack = false;
+      showHome();
       paintWelcomeFace();
       $("welcomeSheet").hidden = false;
+      return;
     }
+    if (go) return go();
+    if (state) render();
+    else showHome();
+  }
+  function maybeBackToMe() {
+    if (backToMe) setTimeout(openMe, 50);
   }
   function syncMeName() {
     const v = $("meName").value.trim().slice(0, 16);
@@ -617,7 +641,7 @@
   $("faceRetouchBtn").addEventListener("click", () => {
     const src = faceSource();
     if (!src) return;
-    $("emojiSheet").hidden = true;
+    leaveMeFor();
     faceRetouch = src;
     startSolo(src.meta);
     $("drawStep").textContent = "Retocando tu carita";
@@ -626,7 +650,10 @@
   });
   $("faceCropBtn").addEventListener("click", () => {
     const src = faceSource();
-    if (src) openFaceCrop(src.meta, src.crop);
+    if (src) {
+      leaveMeFor();
+      openFaceCrop(src.meta, src.crop);
+    }
   });
   let faceRetouch = null;
   // Inicio: la primera vez se pide nombre y carita; luego, solo «Hola, …» (se cambia en «Tú»)
@@ -644,13 +671,23 @@
   }
   $("whoHello").addEventListener("click", () => openMe());
   $("tabPlay").addEventListener("click", () => {
+    if (meOpen) return closeMe(() => show("s-home"));
     if (bookOpen) $("bookBack").click();
     else show("s-home");
   });
   $("tabBook").addEventListener("click", () => {
+    if (meOpen) return closeMe(() => openBook("tab"));
     if (!bookOpen) openBook("tab");
   });
-  $("tabMe").addEventListener("click", () => openMe());
+  $("homeBookBtn").addEventListener("click", () => openBook("tab"));
+  $("tabMe").addEventListener("click", () => {
+    if (meOpen) return;
+    if (bookOpen) {
+      bookOpen = false;
+      document.body.classList.remove("solo");
+    }
+    openMe();
+  });
   if (me.name.trim()) store.set("tg-named", "1");
   renderWho();
   setTimeout(() => !state && renderChrome(), 0);
@@ -753,10 +790,13 @@
       b.addEventListener("click", () => openFaceCrop(d));
       g.appendChild(b);
     });
-    $("emojiSheet").hidden = true;
+    leaveMeFor();
     $("facePick").hidden = false;
   }
-  $("facePickClose").addEventListener("click", () => ($("facePick").hidden = true));
+  $("facePickClose").addEventListener("click", () => {
+    $("facePick").hidden = true;
+    maybeBackToMe();
+  });
   $("facePick").addEventListener("click", (e) => {
     if (e.target === $("facePick")) $("facePick").hidden = true;
   });
@@ -846,7 +886,10 @@
       zoomAt(e.deltaY < 0 ? 1.1 : 1 / 1.1, e.clientX, e.clientY);
     }, { passive: false });
   })();
-  $("faceCropClose").addEventListener("click", () => ($("faceCrop").hidden = true));
+  $("faceCropClose").addEventListener("click", () => {
+    $("faceCrop").hidden = true;
+    maybeBackToMe();
+  });
   $("faceCropUse").addEventListener("click", () => {
     const im = $("cropImg");
     if (!im.naturalWidth) return;
@@ -861,6 +904,7 @@
     if (cropMeta) store.set("tg-face-src", JSON.stringify({ id: cropMeta.id, tx: crop.tx / crop.S, ty: crop.ty / crop.S, kw: (crop.k * crop.w) / crop.S }));
     $("faceCrop").hidden = true;
     renderWho();
+    maybeBackToMe();
     toast("¡Carita lista! 🎉");
   });
   $("howBtn").addEventListener("click", () => {
@@ -872,9 +916,7 @@
   $("howSheet").addEventListener("click", (e) => {
     if (e.target === $("howSheet")) $("howSheet").hidden = true;
   });
-  $("emojiSheet").addEventListener("click", (e) => {
-    if (e.target === $("emojiSheet")) $("emojiSheet").hidden = true;
-  });
+
   $("nameInput").value = me.name;
   $("nameInput").addEventListener("input", (e) => {
     me.name = e.target.value;
@@ -917,6 +959,7 @@
     $("welcomeSheet").hidden = true;
     welcomeBack = true;
     openMe();
+    $("emojiClose").hidden = false;
   });
   let welcomeBack = false;
   function welcomeGo() {
@@ -1151,7 +1194,7 @@
   }
   // «Atrás» del móvil (Android, también con la app instalada): primero cierra lo que haya abierto
   // (visor, ventanas), luego sale del cuaderno o del dibujo libre; en partida, pregunta antes de salir.
-  const OVERLAYS = ["welcomeSheet", "faceCrop", "facePick", "bookView", "zoomSheet", "shareSheet", "modeSheet", "howSheet", "emojiSheet", "endSheet", "leaveSheet"];
+  const OVERLAYS = ["welcomeSheet", "faceCrop", "facePick", "bookView", "zoomSheet", "shareSheet", "modeSheet", "howSheet", "endSheet", "leaveSheet"];
   const openOverlay = () => OVERLAYS.map((id) => $(id)).find((o) => o && !o.hidden);
   const needsGuard = () => !!state || bookOpen || soloMode || !!openOverlay();
   let consumingBack = false;
@@ -1197,7 +1240,7 @@
     $("roomChip").hidden = !inRoom;
     $("leaveBtn").hidden = !inRoom;
     // fuera de una sala, sonido y tema están en «Tú»
-    $("muteBtn").hidden = !inRoom;
+
     document.querySelectorAll(".theme-btn").forEach((b) => (b.hidden = !inRoom));
     $("topbar").classList.toggle("in-room", inRoom);
     if (inRoom) $("roomChip").textContent = state.code;
@@ -1245,6 +1288,16 @@
       outdated = false;
       $("updateBar").hidden = false; // se ofrece, sin recargar por sorpresa
     }
+    if (meOpen && state && state.phase !== "lobby") {
+      // empieza la partida: se sale de «Tú»
+      syncMeName();
+      meOpen = false;
+      backToMe = false;
+    }
+    if (meOpen) {
+      renderChrome();
+      return;
+    }
     if (soloMode || bookOpen) {
       if (state && state.phase !== "lobby") {
         // Empieza la partida mientras dibujabas: lo que llevabas se guarda solo en el cuaderno
@@ -1282,7 +1335,7 @@
         li.tabIndex = 0;
         li.title = "Cambiar tu nombre o tu carita";
         li.addEventListener("click", () => openMe());
-        tags.appendChild(el("span", "me-edit", "✎"));
+        tags.appendChild(el("span", "me-edit", "Editar perfil"));
       }
     }
     if (p.id === state.hostId) tags.appendChild(el("span", "tag host", "anfitrión"));
@@ -4155,6 +4208,10 @@
     $("drawDone").textContent = "¡Listo!";
     currentStepKey = null;
     if (!silent) SFX.play("click");
+    if (backToMe && !silent) {
+      backToMe = false;
+      return openMe();
+    }
     if (state) render();
     else if (soloFrom === "book" && !silent) openBook("tab");
     else showHome();

@@ -115,6 +115,7 @@
       <button class="btn primary small-btn" id="installBtn" type="button">Instalar</button>
       <button class="install-x" id="installClose" type="button" aria-label="No mostrar más">✕</button>
     </div>
+    <button class="lobby-book-link home-book-link" id="homeBookBtn" type="button">📒 Tu cuaderno</button>
   </main>
 
   <!-- SALA DE ESPERA -->
@@ -346,6 +347,32 @@
     <div class="book-grid grow" id="bookGrid"></div>
     <button class="btn primary book-fab" id="bookDraw" type="button" aria-label="Dibujar algo nuevo">＋ Dibujar</button>
   </main>
+  <!-- TÚ: nombre, carita y ajustes -->
+  <main class="screen fit-screen me-screen" id="s-me" hidden>
+    <div class="me-wrap">
+      <div class="sheet-head">
+        <h2 class="h2" id="emojiTitle">Tú</h2>
+        <button class="btn-ghost small" id="emojiClose" type="button">Volver</button>
+      </div>
+      <div class="me-top">
+        <span class="me-face" id="meFace"></span>
+        <input id="meName" class="input me-name" maxlength="16" autocomplete="nickname" placeholder="Tu nombre" aria-label="Tu nombre">
+      </div>
+      <div class="face-actions" id="faceActions">
+        <button class="face-action" id="faceRetouchBtn" type="button"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg><strong>Retocar</strong></button>
+        <button class="face-action" id="faceCropBtn" type="button"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></svg><strong>Encuadrar</strong></button>
+        <button class="face-action" id="faceBookBtn" type="button"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h11"/></svg><strong id="faceBookTxt">Otro dibujo</strong></button>
+        <button class="face-action" id="faceDrawBtn" type="button"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><strong id="faceDrawTxt">Dibujar nueva</strong></button>
+      </div>
+      <p class="face-or">o elige una de estas</p>
+      <div class="emoji-grid" id="emojiGrid" role="radiogroup" aria-label="Caritas"></div>
+      <div class="me-settings" id="meSettings">
+        <button class="me-row" id="meTheme" type="button"><span>Modo oscuro</span><span class="switch" id="meThemeSw"></span></button>
+        <button class="me-row" id="meSound" type="button"><span>Sonidos</span><span class="switch" id="meSoundSw"></span></button>
+      </div>
+    </div>
+  </main>
+
   <div class="viewer" id="bookView" role="dialog" aria-modal="true" aria-labelledby="bookPrompt" hidden>
     <div class="viewer-top">
       <button class="viewer-x" id="bookClose" type="button" aria-label="Cerrar"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
@@ -366,32 +393,7 @@
   </div>
 
   <!-- Elegir emoticono -->
-  <div class="sheet-backdrop" id="emojiSheet" hidden>
-    <div class="sheet emoji-sheet me-sheet" role="dialog" aria-modal="true" aria-labelledby="emojiTitle">
-      <div class="sheet-head">
-        <h2 class="h2" id="emojiTitle">Tú</h2>
-        <button class="btn primary small-btn" id="emojiClose" type="button">Listo</button>
-      </div>
-      <div class="me-top">
-        <span class="me-face" id="meFace"></span>
-        <input id="meName" class="input me-name" maxlength="16" autocomplete="nickname" placeholder="Tu nombre" aria-label="Tu nombre">
-      </div>
-      <div class="face-actions" id="faceActions">
-        <button class="face-action" id="faceRetouchBtn" type="button"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg><strong>Retocar</strong></button>
-        <button class="face-action" id="faceCropBtn" type="button"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></svg><strong>Encuadrar</strong></button>
-        <button class="face-action" id="faceBookBtn" type="button"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h11"/></svg><strong id="faceBookTxt">Otro dibujo</strong></button>
-        <button class="face-action" id="faceDrawBtn" type="button"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><strong id="faceDrawTxt">Dibujar nueva</strong></button>
-      </div>
-      <p class="face-or">o elige una de estas</p>
-      <div class="emoji-grid" id="emojiGrid" role="radiogroup" aria-label="Caritas"></div>
-      <div class="me-settings" id="meSettings">
-        <button class="me-row" id="meTheme" type="button"><span>Modo oscuro</span><span class="switch" id="meThemeSw"></span></button>
-        <button class="me-row" id="meSound" type="button"><span>Sonidos</span><span class="switch" id="meSoundSw"></span></button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Carita desde el cuaderno: elegir dibujo y recortarlo -->
+<!-- Carita desde el cuaderno: elegir dibujo y recortarlo -->
   <div class="sheet-backdrop" id="facePick" hidden>
     <div class="sheet face-pick-sheet" role="dialog" aria-modal="true" aria-labelledby="facePickTitle">
       <div class="sheet-head">
