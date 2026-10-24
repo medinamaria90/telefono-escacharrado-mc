@@ -309,7 +309,7 @@
     <div class="reveal-prev" id="revealPrev" hidden></div>
     <div class="reveal-stage grow" id="revealStage"></div>
     <div class="bottom-controls" id="revealControls">
-      <button class="btn share-cta" id="shareStoryBtn" type="button" hidden><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg><span>Compartir esta historia</span></button>
+      <button class="btn share-cta" id="shareStoryBtn" type="button" hidden><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg><span>Compartir o guardar</span></button>
       <button class="btn secondary" id="revPrev" type="button">Anterior</button>
       <button class="btn primary" id="revNext" type="button">Siguiente</button>
     </div>
@@ -349,7 +349,7 @@
       <span class="viewer-count" id="bookCount"></span>
     </div>
     <div class="viewer-stage" id="bookStage">
-      <img id="bookImg" alt="Tu dibujo" draggable="false">
+      <div class="viewer-track" id="bookTrack"></div>
       <button class="viewer-nav prev" id="bookPrev" type="button" aria-label="Anterior"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
       <button class="viewer-nav next" id="bookNext" type="button" aria-label="Siguiente"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
     </div>
@@ -420,7 +420,7 @@
         <button class="share-tab" id="shareTabGif" type="button" role="tab" aria-selected="false">🎞️ GIF</button>
       </div>
       <div class="share-preview"><img id="sharePreview" alt="Vista previa de lo que se comparte" hidden><p class="share-wait" id="shareWait">Preparando…</p></div>
-      <button class="btn primary share-go" id="shareGo" type="button" disabled><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg><span>Compartir</span></button>
+      <div class="share-actions"><button class="btn secondary share-save" id="shareSave" type="button" disabled><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/></svg><span>Guardar</span></button><button class="btn primary share-go" id="shareGo" type="button" disabled><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg><span>Compartir</span></button></div>
     </div>
   </div>
 

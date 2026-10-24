@@ -3387,6 +3387,7 @@
       $("shareWait").textContent = isGif ? "Preparando el GIF…" : "Preparando…";
     }
     $("shareGo").disabled = !ready;
+    $("shareSave").disabled = !ready;
   }
   let shareImgUrl = null;
   $("shareStoryBtn").addEventListener("click", async () => {
@@ -3400,7 +3401,7 @@
     shareKind = "img";
     const canGif = st.variant !== "triptych"; // las criaturas, solo en imagen
     $("shareTabs").hidden = !canGif;
-    $("shareTitle").textContent = st.variant === "triptych" ? "Compartir la criatura" : "Compartir la historia";
+    $("shareTitle").textContent = st.variant === "triptych" ? "La criatura" : "La historia";
     paintShare();
     $("shareSheet").hidden = false;
     try {
@@ -3432,6 +3433,33 @@
     SFX.play("click");
     shareKind = "gif";
     paintShare();
+  });
+  // Guardar en el móvil: en iPhone/iPad sale el menú con «Guardar imagen» (va a Fotos); en Android y ordenador, se descarga
+  async function saveFile(file) {
+    if (isApple() && navigator.canShare && navigator.canShare({ files: [file] })) {
+      if (!store.get("tg-tip-photos", "")) {
+        store.set("tg-tip-photos", "1");
+        toast("En el menú que sale, pulsa «Guardar imagen» y se guardará en Fotos.");
+      }
+      try {
+        await navigator.share({ files: [file] });
+      } catch (_) {}
+      return;
+    }
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(file);
+    a.download = file.name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    toast("✔ Guardado en el móvil");
+  }
+  $("shareSave").addEventListener("click", () => {
+    const f = shareKind === "gif" ? shareGif : shareImg;
+    if (!f) return;
+    saveFile(f);
+    track("historia_guardada", { formato: shareKind });
   });
   $("shareGo").addEventListener("click", () => {
     if (shareKind === "gif" && shareGif) shareFiles([shareGif], "gif");
@@ -3790,20 +3818,11 @@
     $("bookDelText").textContent = "Borrar";
     $("bookDel").classList.remove("armed");
   }
-  function showViewItem(dir) {
+  // Carrusel nativo (desliza con el dedo como en la galería del móvil): una diapositiva por dibujo
+  function viewMeta() {
     const d = viewList[viewIdx];
     viewing = d;
-    if (!d) return closeViewer();
-    const img = $("bookImg");
-    img.src = d.img;
-    img.style.transition = "none";
-    img.style.transform = dir ? `translateX(${dir * 40}px)` : "";
-    img.style.opacity = dir ? "0" : "1";
-    requestAnimationFrame(() => {
-      img.style.transition = "transform .22s ease, opacity .22s ease";
-      img.style.transform = "";
-      img.style.opacity = "1";
-    });
+    if (!d) return;
     $("bookPrompt").textContent = d.prompt || "Dibujo";
     $("bookMeta").textContent = (d.by ? "de " + d.by + " · " : "") + new Date(d.date).toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" });
     $("bookCount").textContent = `${viewIdx + 1} / ${viewList.length}`;
@@ -3811,13 +3830,34 @@
     $("bookNext").hidden = viewIdx >= viewList.length - 1;
     disarmDel();
   }
+  function buildTrack() {
+    const track = $("bookTrack");
+    track.innerHTML = "";
+    viewList.forEach((d, k) => {
+      const slide = el("div", "viewer-slide");
+      const im = el("img");
+      im.alt = d.prompt || "Dibujo";
+      im.draggable = false;
+      im.decoding = "async";
+      if (Math.abs(k - viewIdx) > 2) im.loading = "lazy";
+      im.src = d.img;
+      slide.appendChild(im);
+      track.appendChild(slide);
+    });
+  }
+  function goSlide(k, smooth) {
+    const track = $("bookTrack");
+    track.scrollTo({ left: k * track.clientWidth, behavior: smooth ? "smooth" : "auto" });
+  }
   function viewDrawing(k) {
     SFX.play("page");
     viewList = readBook();
     viewIdx = Math.max(0, Math.min(k, viewList.length - 1));
     $("bookView").classList.remove("bare");
     $("bookView").hidden = false;
-    showViewItem(0);
+    buildTrack();
+    requestAnimationFrame(() => goSlide(viewIdx, false));
+    viewMeta();
   }
   function closeViewer() {
     $("bookView").hidden = true;
@@ -3825,16 +3865,8 @@
   }
   function stepView(dir) {
     const n = viewIdx + dir;
-    if (n < 0 || n >= viewList.length) {
-      // al borde: un pequeño rebote
-      const img = $("bookImg");
-      img.style.transform = `translateX(${-dir * 18}px)`;
-      setTimeout(() => (img.style.transform = ""), 160);
-      return;
-    }
-    SFX.play("page");
-    viewIdx = n;
-    showViewItem(dir);
+    if (n < 0 || n >= viewList.length) return;
+    goSlide(n, true);
   }
   $("bookClose").addEventListener("click", closeViewer);
   $("bookPrev").addEventListener("click", (e) => {
@@ -3845,38 +3877,25 @@
     e.stopPropagation();
     stepView(1);
   });
-  // deslizar con el dedo (y tocar para ver el dibujo solo, sin barras)
   (() => {
-    const stage = $("bookStage");
-    let sx = 0, sy = 0, dx = 0, active = false, moved = false;
-    stage.addEventListener("pointerdown", (e) => {
-      if (e.target.closest(".viewer-nav")) return;
-      active = true;
-      moved = false;
-      sx = e.clientX;
-      sy = e.clientY;
-      dx = 0;
-      $("bookImg").style.transition = "none";
+    const track = $("bookTrack");
+    let raf = 0;
+    track.addEventListener("scroll", () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const k = Math.round(track.scrollLeft / Math.max(1, track.clientWidth));
+        if (k !== viewIdx && k >= 0 && k < viewList.length) {
+          viewIdx = k;
+          viewMeta();
+        }
+      });
     });
-    stage.addEventListener("pointermove", (e) => {
-      if (!active) return;
-      dx = e.clientX - sx;
-      if (Math.abs(dx) > 8 || Math.abs(e.clientY - sy) > 8) moved = true;
-      $("bookImg").style.transform = `translateX(${dx}px)`;
+    // tocar el dibujo: se esconden/enseñan las barras (para verlo solo)
+    track.addEventListener("click", () => $("bookView").classList.toggle("bare"));
+    // al girar el móvil, que no se quede a medias entre dos dibujos
+    window.addEventListener("resize", () => {
+      if (!$("bookView").hidden) goSlide(viewIdx, false);
     });
-    const end = () => {
-      if (!active) return;
-      active = false;
-      const img = $("bookImg");
-      img.style.transition = "transform .2s ease";
-      if (Math.abs(dx) > 60) stepView(dx < 0 ? 1 : -1);
-      else {
-        img.style.transform = "";
-        if (!moved) $("bookView").classList.toggle("bare");
-      }
-    };
-    stage.addEventListener("pointerup", end);
-    stage.addEventListener("pointercancel", end);
     document.addEventListener("keydown", (e) => {
       if ($("bookView").hidden) return;
       if (e.key === "ArrowRight") stepView(1);
@@ -3970,7 +3989,9 @@
     viewList = readBook();
     if (!viewList.length) return closeViewer();
     viewIdx = Math.min(viewIdx, viewList.length - 1);
-    showViewItem(0);
+    buildTrack();
+    requestAnimationFrame(() => goSlide(viewIdx, false));
+    viewMeta();
   });
   $("soloBtn").addEventListener("click", () => startSolo());
   $("lobbySoloBtn").addEventListener("click", () => startSolo());
