@@ -126,6 +126,8 @@
   let gallery = null;
   let pad = null;
   let wakeLock = null;
+  let knock = null; // esperando a la puerta de una sala con la partida empezada: { code, approved, host }
+  const showHome = () => show(knock ? "s-knock" : "s-home");
 
   const params = new URLSearchParams(location.search);
   const inviteCode = (params.get("sala") || "").toUpperCase().replace(/[^A-Z]/g, "").slice(0, 5);
@@ -138,6 +140,12 @@
     const s = session.get();
     if (s && s.code && s.token && (!inviteCode || inviteCode === s.code)) {
       socket.emit("join", { code: s.code, token: s.token, rejoinOnly: true, name: me.name, emoji: me.emoji }, (res) => {
+        if (res.ok && res.waiting) {
+          knock = { code: res.code, approved: res.approved, host: res.host };
+          renderKnock();
+          if (!soloMode && !bookOpen) show("s-knock");
+          return;
+        }
         if (res.ok) setTimeout(pairResync, 300);
         if (res.ok && pendingDrawing) {
           const pd = pendingDrawing;
@@ -361,7 +369,7 @@
   });
 
   // ---------- utilidades de interfaz ----------
-  const screens = ["s-home", "s-lobby", "s-text", "s-draw", "s-vote", "s-wait", "s-result", "s-reveal", "s-end", "s-book"];
+  const screens = ["s-knock", "s-home", "s-lobby", "s-text", "s-draw", "s-vote", "s-wait", "s-result", "s-reveal", "s-end", "s-book"];
   function show(id) {
     if (document.body.dataset.screen !== id) {
       $("zoomSheet").hidden = true;
@@ -681,6 +689,15 @@
     try {
       history.replaceState(null, "", "/?sala=" + res.code);
     } catch (_) {}
+    if (res.waiting) {
+      // la partida ya había empezado: se espera a la puerta
+      knock = { code: res.code, approved: res.approved, host: res.host };
+      renderKnock();
+      show("s-knock");
+      SFX.play("pop");
+      return;
+    }
+    knock = null;
     guardBack();
     SFX.play("pop");
     keepAwake();
@@ -748,6 +765,76 @@
     else socket.once("connect", checkInvite);
   }
 
+  // ---------- llamar a la puerta (partida empezada) ----------
+  function renderKnock() {
+    if (!knock) return;
+    const who = knock.host ? knock.host : "el anfitrión";
+    $("knockEmoji").textContent = knock.approved ? "🎉" : "🚪";
+    $("knockTitle").textContent = knock.approved ? "¡Te han dejado entrar!" : "Pidiendo permiso para entrar…";
+    $("knockText").textContent = knock.approved
+      ? `La partida de la sala ${knock.code} ya estaba en marcha. Entrarás en cuanto acabe y empiece la siguiente. Mientras, puedes dibujar.`
+      : `La partida de la sala ${knock.code} ya ha empezado. Le hemos preguntado a ${who} si puedes unirte: si dice que sí, entrarás en la siguiente partida.`;
+  }
+  socket.on("knock", (m) => {
+    if (!knock) return;
+    if (m.approved) {
+      knock.approved = true;
+      renderKnock();
+      SFX.play("point");
+      if (!$("s-knock").hidden) return;
+      toast("¡Te han dejado entrar! Entrarás en la siguiente partida 🎉");
+    } else if (m.denied) {
+      knock = null;
+      session.set(null);
+      clearInvite();
+      if (!soloMode && !bookOpen) show("s-home");
+      toast("Ahora no se puede entrar en esa partida. Prueba cuando acabe 🙂");
+    } else if (m.open) {
+      // ha acabado la partida: se entra en la sala (con el mismo token)
+      const s = session.get();
+      const code = knock.code;
+      socket.emit("join", { code, token: s && s.token, name: me.name, emoji: me.emoji }, (res) => {
+        if (res && res.ok && !res.waiting) {
+          knock = null;
+          entered(res, code);
+          toast("¡Ya estás dentro de la sala! 🎉");
+        } else if (res && !res.ok) {
+          knock = null;
+          session.set(null);
+          if (!soloMode && !bookOpen) show("s-home");
+          toast(res.error || "No se pudo entrar en la sala.");
+        }
+      });
+    }
+  });
+  $("knockDraw").addEventListener("click", () => startSolo());
+  $("knockLeave").addEventListener("click", () => {
+    SFX.play("leave");
+    socket.emit("unknock");
+    knock = null;
+    session.set(null);
+    clearInvite();
+    show("s-home");
+  });
+  // Anfitrión: alguien quiere entrar con la partida empezada
+  function renderRequests() {
+    const reqs = state && isHost() && state.phase !== "lobby" ? state.requests || [] : [];
+    $("reqBar").hidden = !reqs.length;
+    if (!reqs.length) return;
+    const r = reqs[0];
+    const face = r.emoji && !isFace(r.emoji) && !String(r.emoji).startsWith("av:") ? r.emoji + " " : "🙋 ";
+    $("reqText").textContent = `${face}${r.name} quiere entrar. ¿Le dejas? Entrará en la próxima partida${reqs.length > 1 ? ` (y ${reqs.length - 1} más esperando)` : ""}.`;
+    $("reqBar").dataset.id = r.id;
+  }
+  $("reqYes").addEventListener("click", () => {
+    SFX.play("click");
+    socket.emit("admit", { id: $("reqBar").dataset.id, yes: true });
+  });
+  $("reqNo").addEventListener("click", () => {
+    SFX.play("click");
+    socket.emit("admit", { id: $("reqBar").dataset.id, yes: false });
+  });
+
   // ---------- salir, logo y botón atrás ----------
   function askLeave(fromLogo) {
     SFX.play("click");
@@ -795,12 +882,46 @@
       backGuarded = true;
     } catch (_) {}
   }
+  // «Atrás» del móvil (Android, también con la app instalada): primero cierra lo que haya abierto
+  // (visor, ventanas), luego sale del cuaderno o del dibujo libre; en partida, pregunta antes de salir.
+  const OVERLAYS = ["bookView", "zoomSheet", "shareSheet", "modeSheet", "howSheet", "emojiSheet", "endSheet", "leaveSheet"];
+  const openOverlay = () => OVERLAYS.map((id) => $(id)).find((o) => o && !o.hidden);
+  const needsGuard = () => !!state || bookOpen || soloMode || !!openOverlay();
+  let consumingBack = false;
+  function syncBack() {
+    if (needsGuard()) guardBack();
+    else if (backGuarded && !consumingBack) {
+      // ya no hay nada que cerrar: se quita la entrada de más, para que «atrás» funcione normal
+      consumingBack = true;
+      backGuarded = false;
+      try {
+        history.back();
+      } catch (_) {
+        consumingBack = false;
+      }
+    }
+  }
+  new MutationObserver(() => setTimeout(syncBack, 0)).observe(document.body, { attributes: true, attributeFilter: ["hidden"], subtree: true });
   window.addEventListener("popstate", () => {
     backGuarded = false;
-    if (state) {
-      guardBack();
-      askLeave(false);
+    if (consumingBack) {
+      consumingBack = false;
+      try {
+        if (!state && location.search) history.replaceState(null, "", "/");
+      } catch (_) {}
+      return;
     }
+    const ov = openOverlay();
+    if (ov) {
+      if (ov.id === "bookView") closeViewer();
+      else if (ov.id === "leaveSheet") $("leaveNo").click();
+      else ov.hidden = true;
+    } else if (bookOpen) $("bookBack").click();
+    else if (soloMode) {
+      if (pad && pad.dirty) toast("Pulsa «Guardar» para guardar tu dibujo, o «Salir» si no lo quieres.");
+      else exitSolo();
+    } else if (state) askLeave(false);
+    if (needsGuard()) guardBack();
   });
 
   // ---------- render principal ----------
@@ -834,6 +955,21 @@
     socket.emit("endGame");
   });
 
+  // Mientras dibujas: cuántos de los demás ya han entregado («✅ 1 de 3 ya han terminado»)
+  function updateDoneCount() {
+    const box = $("drawDoneCount");
+    if (!box) return;
+    const t = state && state.task;
+    const others = state && state.phase === "playing" && t && t.type === "draw" ? state.players.filter((p) => p.id !== state.you && !p.left) : [];
+    if (!others.length || soloMode) {
+      box.hidden = true;
+      return;
+    }
+    const n = others.filter((p) => p.done).length;
+    box.textContent = n === 0 ? `Nadie ha terminado aún · ${others.length} más dibujando` : `✅ ${n} de ${others.length} ya ${n === 1 ? "ha" : "han"} terminado`;
+    box.classList.toggle("all", n === others.length);
+    box.hidden = false;
+  }
   function render() {
     if (outdated && state && (state.phase === "lobby" || state.phase === "end") && !soloMode && !bookOpen) {
       outdated = false;
@@ -856,8 +992,10 @@
     }
     renderChrome();
     renderPause();
-    if (!state) return show("s-home");
+    renderRequests();
+    if (!state) return showHome();
     if (state.phase === "lobby") return renderLobby();
+    updateDoneCount();
     if (state.phase === "playing") return renderPlaying();
     if (state.phase === "reveal") return renderReveal();
     if (state.phase === "end") return renderEnd();
@@ -2877,18 +3015,8 @@
   function canvasFile(c, name) {
     return new Promise((ok) => c.toBlob((b) => ok(new File([b], name, { type: "image/jpeg" })), "image/jpeg", 0.9));
   }
-  // ---------- vídeo de la historia ----------
-  // Vertical (formato story), generado en el propio móvil: presentación, cada paso entrando con una
-  // transición (en el Tríptico, la criatura descubriéndose de arriba abajo) y cierre con la dirección.
-  const videoMime = () => {
-    try {
-      if (!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) return null;
-      // solo H.264 en MP4: lo que aceptan WhatsApp, Instagram y el iPhone
-      return ["video/mp4;codecs=avc1.42E01E", "video/mp4;codecs=avc1"].find((m) => MediaRecorder.isTypeSupported(m)) || null;
-    } catch (_) {
-      return null;
-    }
-  };
+  // ---------- escenas de la historia (para el GIF y el cartel del Tríptico) ----------
+  // Vertical (formato story): presentación, cada paso entrando con una transición y cierre con la dirección.
   const ease = (p) => 1 - Math.pow(1 - Math.min(1, Math.max(0, p)), 3);
   function drawCard(ctx, im, cx, top, maxW, maxH) {
     let w = maxW, h = maxH;
@@ -3056,23 +3184,6 @@
     });
     return scenes;
   }
-  /** Fotograma t (ms) del vídeo en un lienzo de 720x1280 */
-  function videoFrameFn(scenes, ctx, VWID, VHEI) {
-    return (t) => {
-      let acc = 0;
-      let sc = scenes[scenes.length - 1], p = 1;
-      for (const s2 of scenes) {
-        if (t < acc + s2.dur) {
-          sc = s2;
-          p = (t - acc) / s2.dur;
-          break;
-        }
-        acc += s2.dur;
-      }
-      ctx.setTransform(VWID / SW, 0, 0, VHEI / SH, 0, 0);
-      sc.draw(ctx, p);
-    };
-  }
   function loadScript(src) {
     return new Promise((ok, ko) => {
       if (document.querySelector(`script[data-src="${src}"]`)) return ok();
@@ -3084,89 +3195,45 @@
       document.head.appendChild(el2);
     });
   }
-  /** Vídeo rápido: se fabrica fotograma a fotograma (unos segundos), sin esperar a que pase en tiempo real */
-  async function videoFast(scenes, total, onProgress) {
-    if (!window.VideoEncoder || !window.VideoFrame) return null;
-    const VWID = 720, VHEI = 1280, FPS = 30;
-    const config = { codec: "avc1.42001f", width: VWID, height: VHEI, bitrate: 3000000, framerate: FPS };
-    try {
-      const sup = await VideoEncoder.isConfigSupported(config);
-      if (!sup || !sup.supported) return null;
-      await loadScript("vendor/mp4-muxer.js?v=1");
-    } catch (_) {
-      return null;
-    }
-    if (!window.Mp4Muxer) return null;
-    const c = document.createElement("canvas");
-    c.width = VWID;
-    c.height = VHEI;
-    const ctx = c.getContext("2d");
-    const frame = videoFrameFn(scenes, ctx, VWID, VHEI);
-    const muxer = new Mp4Muxer.Muxer({ target: new Mp4Muxer.ArrayBufferTarget(), video: { codec: "avc", width: VWID, height: VHEI }, fastStart: "in-memory" });
-    let failed = null;
-    const enc = new VideoEncoder({ output: (chunk, meta) => muxer.addVideoChunk(chunk, meta), error: (e) => (failed = e) });
-    enc.configure(config);
-    const frames = Math.ceil((total / 1000) * FPS);
-    for (let i = 0; i < frames && !failed; i++) {
-      frame((i * 1000) / FPS);
-      const vf = new VideoFrame(c, { timestamp: Math.round((i * 1e6) / FPS), duration: Math.round(1e6 / FPS) });
-      enc.encode(vf, { keyFrame: i % 60 === 0 });
-      vf.close();
-      if (i % 10 === 0) {
-        onProgress && onProgress(i / frames);
-        await new Promise((r) => setTimeout(r, 0));
-      }
-      while (enc.encodeQueueSize > 8) await new Promise((r) => setTimeout(r, 5));
-    }
-    if (failed) return null;
-    await enc.flush();
-    enc.close();
-    muxer.finalize();
-    return new File([muxer.target.buffer], "dibulios.mp4", { type: "video/mp4" });
-  }
-  /** Vídeo en tiempo real (móviles que no pueden el rápido): unos 15-20 s */
-  async function videoRealtime(scenes, total, onProgress) {
-    const mime = videoMime();
-    if (!mime) return null;
-    const VWID = 720, VHEI = 1280;
-    const c = document.createElement("canvas");
-    c.width = VWID;
-    c.height = VHEI;
-    c.style.cssText = "position:fixed;left:0;top:0;width:2px;height:2px;opacity:0.01;pointer-events:none;z-index:-1";
-    document.body.appendChild(c);
-    const ctx = c.getContext("2d");
-    const frame = videoFrameFn(scenes, ctx, VWID, VHEI);
-    frame(0);
-    const stream = c.captureStream(30);
-    const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 3000000 });
-    const chunks = [];
-    rec.ondataavailable = (e) => e.data && e.data.size && chunks.push(e.data);
-    const done = new Promise((ok) => (rec.onstop = ok));
-    rec.start(250);
-    const t0 = performance.now();
-    await new Promise((ok) => {
-      const tick = () => {
-        const t = performance.now() - t0;
-        frame(Math.min(t, total));
-        onProgress && onProgress(Math.min(1, t / total));
-        if (t >= total + 200) return ok();
-        requestAnimationFrame(tick);
-      };
-      requestAnimationFrame(tick);
-    });
-    rec.stop();
-    await done;
-    stream.getTracks().forEach((tr) => tr.stop());
-    c.remove();
-    return new File([new Blob(chunks, { type: "video/mp4" })], "dibulios.mp4", { type: "video/mp4" });
-  }
-  async function storyVideo(st, onProgress) {
+  /** GIF de la historia: cada paso entra con su transición y se queda un rato; arriba Dibulíos, abajo el enlace */
+  async function storyGif(st, onProgress) {
     try {
       await Promise.all([document.fonts.load(`96px "Bagel Fat One"`), document.fonts.load(`700 46px "Atkinson Hyperlegible"`)]);
     } catch (_) {}
+    await loadScript("vendor/gifenc.js?v=1");
+    const { GIFEncoder, quantize, applyPalette } = window.gifenc;
     const scenes = await videoScenes(st);
-    const total = scenes.reduce((a, sc) => a + sc.dur, 0);
-    return (await videoFast(scenes, total, onProgress)) || (await videoRealtime(scenes, total, onProgress));
+    const GW = 480, GH = 854;
+    const c = document.createElement("canvas");
+    c.width = GW;
+    c.height = GH;
+    const ctx = c.getContext("2d", { willReadFrequently: true });
+    const enc = GIFEncoder();
+    const TR = [0.05, 0.12, 0.19, 0.27, 0.36]; // fotogramas de la transición
+    const STEP_MS = 70;
+    const total = scenes.length * (TR.length + 1);
+    let done = 0;
+    const frame = (p, delay) => {
+      ctx.setTransform(GW / SW, 0, 0, GH / SH, 0, 0);
+      scenes[k].draw(ctx, p);
+      const { data } = ctx.getImageData(0, 0, GW, GH);
+      const palette = quantize(data, 256);
+      enc.writeFrame(applyPalette(data, palette), GW, GH, { palette, delay });
+      done++;
+      if (onProgress) onProgress(done / total);
+    };
+    let k = 0;
+    for (k = 0; k < scenes.length; k++) {
+      const sc = scenes[k];
+      for (const p of TR) {
+        frame(p, STEP_MS);
+        await new Promise((r) => setTimeout(r, 0));
+      }
+      frame(1, Math.max(900, sc.dur - TR.length * STEP_MS));
+      await new Promise((r) => setTimeout(r, 0));
+    }
+    enc.finish();
+    return new File([enc.bytes()], "dibulios-historia.gif", { type: "image/gif" });
   }
 
   // ---------- imagen tipo cómic: toda la historia en una sola imagen vertical, al instante ----------
@@ -3249,7 +3316,7 @@
 
   // ---------- ventana de compartir ----------
   let shareImg = null; // imagen ya preparada (para compartir al tocar, sin esperas)
-  let shareVid = null;
+  let shareGif = null;
   async function shareFiles(files, kind) {
     const st = sharing || {};
     const text = (st.variant === "triptych" ? "Nuestra criatura en Dibulíos 🎨 " : "Nuestra historia en Dibulíos ✏️ ") + location.origin;
@@ -3276,14 +3343,15 @@
     SFX.play("page");
     const st = sharing;
     shareImg = null;
-    shareVid = null;
+    shareGif = null;
     $("sharePreview").hidden = true;
     $("shareWait").hidden = false;
     $("shareWait").textContent = "Preparando…";
     $("shareImgBtn").disabled = true;
     $("shareImgBtn").textContent = "📤 Compartir imagen";
-    $("shareVideoBtn").disabled = false;
-    $("shareVideoBtn").textContent = "🎬 Mejor en vídeo";
+    $("shareGifBtn").disabled = false;
+    $("shareGifBtn").textContent = "🎞️ Compartir como GIF";
+    $("shareGifBtn").hidden = st.variant === "triptych"; // las criaturas, solo en imagen
     $("shareSheet").hidden = false;
     try {
       const r = await storyComic(st);
@@ -3298,27 +3366,25 @@
     }
   });
   $("shareImgBtn").addEventListener("click", () => shareImg && shareFiles([shareImg], "imagen"));
-  $("shareVideoBtn").addEventListener("click", async () => {
-    const btn = $("shareVideoBtn");
-    // segundo toque: el vídeo ya está hecho (el móvil exige un toque para abrir «compartir»)
-    if (shareVid) return shareFiles([shareVid], "video");
+  $("shareGifBtn").addEventListener("click", async () => {
+    const btn = $("shareGifBtn");
+    // segundo toque: el GIF ya está hecho (el móvil exige un toque para abrir «compartir»)
+    if (shareGif) return shareFiles([shareGif], "gif");
     if (!sharing) return;
+    const st = sharing;
     btn.disabled = true;
-    btn.textContent = "🎬 Creando… 0 %";
+    btn.textContent = "🎞️ Creando el GIF… 0 %";
     try {
-      const v = await storyVideo(sharing, (p) => (btn.textContent = `🎬 Creando… ${Math.round(p * 100)} %`));
-      if (!v) {
-        btn.textContent = "Este móvil no puede crear vídeos";
-        return;
-      }
-      shareVid = v;
+      const g = await storyGif(st, (p) => (btn.textContent = `🎞️ Creando el GIF… ${Math.round(p * 100)} %`));
+      if (sharing !== st) return;
+      shareGif = g;
       btn.disabled = false;
-      btn.textContent = "📤 Compartir vídeo";
+      btn.textContent = "📤 Compartir GIF";
       SFX.play("point");
     } catch (_) {
       btn.disabled = false;
-      btn.textContent = "🎬 Mejor en vídeo";
-      toast("No se pudo crear el vídeo.");
+      btn.textContent = "🎞️ Compartir como GIF";
+      toast("No se pudo crear el GIF.");
     }
   });
   $("shareClose").addEventListener("click", () => ($("shareSheet").hidden = true));
@@ -3600,7 +3666,7 @@
     currentStepKey = null;
     if (!silent) SFX.play("click");
     if (state) render();
-    else show("s-home");
+    else showHome();
   }
   function saveToBook() {
     if (editingId) {
@@ -3649,31 +3715,125 @@
       grid.appendChild(empty);
       return;
     }
-    list.forEach((d) => {
+    list.forEach((d, k) => {
       const b = el("button", "book-item");
       b.type = "button";
+      b.setAttribute("aria-label", d.prompt || "Dibujo");
       const im = el("img");
       im.src = d.img;
-      im.alt = d.prompt;
+      im.alt = "";
       im.loading = "lazy";
       b.appendChild(im);
-      b.appendChild(el("span", "book-cap", d.prompt));
-      b.addEventListener("click", () => viewDrawing(d));
+      b.addEventListener("click", () => viewDrawing(k));
       grid.appendChild(b);
     });
+    grid.appendChild(el("p", "book-foot", `${list.length} ${list.length === 1 ? "dibujo" : "dibujos"} · se guardan solo en este móvil · máximo ${BOOK_MAX}`));
   }
+  // ---------- visor del cuaderno: a pantalla completa, deslizando para pasar ----------
   let viewing = null;
+  let viewIdx = 0;
+  let viewList = [];
   let delArmed = null;
-  function viewDrawing(d) {
-    SFX.play("page");
-    viewing = d;
-    $("bookImg").src = d.img;
-    $("bookPrompt").textContent = d.prompt + (d.by ? " · de " + d.by : "") + " · " + new Date(d.date).toLocaleDateString("es-ES", { day: "numeric", month: "short" });
-    $("bookDelText").textContent = "";
+  function disarmDel() {
+    clearTimeout(delArmed);
+    delArmed = null;
+    $("bookDelText").textContent = "Borrar";
     $("bookDel").classList.remove("armed");
-    $("bookView").hidden = false;
   }
-  $("bookClose").addEventListener("click", () => ($("bookView").hidden = true));
+  function showViewItem(dir) {
+    const d = viewList[viewIdx];
+    viewing = d;
+    if (!d) return closeViewer();
+    const img = $("bookImg");
+    img.src = d.img;
+    img.style.transition = "none";
+    img.style.transform = dir ? `translateX(${dir * 40}px)` : "";
+    img.style.opacity = dir ? "0" : "1";
+    requestAnimationFrame(() => {
+      img.style.transition = "transform .22s ease, opacity .22s ease";
+      img.style.transform = "";
+      img.style.opacity = "1";
+    });
+    $("bookPrompt").textContent = d.prompt || "Dibujo";
+    $("bookMeta").textContent = (d.by ? "de " + d.by + " · " : "") + new Date(d.date).toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" });
+    $("bookCount").textContent = `${viewIdx + 1} / ${viewList.length}`;
+    $("bookPrev").hidden = viewIdx <= 0;
+    $("bookNext").hidden = viewIdx >= viewList.length - 1;
+    disarmDel();
+  }
+  function viewDrawing(k) {
+    SFX.play("page");
+    viewList = readBook();
+    viewIdx = Math.max(0, Math.min(k, viewList.length - 1));
+    $("bookView").classList.remove("bare");
+    $("bookView").hidden = false;
+    showViewItem(0);
+  }
+  function closeViewer() {
+    $("bookView").hidden = true;
+    disarmDel();
+  }
+  function stepView(dir) {
+    const n = viewIdx + dir;
+    if (n < 0 || n >= viewList.length) {
+      // al borde: un pequeño rebote
+      const img = $("bookImg");
+      img.style.transform = `translateX(${-dir * 18}px)`;
+      setTimeout(() => (img.style.transform = ""), 160);
+      return;
+    }
+    SFX.play("page");
+    viewIdx = n;
+    showViewItem(dir);
+  }
+  $("bookClose").addEventListener("click", closeViewer);
+  $("bookPrev").addEventListener("click", (e) => {
+    e.stopPropagation();
+    stepView(-1);
+  });
+  $("bookNext").addEventListener("click", (e) => {
+    e.stopPropagation();
+    stepView(1);
+  });
+  // deslizar con el dedo (y tocar para ver el dibujo solo, sin barras)
+  (() => {
+    const stage = $("bookStage");
+    let sx = 0, sy = 0, dx = 0, active = false, moved = false;
+    stage.addEventListener("pointerdown", (e) => {
+      if (e.target.closest(".viewer-nav")) return;
+      active = true;
+      moved = false;
+      sx = e.clientX;
+      sy = e.clientY;
+      dx = 0;
+      $("bookImg").style.transition = "none";
+    });
+    stage.addEventListener("pointermove", (e) => {
+      if (!active) return;
+      dx = e.clientX - sx;
+      if (Math.abs(dx) > 8 || Math.abs(e.clientY - sy) > 8) moved = true;
+      $("bookImg").style.transform = `translateX(${dx}px)`;
+    });
+    const end = () => {
+      if (!active) return;
+      active = false;
+      const img = $("bookImg");
+      img.style.transition = "transform .2s ease";
+      if (Math.abs(dx) > 60) stepView(dx < 0 ? 1 : -1);
+      else {
+        img.style.transform = "";
+        if (!moved) $("bookView").classList.toggle("bare");
+      }
+    };
+    stage.addEventListener("pointerup", end);
+    stage.addEventListener("pointercancel", end);
+    document.addEventListener("keydown", (e) => {
+      if ($("bookView").hidden) return;
+      if (e.key === "ArrowRight") stepView(1);
+      else if (e.key === "ArrowLeft") stepView(-1);
+      else if (e.key === "Escape") closeViewer();
+    });
+  })();
   // Guardar un dibujo en la galería del móvil.
   // iPhone/iPad: una descarga va a «Archivos», no a Fotos; el menú de compartir tiene «Guardar imagen».
   // Android y ordenador: descarga directa (en Android aparece en la galería, en «Descargas»).
@@ -3716,37 +3876,51 @@
       a.remove();
       setTimeout(() => URL.revokeObjectURL(a.href), 4000);
       if (btn) flashBtn(btn, "✔ Guardado en la galería", 2000);
+      else toast("✔ Imagen guardada en el móvil");
       track("dibujo_a_galeria", { via: "descarga" });
     } catch (_) {
       toast("No se pudo guardar la imagen.");
     }
   }
-  $("bookSave").addEventListener("click", () => viewing && saveToGallery(viewing.img, viewing.prompt, $("bookSave")));
-  $("bookEdit").addEventListener("click", () => {
-    $("bookView").hidden = true;
-    if (viewing) startSolo(viewing);
+  $("bookSave").addEventListener("click", () => viewing && saveToGallery(viewing.img, viewing.prompt, null));
+  $("bookShare").addEventListener("click", async () => {
+    if (!viewing) return;
+    try {
+      const file = await toJpegFile(viewing.img, fileName(viewing.prompt));
+      const text = "Dibujado en Dibulíos ✏️ " + location.origin;
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: "Dibulíos", text });
+          track("dibujo_compartido", {});
+        } catch (_) {} // cancelado
+        return;
+      }
+      saveToGallery(viewing.img, viewing.prompt, null);
+    } catch (_) {
+      toast("No se pudo compartir el dibujo.");
+    }
   });
-  $("bookView").addEventListener("click", (e) => {
-    if (e.target === $("bookView")) $("bookView").hidden = true;
+  $("bookEdit").addEventListener("click", () => {
+    closeViewer();
+    if (viewing) startSolo(viewing);
   });
   $("bookDel").addEventListener("click", () => {
     if (!delArmed) {
       SFX.play("click");
-      $("bookDelText").textContent = "¿Borrar?";
+      $("bookDelText").textContent = "¿Seguro?";
       $("bookDel").classList.add("armed");
-      delArmed = setTimeout(() => {
-        delArmed = null;
-        $("bookDelText").textContent = "";
-        $("bookDel").classList.remove("armed");
-      }, 3000);
+      delArmed = setTimeout(disarmDel, 3000);
       return;
     }
-    clearTimeout(delArmed);
-    delArmed = null;
+    disarmDel();
     writeBook(readBook().filter((x) => x.id !== viewing.id));
     SFX.play("crumple");
-    $("bookView").hidden = true;
     renderBook();
+    // se queda en el visor, con el siguiente dibujo (o se cierra si ya no quedan)
+    viewList = readBook();
+    if (!viewList.length) return closeViewer();
+    viewIdx = Math.min(viewIdx, viewList.length - 1);
+    showViewItem(0);
   });
   $("soloBtn").addEventListener("click", () => startSolo());
   $("lobbySoloBtn").addEventListener("click", () => startSolo());
@@ -3762,7 +3936,7 @@
     soloMode = false;
     document.body.classList.remove("solo");
     if (state) render();
-    else show("s-home");
+    else showHome();
   });
 
   // ---------- final ----------

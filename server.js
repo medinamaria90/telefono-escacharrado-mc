@@ -1148,6 +1148,15 @@ function backToLobby(room) {
   }
   ensureHost(room);
   broadcast(room);
+  // Se abre la puerta: quien esperaba entra ahora (su móvil vuelve a llamar con su token)
+  for (const w of room.waiting.values()) {
+    if (w.socketId) io.to(w.socketId).emit("knock", { open: true });
+    else room.waiting.delete(w.id);
+  }
+}
+function hostName(room) {
+  const h = room.players.get(room.hostId);
+  return h ? h.name : "";
 }
 
 // ---------- estado que ve cada jugador ----------
@@ -1161,6 +1170,9 @@ function stateFor(room, playerId) {
     hostId: room.hostId,
     phase: room.phase,
     settings: room.settings,
+    // quién llama a la puerta (solo lo ve el anfitrión) y cuántos entrarán en la próxima partida
+    requests: playerId === room.hostId ? [...room.waiting.values()].filter((w) => !w.approved).map((w) => ({ id: w.id, name: w.name, emoji: w.emoji })) : [],
+    incoming: [...room.waiting.values()].filter((w) => w.approved).map((w) => w.name),
     mode: game ? game.mode : VOTE_MODES.includes(room.settings.mode) ? "vote" : CHAIN_MODES.includes(room.settings.mode) || players.length !== 2 ? "chain" : "duo",
     chainSteps: chainLength(Math.max(players.length, 3)),
     players: players.map((p) => ({
@@ -1234,6 +1246,7 @@ io.on("connection", (socket) => {
   socket.emit("version", BOOT);
   let room = null;
   let player = null;
+  let knock = null; // si este móvil está esperando a la puerta de una sala
 
   function attach(r, p) {
     room = r;
@@ -1259,6 +1272,7 @@ io.on("connection", (socket) => {
       phase: "lobby",
       settings: { time: 60, duoRounds: 3, mode: "telefono", rule: "mix" },
       game: null,
+      waiting: new Map(), // quienes llaman a la puerta con la partida empezada (entran en la siguiente)
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
@@ -1315,17 +1329,62 @@ io.on("connection", (socket) => {
       if (r.phase === "end") sendGallery(r, socket);
       return;
     }
+    // ¿Es alguien que estaba esperando a la puerta?
+    const knocking = token && [...r.waiting.values()].find((w) => w.token === token);
+    if (knocking && r.phase !== "lobby") {
+      knocking.socketId = socket.id;
+      clearTimeout(knocking.dropTimer);
+      knock = { r, w: knocking };
+      ack({ ok: true, waiting: true, approved: knocking.approved, code: r.code, token: knocking.token, host: hostName(r) });
+      return;
+    }
     if (r.phase !== "lobby") {
       if (data?.rejoinOnly) return ack({ ok: false, error: "Ya no estás en esa sala." });
-      return ack({ ok: false, error: "La partida ya ha empezado. Si estabas jugando, escribe exactamente el mismo nombre que usaste. Si no, espera a que acabe." });
+      // Partida empezada: se pide permiso al anfitrión y, si dice que sí, se entra en la siguiente
+      if (r.practice) return ack({ ok: false, error: "Esa partida ya ha empezado." });
+      if (r.waiting.size >= 8) return ack({ ok: false, error: "La partida ya ha empezado y hay mucha gente esperando. Prueba cuando acabe." });
+      const w = { id: newId(), token: newId(), name: cleanName(data?.name), emoji: cleanEmoji(data?.emoji), socketId: socket.id, approved: false };
+      r.waiting.set(w.id, w);
+      knock = { r, w };
+      ack({ ok: true, waiting: true, approved: false, code: r.code, token: w.token, host: hostName(r) });
+      return broadcast(r);
+    }
+    if (knocking) {
+      r.waiting.delete(knocking.id);
+      knock = null;
     }
     const active = [...r.players.values()].filter((p) => !p.left);
     if (active.length >= MAX_PLAYERS) return ack({ ok: false, error: `La sala está llena (máximo ${MAX_PLAYERS}).` });
     const p = makePlayer(data?.name, data?.emoji);
+    if (knocking) p.token = knocking.token; // sigue siendo la misma persona que esperaba
     r.players.set(p.id, p);
     attach(r, p);
     ack({ ok: true, code: r.code, playerId: p.id, token: p.token });
     broadcast(r);
+  });
+
+  socket.on("unknock", () => {
+    if (!knock) return;
+    const { r, w } = knock;
+    knock = null;
+    if (r.waiting.get(w.id) === w) {
+      r.waiting.delete(w.id);
+      broadcast(r);
+    }
+  });
+  // El anfitrión deja entrar (en la próxima partida) o no a quien llama a la puerta
+  socket.on("admit", (data) => {
+    if (!isHost()) return;
+    const w = room.waiting.get(String(data?.id || ""));
+    if (!w) return;
+    if (data?.yes) {
+      w.approved = true;
+      if (w.socketId) io.to(w.socketId).emit("knock", { approved: true });
+    } else {
+      room.waiting.delete(w.id);
+      if (w.socketId) io.to(w.socketId).emit("knock", { denied: true });
+    }
+    broadcast(room);
   });
 
   const isHost = () => room && player && room.hostId === player.id;
@@ -1489,6 +1548,16 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
+    if (knock && knock.w.socketId === socket.id) {
+      const { r, w } = knock;
+      w.socketId = null;
+      w.dropTimer = setTimeout(() => {
+        if (!w.socketId && r.waiting.get(w.id) === w) {
+          r.waiting.delete(w.id);
+          broadcast(r);
+        }
+      }, 120000);
+    }
     if (!room || !player || player.socketId !== socket.id) return;
     const r = room;
     const p = player;
