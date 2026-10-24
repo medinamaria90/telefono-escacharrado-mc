@@ -3219,10 +3219,7 @@
     const st = sharing || {};
     const owner = st.owner && st.owner.name ? st.owner.name : "";
     const who = artistNames(st);
-    const text =
-      st.variant === "triptych"
-        ? `«La criatura${owner ? " de " + owner : ""}», dibujada${who ? " entre " + who : " a varias manos"} en Dibulíos 🎨 ¿Te atreves con la tuya? ${location.origin}`
-        : `«La historia${owner ? " de " + owner : ""}» en Dibulíos: empezó con una frase${who ? " y pasó por " + who : ""}. A ver si adivinas cómo acabó ✏️ ${location.origin}`;
+    const text = (st.variant === "triptych" ? "Nuestra criatura en Dibulíos 🎨 " : "Nuestra historia en Dibulíos ✏️ ") + location.origin;
     if (navigator.canShare && navigator.canShare({ files })) {
       try {
         await navigator.share({ files, title: "Dibulíos", text });
