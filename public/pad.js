@@ -586,14 +586,22 @@
         const landscape = img.naturalWidth > img.naturalHeight;
         this.rotated = landscape;
         this.layout();
+        // Se encaja sin deformar (p. ej. las criaturas del Tríptico, más alargadas): lo que sobra queda en blanco
+        const fit = (tw, th) => {
+          const k = Math.min(tw / img.naturalWidth, th / img.naturalHeight);
+          const dw = img.naturalWidth * k, dh = img.naturalHeight * k;
+          this.ctx.fillStyle = "#ffffff";
+          this.ctx.fillRect(0, 0, tw, th);
+          this.ctx.drawImage(img, (tw - dw) / 2, (th - dh) / 2, dw, dh);
+        };
         if (landscape) {
           // Dibujo horizontal: se guarda girado dentro del lienzo vertical
           this.ctx.save();
           this.ctx.translate(W, 0);
           this.ctx.rotate(Math.PI / 2);
-          this.ctx.drawImage(img, 0, 0, H, W);
+          fit(H, W);
           this.ctx.restore();
-        } else this.ctx.drawImage(img, 0, 0, W, H);
+        } else fit(W, H);
         this.dirty = false;
         this.blank = false;
         this.onOrient(this.rotated !== this.screenLandscape);
