@@ -770,7 +770,45 @@
   $("facePick").addEventListener("click", (e) => {
     if (e.target === $("facePick")) $("facePick").hidden = true;
   });
-  const crop = { k: 1, tx: 0, ty: 0, S: 300, w: 1, h: 1, min: 0.2 };
+  const crop = { k: 1, tx: 0, ty: 0, S: 300, w: 1, h: 1, min: 0.2, bg: "#ffffff" };
+  /** El color dominante del borde de una imagen (para rellenar sin franjas blancas) */
+  function edgeColor(im) {
+    try {
+      const W = 90, H = Math.max(1, Math.round((im.naturalHeight * W) / im.naturalWidth));
+      const c = document.createElement("canvas");
+      c.width = W;
+      c.height = H;
+      const x = c.getContext("2d", { willReadFrequently: true });
+      x.fillStyle = "#fff";
+      x.fillRect(0, 0, W, H);
+      x.drawImage(im, 0, 0, W, H);
+      const d = x.getImageData(0, 0, W, H).data;
+      const count = new Map();
+      const add = (px, py) => {
+        const i = (py * W + px) * 4;
+        const k = ((d[i] >> 4) << 8) | ((d[i + 1] >> 4) << 4) | (d[i + 2] >> 4);
+        const o = count.get(k) || { n: 0, r: 0, g: 0, b: 0 };
+        o.n++;
+        o.r += d[i];
+        o.g += d[i + 1];
+        o.b += d[i + 2];
+        count.set(k, o);
+      };
+      for (let px = 0; px < W; px++) {
+        add(px, 0);
+        add(px, H - 1);
+      }
+      for (let py = 0; py < H; py++) {
+        add(0, py);
+        add(W - 1, py);
+      }
+      let best = null;
+      for (const o of count.values()) if (!best || o.n > best.n) best = o;
+      return best ? `rgb(${Math.round(best.r / best.n)},${Math.round(best.g / best.n)},${Math.round(best.b / best.n)})` : "#ffffff";
+    } catch (_) {
+      return "#ffffff";
+    }
+  }
   function paintCrop() {
     const im = $("cropImg");
     im.style.width = crop.w * crop.k + "px";
@@ -792,6 +830,9 @@
           crop.S = box.width;
           crop.w = im.naturalWidth;
           crop.h = im.naturalHeight;
+          // si se aleja tanto que sobra círculo, se rellena con el color que más hay en el borde del dibujo
+          crop.bg = edgeColor(im);
+          $("cropBox").style.background = crop.bg;
           // al empezar, el dibujo cubre el círculo y se centra un poco arriba (donde suelen estar las caras)
           crop.k = Math.max(crop.S / crop.w, crop.S / crop.h);
           crop.min = crop.k * 0.35;
@@ -867,7 +908,7 @@
     out.width = out.height = 256; // más grande: no se pixela al verla en grande
     const x = out.getContext("2d");
     const f = 256 / crop.S;
-    x.fillStyle = "#ffffff";
+    x.fillStyle = crop.bg || "#ffffff";
     x.fillRect(0, 0, 256, 256);
     x.drawImage(im, crop.tx * f, crop.ty * f, crop.w * crop.k * f, crop.h * crop.k * f);
     useFace(out, "carita_del_cuaderno");
