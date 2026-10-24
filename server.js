@@ -54,9 +54,34 @@ app.get("/salud", (_req, res) => res.send("ok"));
 // Para Google: se puede indexar la portada (las salas no)
 const SITE = process.env.SITE_URL || "https://dibulios.onrender.com";
 app.get("/robots.txt", (_req, res) => res.type("text/plain").send(`User-agent: *\nAllow: /\nDisallow: /img/\nSitemap: ${SITE}/sitemap.xml\n`));
+// Guías (páginas de texto para buscadores; la app no las enlaza): /como-jugar, etc.
+const GUIDES = ["como-jugar", "juego-de-dibujar-y-adivinar", "juegos-para-jugar-en-familia"];
+for (const g of GUIDES) {
+  app.get("/" + g, (_req, res) => {
+    res.set("Cache-Control", "public, max-age=3600");
+    res.sendFile(path.join(__dirname, "public", "guias", g + ".html"));
+  });
+}
+const SITEMAP_DATE = new Date().toISOString().slice(0, 10);
 app.get("/sitemap.xml", (_req, res) =>
-  res.type("application/xml").send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${SITE}/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url></urlset>\n`)
+  res
+    .type("application/xml")
+    .send(
+      `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">` +
+        [["/", "1.0"], ...GUIDES.map((g) => ["/" + g, "0.7"])].map(([u, p]) => `<url><loc>${SITE}${u}</loc><lastmod>${SITEMAP_DATE}</lastmod><priority>${p}</priority></url>`).join("") +
+        `</urlset>\n`
+    )
 );
+// IndexNow (Bing, Yandex…): se les avisa de las páginas al arrancar en producción
+const INDEXNOW_KEY = "d1bu710s5e0k3y2026a";
+app.get(`/${INDEXNOW_KEY}.txt`, (_req, res) => res.type("text/plain").send(INDEXNOW_KEY));
+if (process.env.RENDER) {
+  setTimeout(() => {
+    const host = new URL(SITE).host;
+    const body = JSON.stringify({ host, key: INDEXNOW_KEY, keyLocation: `${SITE}/${INDEXNOW_KEY}.txt`, urlList: [SITE + "/", ...GUIDES.map((g) => `${SITE}/${g}`)] });
+    fetch("https://api.indexnow.org/indexnow", { method: "POST", headers: { "Content-Type": "application/json; charset=utf-8" }, body }).catch(() => {});
+  }, 60000);
+}
 // Dibujos y caritas de una sala: cada móvil los descarga una sola vez (y se quedan en su caché)
 app.get("/img/:code/:id", (req, res) => {
   const r = rooms.get(String(req.params.code).toUpperCase());
