@@ -585,6 +585,11 @@
   function closeMe() {
     syncMeName();
     $("emojiSheet").hidden = true;
+    if (welcomeBack) {
+      welcomeBack = false;
+      paintWelcomeFace();
+      $("welcomeSheet").hidden = false;
+    }
   }
   function syncMeName() {
     const v = $("meName").value.trim().slice(0, 16);
@@ -627,7 +632,7 @@
   // Inicio: la primera vez se pide nombre y carita; luego, solo «Hola, …» (se cambia en «Tú»)
   function renderWho() {
     const known = !!me.name.trim() && store.get("tg-named", "") === "1";
-    $("whoNew").hidden = known;
+    $("whoNew").hidden = true; // el nombre se pide al entrar (bienvenida) y se cambia en «Tú»
     $("whoHello").hidden = !known;
     $("helloName").textContent = "Hola, " + me.name;
     const hf = $("helloFace");
@@ -884,16 +889,57 @@
     store.set("tg-name", me.name);
   }
   ["change", "blur"].forEach((ev) => $("nameInput").addEventListener(ev, syncName));
-  function needName() {
+  // Sin nombre no se juega: antes de crear o entrar en una sala sale la bienvenida («¿Cómo te llamas?»,
+  // con tu carita ya puesta). Al continuar, se hace lo que habías pulsado.
+  let welcomeThen = null;
+  function needName(then) {
     syncName();
-    if (!me.name.trim()) {
-      $("homeError").textContent = "Escribe tu nombre para que los demás sepan quién eres.";
-      $("nameInput").focus();
-      return true;
-    }
     $("homeError").textContent = "";
-    return false;
+    if (me.name.trim() && store.get("tg-named", "") === "1") return false;
+    welcomeThen = then || null;
+    const inv = then && then.code ? then.code : "";
+    $("welcomeInvite").hidden = !inv;
+    $("welcomeInvite").textContent = inv ? `Te han invitado a la sala ${inv}` : "";
+    $("welcomeName").value = me.name;
+    $("welcomeError").textContent = "";
+    paintWelcomeFace();
+    $("welcomeSheet").hidden = false;
+    setTimeout(() => $("welcomeName").focus(), 250);
+    return true;
   }
+  function paintWelcomeFace() {
+    const f = $("welcomeFaceAv");
+    f.innerHTML = "";
+    f.appendChild(AVATARS.avatarEl(me.emoji));
+  }
+  $("welcomeFace").addEventListener("click", () => {
+    $("welcomeSheet").hidden = true;
+    welcomeBack = true;
+    openMe();
+  });
+  let welcomeBack = false;
+  function welcomeGo() {
+    const v = $("welcomeName").value.trim().slice(0, 16);
+    if (!v) {
+      $("welcomeError").textContent = "Escribe tu nombre para que los demás sepan quién eres.";
+      $("welcomeName").focus();
+      return;
+    }
+    me.name = v;
+    store.set("tg-name", v);
+    store.set("tg-named", "1");
+    $("nameInput").value = v;
+    $("welcomeSheet").hidden = true;
+    renderWho();
+    const then = welcomeThen;
+    welcomeThen = null;
+    if (then) then.run();
+  }
+  $("welcomeGo").addEventListener("click", welcomeGo);
+  $("welcomeName").addEventListener("keydown", (e) => e.key === "Enter" && welcomeGo());
+  $("welcomeSheet").addEventListener("click", (e) => {
+    if (e.target === $("welcomeSheet")) $("welcomeSheet").hidden = true;
+  });
   function entered(res, code) {
     if (!res.ok) {
       // Si falla una invitación, vuelve el inicio normal para poder escribir otro código
@@ -922,19 +968,19 @@
     SFX.play("pop");
     keepAwake();
   }
-  $("createBtn").addEventListener("click", () => {
-    if (needName()) return;
+  $("createBtn").addEventListener("click", function create() {
+    if (needName({ run: create })) return;
     socket.emit("create", { name: me.name, emoji: me.emoji }, (res) => {
       if (res && res.ok) track("sala_creada");
       entered(res);
     });
   });
   function joinCode(code) {
-    if (needName()) return;
     if (!/^[A-Z]{5}$/.test(code)) {
       $("homeError").textContent = "El código tiene 5 letras.";
       return;
     }
+    if (needName({ run: () => joinCode(code), code: code === inviteCode ? code : "" })) return;
     const s = session.get();
     socket.emit("join", { code, name: me.name, emoji: me.emoji, token: s && s.code === code ? s.token : null }, (res) => {
       if (res && res.ok) track(code === "ZZZZZ" ? "sala_pruebas" : "sala_unido", { invitacion: code === inviteCode ? "enlace" : "codigo" });
@@ -1104,7 +1150,7 @@
   }
   // «Atrás» del móvil (Android, también con la app instalada): primero cierra lo que haya abierto
   // (visor, ventanas), luego sale del cuaderno o del dibujo libre; en partida, pregunta antes de salir.
-  const OVERLAYS = ["faceCrop", "facePick", "bookView", "zoomSheet", "shareSheet", "modeSheet", "howSheet", "emojiSheet", "endSheet", "leaveSheet"];
+  const OVERLAYS = ["welcomeSheet", "faceCrop", "facePick", "bookView", "zoomSheet", "shareSheet", "modeSheet", "howSheet", "emojiSheet", "endSheet", "leaveSheet"];
   const openOverlay = () => OVERLAYS.map((id) => $(id)).find((o) => o && !o.hidden);
   const needsGuard = () => !!state || bookOpen || soloMode || !!openOverlay();
   let consumingBack = false;

@@ -1049,3 +1049,10 @@ body.has-tabbar .book-fab { bottom: calc(86px + env(safe-area-inset-bottom)); }
 .me-chip { cursor: pointer; }
 .me-edit { margin-left: 4px; color: var(--accent); font-weight: 800; }
 .lobby-book-link { align-self: center; margin-top: 4px; padding: 8px 12px; border: 0; background: none; color: var(--muted); font: inherit; font-size: .88rem; font-weight: 700; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+
+/* bienvenida */
+.welcome-sheet { display: flex; flex-direction: column; align-items: stretch; gap: 12px; text-align: center; }
+.welcome-invite { margin: 0; font-size: .85rem; font-weight: 700; color: var(--accent); }
+.welcome-face { align-self: center; display: flex; flex-direction: column; align-items: center; gap: 4px; border: 0; background: none; cursor: pointer; color: var(--accent); font: inherit; font-weight: 700; font-size: .8rem; }
+.welcome-face .avatar { width: 92px; height: 92px; font-size: 58px; }
+.welcome-sheet .error:empty { display: none; }
