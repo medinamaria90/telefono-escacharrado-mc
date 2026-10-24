@@ -327,6 +327,7 @@
         <button class="trash-btn" id="bookDel" type="button" aria-label="Borrar dibujo" title="Borrar"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg><span id="bookDelText"></span></button>
       </div>
       <img id="bookImg" alt="Tu dibujo">
+      <button class="btn-ghost gallery-btn" id="bookSave" type="button">📥 Guardar en la galería</button>
       <div class="sheet-actions">
         <button class="btn secondary" id="bookClose" type="button">Cerrar</button>
         <button class="btn primary" id="bookEdit" type="button">✏️ Editar</button>
@@ -378,6 +379,19 @@
       <div class="sheet-actions">
         <button class="btn primary" id="howClose" type="button">¡Entendido!</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Compartir una historia -->
+  <div class="sheet-backdrop" id="shareSheet" hidden>
+    <div class="sheet share-sheet" role="dialog" aria-modal="true" aria-labelledby="shareTitle">
+      <h2 class="h2" id="shareTitle">Compartir</h2>
+      <div class="share-preview"><img id="sharePreview" alt="Vista previa de lo que se comparte" hidden><p class="share-wait" id="shareWait">Preparando…</p></div>
+      <div class="sheet-actions">
+        <button class="btn secondary" id="shareVideoBtn" type="button">🎬 Mejor en vídeo</button>
+        <button class="btn primary" id="shareImgBtn" type="button" disabled>📤 Compartir imagen</button>
+      </div>
+      <button class="btn-ghost small share-close" id="shareClose" type="button">Cerrar</button>
     </div>
   </div>
 

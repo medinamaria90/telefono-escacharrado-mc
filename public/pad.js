@@ -262,6 +262,8 @@
       if (this.rotated) return Math.max(80, Math.min(sh, (sw * W) / H));
       return Math.max(120, Math.min(sw, (sh * W) / H));
     }
+    // El lienzo se coloca con una traslación propia (tx, ty) dentro de su zona: así el zoom y el
+    // desplazamiento funcionan igual en todos los navegadores (Safari ignora el scroll durante un pellizco).
     layout(keepCenter) {
       const before = keepCenter || this._center();
       const a = this.baseWidth() * this.zoom; // ancho del lienzo vertical
@@ -275,42 +277,52 @@
         c.style.transformOrigin = "0 0";
         c.style.transform = this.rotated ? `translateY(${a}px) rotate(-90deg)` : "";
       }
-      this.inner.style.width = (this.rotated ? b : a) + "px";
-      this.inner.style.height = (this.rotated ? a : b) + "px";
-      this._restoreCenter(before);
+      this.iw = this.rotated ? b : a;
+      this.ih = this.rotated ? a : b;
+      this.inner.style.width = this.iw + "px";
+      this.inner.style.height = this.ih + "px";
+      if (before && this.zoom > 1.001) {
+        this.tx = before.sx - before.fx * this.iw;
+        this.ty = before.sy - before.fy * this.ih;
+      } else {
+        // sin zoom: centrado
+        this.tx = (this.stage.clientWidth - this.iw) / 2;
+        this.ty = (this.stage.clientHeight - this.ih) / 2;
+      }
+      this._place();
+    }
+    /** Coloca el lienzo; no deja que se vaya del todo fuera de la vista */
+    _place() {
+      const sw = this.stage.clientWidth, sh = this.stage.clientHeight;
+      // se puede salir un poco por los lados (así el punto bajo los dedos no se mueve), pero nunca perderse
+      const clamp = (v, size, room) => {
+        const extra = size * 0.35;
+        return Math.min(Math.max(v, Math.min(0, room - size) - extra), Math.max(0, room - size) + extra);
+      };
+      this.tx = clamp(this.tx || 0, this.iw || 0, sw);
+      this.ty = clamp(this.ty || 0, this.ih || 0, sh);
+      this.inner.style.transform = `translate(${this.tx}px, ${this.ty}px)`;
+    }
+    _panBy(dx, dy) {
+      this.tx = (this.tx || 0) + dx;
+      this.ty = (this.ty || 0) + dy;
+      this._place();
     }
     _center() {
-      const s = this.stage;
-      const cw = this.inner.offsetWidth || 1;
-      const ch = this.inner.offsetHeight || 1;
-      return {
-        fx: (s.scrollLeft + s.clientWidth / 2 - this.inner.offsetLeft) / cw,
-        fy: (s.scrollTop + s.clientHeight / 2 - this.inner.offsetTop) / ch,
-        sx: s.clientWidth / 2,
-        sy: s.clientHeight / 2,
-      };
-    }
-    _restoreCenter(c) {
-      if (!c) return;
-      const s = this.stage;
-      s.scrollLeft = this.inner.offsetLeft + c.fx * this.inner.offsetWidth - c.sx;
-      s.scrollTop = this.inner.offsetTop + c.fy * this.inner.offsetHeight - c.sy;
+      if (!this.iw) return null;
+      const sw = this.stage.clientWidth, sh = this.stage.clientHeight;
+      return { fx: (sw / 2 - this.tx) / this.iw, fy: (sh / 2 - this.ty) / this.ih, sx: sw / 2, sy: sh / 2 };
     }
     setZoom(z, anchor) {
       z = Math.max(1, Math.min(5, z));
       if (Math.abs(z - this.zoom) < 0.001) return;
       let keep;
-      if (anchor) {
+      if (anchor && this.iw) {
         // Mantener fijo el punto bajo los dedos / el ratón
         const r = this.stage.getBoundingClientRect();
         const sx = anchor.x - r.left;
         const sy = anchor.y - r.top;
-        keep = {
-          fx: (this.stage.scrollLeft + sx - this.inner.offsetLeft) / this.inner.offsetWidth,
-          fy: (this.stage.scrollTop + sy - this.inner.offsetTop) / this.inner.offsetHeight,
-          sx,
-          sy,
-        };
+        keep = { fx: (sx - this.tx) / this.iw, fy: (sy - this.ty) / this.ih, sx, sy };
       }
       this.zoom = z;
       this.layout(keep);
@@ -591,6 +603,11 @@
     _down(e) {
       if (e.pointerType === "mouse" && e.button !== 0 && e.button !== 1) return;
       e.preventDefault();
+      // Apple Pencil: mientras el lápiz toca (y un momento después), la palma apoyada no cuenta
+      if (e.pointerType === "pen") this.penDownAt = Date.now();
+      if (this.penDown && !this.pointers.size) this.penDown = false; // por si se perdió el «soltar» del lápiz
+      if (e.pointerType === "touch" && (this.penDown || Date.now() - (this.penUpAt || 0) < 600)) return;
+      if (e.pointerType === "pen") this.penDown = true;
       try {
         this.stage.setPointerCapture(e.pointerId);
       } catch (_) {}
@@ -715,8 +732,7 @@
         const dist = Math.hypot(a.x - b.x, a.y - b.y) || 1;
         const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
         this.setZoom(this.gesture.zoom * (dist / this.gesture.dist), mid);
-        this.stage.scrollLeft -= mid.x - this.gesture.mid.x;
-        this.stage.scrollTop -= mid.y - this.gesture.mid.y;
+        this._panBy(mid.x - this.gesture.mid.x, mid.y - this.gesture.mid.y);
         this.gesture.mid = mid;
         return;
       }
@@ -724,8 +740,7 @@
         this.pendingFill = null;
       }
       if (this.pan) {
-        this.stage.scrollLeft -= e.clientX - this.pan.x;
-        this.stage.scrollTop -= e.clientY - this.pan.y;
+        this._panBy(e.clientX - this.pan.x, e.clientY - this.pan.y);
         this.pan = { x: e.clientX, y: e.clientY };
         return;
       }
@@ -780,6 +795,11 @@
       this.stroke.t = now;
     }
     _up(e, cancelled) {
+      if (!this.pointers.has(e.pointerId)) return; // un toque ignorado (la palma)
+      if (e.pointerType === "pen") {
+        this.penDown = false;
+        this.penUpAt = Date.now();
+      }
       this.pointers.delete(e.pointerId);
       const pf = this.pendingFill;
       if (pf && pf.id === e.pointerId) {

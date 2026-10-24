@@ -363,7 +363,10 @@
   // ---------- utilidades de interfaz ----------
   const screens = ["s-home", "s-lobby", "s-text", "s-draw", "s-vote", "s-wait", "s-result", "s-reveal", "s-end", "s-book"];
   function show(id) {
-    if (document.body.dataset.screen !== id) $("zoomSheet").hidden = true;
+    if (document.body.dataset.screen !== id) {
+      $("zoomSheet").hidden = true;
+      $("shareSheet").hidden = true;
+    }
     for (const s of screens) $(s).hidden = s !== id;
     document.body.dataset.screen = id;
     trackScreen(id);
@@ -384,8 +387,12 @@
     const vp = document.querySelector('meta[name="viewport"]');
     if (!vp) return;
     const orig = vp.getAttribute("content");
-    vp.setAttribute("content", orig.replace(/maximum-scale=[^,]*/, "") + ", maximum-scale=1");
-    setTimeout(() => vp.setAttribute("content", orig), 300);
+    // con un momento de margen: si se estaba tocando un botón (p. ej. «¡Listo!»), que el toque llegue antes
+    setTimeout(() => {
+      if (typing(document.activeElement)) return;
+      vp.setAttribute("content", orig.replace(/maximum-scale=[^,]*/, "") + ", maximum-scale=1");
+      setTimeout(() => vp.setAttribute("content", orig), 300);
+    }, 500);
   });
   // Mantener pulsado: ni selección azul ni menú de «guardar imagen» (salvo al escribir)
   const typing = (t) => t && t.closest && t.closest("input, textarea, [contenteditable='true']");
@@ -1176,19 +1183,54 @@
     }, 50);
   }
 
+  /**
+   * Envío seguro (texto y votos): con confirmación del servidor. Si no llega en unos segundos,
+   * se reconecta y se reenvía solo al volver (igual que los dibujos).
+   */
+  function submitSafe(content, btn) {
+    const key = currentStepKey;
+    const pd = { key, content };
+    pendingDrawing = pd; // se reenvía al reconectar si no llega la confirmación
+    const label = btn ? btn.textContent : "";
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "Enviando…";
+    }
+    const restore = () => {
+      if (btn && btn.textContent === "Enviando…") {
+        btn.disabled = false;
+        btn.textContent = label;
+      }
+    };
+    const slow = setTimeout(() => {
+      if (pendingDrawing !== pd) return;
+      restore();
+      toast("La conexión va lenta. Lo reenviamos en cuanto vuelva; si no avanza, pulsa otra vez.");
+      reconnect();
+    }, 6000);
+    socket.emit("submit", { stepKey: key, content }, () => {
+      clearTimeout(slow);
+      if (pendingDrawing === pd) pendingDrawing = null;
+      restore();
+    });
+    SFX.play("send");
+  }
   function sendText() {
     const v = $("textInput").value.trim();
     if (!v) {
       toast(state.task.type === "write" ? "Escribe algo o pulsa «Dame una idea»." : "Escribe lo que crees que es.");
       return false;
     }
-    socket.emit("submit", { stepKey: currentStepKey, content: v });
-    SFX.play("send");
+    submitSafe(v, $("textForm").querySelector('button[type="submit"]'));
     return true;
   }
   $("textForm").addEventListener("submit", (e) => {
     e.preventDefault();
-    if (sendText()) $("textInput").blur();
+    // Apple Pencil (escritura a mano): primero se cierra el campo para que termine de convertir
+    // lo escrito en texto; luego se lee y se envía
+    const input = $("textInput");
+    if (document.activeElement === input) input.blur();
+    setTimeout(() => sendText(), 80);
   });
   $("diceBtn").addEventListener("click", () => {
     $("textInput").value = idea(state && state.variant === "extreme" ? "extreme" : "classic");
@@ -1559,6 +1601,19 @@
     badge.hidden = true;
     badge.textContent = "100%";
     $("pad").appendChild(badge);
+    // Lienzo ampliado: botón para verlo entero otra vez
+    const fit = el("button", "fit-btn", "⤢ Ver entero");
+    fit.id = "fitBtn";
+    fit.type = "button";
+    fit.hidden = true;
+    fit.addEventListener("click", () => {
+      SFX.play("click");
+      pad.setZoom(1);
+      pad.stage.scrollLeft = 0;
+      pad.stage.scrollTop = 0;
+      updateToolbar();
+    });
+    $("pad").appendChild(fit);
     // Botón para elegir lienzo vertical u horizontal
     const ob = el("button", "orient-btn");
     ob.id = "orientBtn";
@@ -1830,6 +1885,7 @@
     prev.style.background = ink;
     document.querySelectorAll(".size-dot").forEach((d) => (d.style.background = ink));
     $("pad").dataset.tool = pad.tool;
+    $("fitBtn").hidden = !(pad.zoom > 1.01);
     const ob = $("orientBtn");
     ob.hidden = !!pad.forcePortrait || !!pad.forceLandscape || !pad.blank; // solo antes de empezar a dibujar
     const toH = pad.orient !== "h";
@@ -2128,8 +2184,7 @@
       toast(state.task.kind === "extreme" ? "Te falta adivinar este dibujo." : "Te falta puntuar este dibujo.");
       return goVote(missing);
     }
-    socket.emit("submit", { stepKey: currentStepKey, content: votes });
-    SFX.play("send");
+    submitSafe(votes, $("voteNextBtn"));
   });
 
   // Resultado de una ronda: dibujos de más a menos estrellas, ya con su autor
@@ -2662,7 +2717,8 @@
   const videoMime = () => {
     try {
       if (!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) return null;
-      return ["video/mp4;codecs=avc1.42E01E", "video/mp4;codecs=avc1", "video/mp4"].find((m) => MediaRecorder.isTypeSupported(m)) || null;
+      // solo H.264 en MP4: lo que aceptan WhatsApp, Instagram y el iPhone
+      return ["video/mp4;codecs=avc1.42E01E", "video/mp4;codecs=avc1"].find((m) => MediaRecorder.isTypeSupported(m)) || null;
     } catch (_) {
       return null;
     }
@@ -2832,23 +2888,9 @@
     });
     return scenes;
   }
-  /** Graba el vídeo en tiempo real (unos 15-20 s). Devuelve un archivo MP4 o null si el móvil no puede. */
-  async function storyVideo(st, onProgress) {
-    const mime = videoMime();
-    if (!mime) return null;
-    try {
-      await Promise.all([document.fonts.load(`96px "Bagel Fat One"`), document.fonts.load(`700 46px "Atkinson Hyperlegible"`)]);
-    } catch (_) {}
-    const scenes = await videoScenes(st);
-    const total = scenes.reduce((a, sc) => a + sc.dur, 0);
-    const VWID = 720, VHEI = 1280; // 720p: fluido en cualquier móvil
-    const c = document.createElement("canvas");
-    c.width = VWID;
-    c.height = VHEI;
-    c.style.cssText = "position:fixed;left:0;top:0;width:2px;height:2px;opacity:0.01;pointer-events:none;z-index:-1";
-    document.body.appendChild(c);
-    const ctx = c.getContext("2d");
-    const frame = (t) => {
+  /** Fotograma t (ms) del vídeo en un lienzo de 720x1280 */
+  function videoFrameFn(scenes, ctx, VWID, VHEI) {
+    return (t) => {
       let acc = 0;
       let sc = scenes[scenes.length - 1], p = 1;
       for (const s2 of scenes) {
@@ -2862,6 +2904,70 @@
       ctx.setTransform(VWID / SW, 0, 0, VHEI / SH, 0, 0);
       sc.draw(ctx, p);
     };
+  }
+  function loadScript(src) {
+    return new Promise((ok, ko) => {
+      if (document.querySelector(`script[data-src="${src}"]`)) return ok();
+      const el2 = document.createElement("script");
+      el2.src = src;
+      el2.dataset.src = src;
+      el2.onload = () => ok();
+      el2.onerror = ko;
+      document.head.appendChild(el2);
+    });
+  }
+  /** Vídeo rápido: se fabrica fotograma a fotograma (unos segundos), sin esperar a que pase en tiempo real */
+  async function videoFast(scenes, total, onProgress) {
+    if (!window.VideoEncoder || !window.VideoFrame) return null;
+    const VWID = 720, VHEI = 1280, FPS = 30;
+    const config = { codec: "avc1.42001f", width: VWID, height: VHEI, bitrate: 3000000, framerate: FPS };
+    try {
+      const sup = await VideoEncoder.isConfigSupported(config);
+      if (!sup || !sup.supported) return null;
+      await loadScript("vendor/mp4-muxer.js?v=1");
+    } catch (_) {
+      return null;
+    }
+    if (!window.Mp4Muxer) return null;
+    const c = document.createElement("canvas");
+    c.width = VWID;
+    c.height = VHEI;
+    const ctx = c.getContext("2d");
+    const frame = videoFrameFn(scenes, ctx, VWID, VHEI);
+    const muxer = new Mp4Muxer.Muxer({ target: new Mp4Muxer.ArrayBufferTarget(), video: { codec: "avc", width: VWID, height: VHEI }, fastStart: "in-memory" });
+    let failed = null;
+    const enc = new VideoEncoder({ output: (chunk, meta) => muxer.addVideoChunk(chunk, meta), error: (e) => (failed = e) });
+    enc.configure(config);
+    const frames = Math.ceil((total / 1000) * FPS);
+    for (let i = 0; i < frames && !failed; i++) {
+      frame((i * 1000) / FPS);
+      const vf = new VideoFrame(c, { timestamp: Math.round((i * 1e6) / FPS), duration: Math.round(1e6 / FPS) });
+      enc.encode(vf, { keyFrame: i % 60 === 0 });
+      vf.close();
+      if (i % 10 === 0) {
+        onProgress && onProgress(i / frames);
+        await new Promise((r) => setTimeout(r, 0));
+      }
+      while (enc.encodeQueueSize > 8) await new Promise((r) => setTimeout(r, 5));
+    }
+    if (failed) return null;
+    await enc.flush();
+    enc.close();
+    muxer.finalize();
+    return new File([muxer.target.buffer], "dibulios.mp4", { type: "video/mp4" });
+  }
+  /** Vídeo en tiempo real (móviles que no pueden el rápido): unos 15-20 s */
+  async function videoRealtime(scenes, total, onProgress) {
+    const mime = videoMime();
+    if (!mime) return null;
+    const VWID = 720, VHEI = 1280;
+    const c = document.createElement("canvas");
+    c.width = VWID;
+    c.height = VHEI;
+    c.style.cssText = "position:fixed;left:0;top:0;width:2px;height:2px;opacity:0.01;pointer-events:none;z-index:-1";
+    document.body.appendChild(c);
+    const ctx = c.getContext("2d");
+    const frame = videoFrameFn(scenes, ctx, VWID, VHEI);
     frame(0);
     const stream = c.captureStream(30);
     const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 3000000 });
@@ -2884,47 +2990,167 @@
     await done;
     stream.getTracks().forEach((tr) => tr.stop());
     c.remove();
-    const blob = new Blob(chunks, { type: mime.split(";")[0] });
-    return new File([blob], "dibulios.mp4", { type: "video/mp4" });
+    return new File([new Blob(chunks, { type: "video/mp4" })], "dibulios.mp4", { type: "video/mp4" });
+  }
+  async function storyVideo(st, onProgress) {
+    try {
+      await Promise.all([document.fonts.load(`96px "Bagel Fat One"`), document.fonts.load(`700 46px "Atkinson Hyperlegible"`)]);
+    } catch (_) {}
+    const scenes = await videoScenes(st);
+    const total = scenes.reduce((a, sc) => a + sc.dur, 0);
+    return (await videoFast(scenes, total, onProgress)) || (await videoRealtime(scenes, total, onProgress));
+  }
+
+  // ---------- imagen tipo cómic: toda la historia en una sola imagen vertical, al instante ----------
+  function textBox(ctx, text, x, y, w, h, isWrite) {
+    ctx.save();
+    roundRect(ctx, x, y, w, h, 34);
+    ctx.fillStyle = isWrite ? "#ffc53d" : "#ffffff";
+    ctx.fill();
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = "#1d2747";
+    ctx.stroke();
+    let size = 76, lines;
+    do {
+      ctx.font = `${size}px ${SHARE_FONT}`;
+      lines = wrapLines(ctx, text || "…", w - 50);
+      size -= 4;
+    } while ((lines.length * size * 1.2 > h - 40 || lines.some((l) => ctx.measureText(l).width > w - 40)) && size > 26);
+    const lh = (size + 4) * 1.15;
+    ctx.fillStyle = "#1d2747";
+    ctx.textAlign = "center";
+    const y0 = y + h / 2 - (lines.length * lh) / 2 + lh * 0.78;
+    lines.forEach((l, j) => ctx.fillText(l, x + w / 2, y0 + j * lh));
+    ctx.restore();
+  }
+  async function storyComic(st) {
+    try {
+      await Promise.all([document.fonts.load(`96px "Bagel Fat One"`), document.fonts.load(`700 46px "Atkinson Hyperlegible"`)]);
+    } catch (_) {}
+    const c = document.createElement("canvas");
+    c.width = SW;
+    c.height = SH;
+    const ctx = c.getContext("2d");
+    const owner = st.owner && st.owner.name ? st.owner.name : "alguien";
+    if (st.variant === "triptych") {
+      const scenes = await videoScenes(st);
+      scenes[scenes.length - 2].draw(ctx, 1); // la criatura entera
+    } else {
+      slideBase(ctx, `La historia de ${owner}`, "");
+      const n = st.entries.length;
+      const cols = n <= 3 ? 1 : 2, rows = Math.ceil(n / cols);
+      const top = 340, bottom = SH - 170, gap = 26, mx = 40;
+      const cw = (SW - mx * 2 - gap * (cols - 1)) / cols, ch = (bottom - top - gap * (rows - 1)) / rows;
+      for (let i = 0; i < n; i++) {
+        const e = st.entries[i];
+        const col = i % cols, row = Math.floor(i / cols);
+        const x = mx + col * (cw + gap), y = top + row * (ch + gap);
+        // quién y qué hizo
+        const by = e.by && e.by.name ? e.by.name : "Alguien";
+        const prevDraw = i > 0 && st.entries[i - 1].type === "draw";
+        const verb = e.type === "draw" && prevDraw ? "lo copió" : VERB_SHARE[e.type] || "";
+        ctx.save();
+        ctx.fillStyle = "#ff5a3c";
+        ctx.beginPath();
+        ctx.arc(x + 26, y + 24, 24, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#fff";
+        ctx.font = `700 30px ${SHARE_TEXT}`;
+        ctx.textAlign = "center";
+        ctx.fillText(String(i + 1), x + 26, y + 35);
+        ctx.fillStyle = "#1d2747";
+        ctx.textAlign = "left";
+        ctx.font = `700 30px ${SHARE_TEXT}`;
+        let label = `${by} ${verb}`;
+        while (ctx.measureText(label).width > cw - 64 && label.length > 4) label = label.slice(0, -2);
+        ctx.fillText(label, x + 60, y + 35);
+        ctx.restore();
+        const by0 = y + 58, bh = ch - 58;
+        if (e.type === "draw") {
+          const im = e.content ? await loadImg(e.content) : null;
+          drawCard(ctx, im, x + cw / 2, by0, cw, bh);
+        } else textBox(ctx, e.content, x, by0 + bh * 0.1, cw, bh * 0.8, e.type === "write");
+      }
+    }
+    return { file: await canvasFile(c, "dibulios-historia.jpg"), url: c.toDataURL("image/jpeg", 0.85) };
+  }
+
+  // ---------- ventana de compartir ----------
+  let shareImg = null; // imagen ya preparada (para compartir al tocar, sin esperas)
+  let shareVid = null;
+  async function shareFiles(files, kind) {
+    const text = "Mirad cómo acabó nuestra historia en Dibulíos 😂 " + location.origin;
+    if (navigator.canShare && navigator.canShare({ files })) {
+      try {
+        await navigator.share({ files, title: "Dibulíos", text });
+        track("historia_compartida", { formato: kind });
+      } catch (_) {} // cancelado
+      return;
+    }
+    // ordenador (o sin «compartir»): se descarga
+    for (const f of files) {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(f);
+      a.download = f.name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+    track("historia_descargada", { formato: kind });
   }
   $("shareStoryBtn").addEventListener("click", async () => {
     if (!sharing) return;
-    const btn = $("shareStoryBtn");
-    if (btn.disabled) return;
-    btn.disabled = true;
-    const old = btn.textContent;
-    btn.textContent = "Preparando…";
+    SFX.play("page");
+    const st = sharing;
+    shareImg = null;
+    shareVid = null;
+    $("sharePreview").hidden = true;
+    $("shareWait").hidden = false;
+    $("shareWait").textContent = "Preparando…";
+    $("shareImgBtn").disabled = true;
+    $("shareImgBtn").textContent = "📤 Compartir imagen";
+    $("shareVideoBtn").disabled = false;
+    $("shareVideoBtn").textContent = "🎬 Mejor en vídeo";
+    $("shareSheet").hidden = false;
     try {
-      // vídeo si el móvil sabe hacerlo y compartirlo; si no, imágenes
-      let files = null;
-      const video = await storyVideo(sharing, (p) => (btn.textContent = `🎬 Creando vídeo… ${Math.round(p * 100)} %`));
-      if (video && navigator.canShare && navigator.canShare({ files: [video] })) files = [video];
-      else if (video && !navigator.canShare) files = [video];
-      if (!files) files = await storySlides(sharing);
-      const data = { files, title: "Dibulíos", text: "Mirad cómo acabó nuestra historia en Dibulíos 😂 " + location.origin };
-      if (navigator.canShare && navigator.canShare({ files })) {
-        try {
-          await navigator.share(data);
-          track("historia_compartida", { formato: files[0].type.indexOf("video") === 0 ? "video" : "imagenes" });
-        } catch (_) {} // cancelado
-      } else {
-        // ordenador (o móvil sin «compartir»): se descargan las imágenes
-        for (const f of files) {
-          const a = document.createElement("a");
-          a.href = URL.createObjectURL(f);
-          a.download = f.name;
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-          await new Promise((r) => setTimeout(r, 250));
-        }
-        track("historia_descargada", { imagenes: files.length });
-      }
+      const r = await storyComic(st);
+      if (sharing !== st) return;
+      shareImg = r.file;
+      $("sharePreview").src = r.url;
+      $("sharePreview").hidden = false;
+      $("shareWait").hidden = true;
+      $("shareImgBtn").disabled = false;
     } catch (_) {
-      toast("No se pudo preparar la historia para compartir.");
+      $("shareWait").textContent = "No se pudo preparar la imagen.";
     }
-    btn.textContent = old;
-    btn.disabled = false;
+  });
+  $("shareImgBtn").addEventListener("click", () => shareImg && shareFiles([shareImg], "imagen"));
+  $("shareVideoBtn").addEventListener("click", async () => {
+    const btn = $("shareVideoBtn");
+    // segundo toque: el vídeo ya está hecho (el móvil exige un toque para abrir «compartir»)
+    if (shareVid) return shareFiles([shareVid], "video");
+    if (!sharing) return;
+    btn.disabled = true;
+    btn.textContent = "🎬 Creando… 0 %";
+    try {
+      const v = await storyVideo(sharing, (p) => (btn.textContent = `🎬 Creando… ${Math.round(p * 100)} %`));
+      if (!v) {
+        btn.textContent = "Este móvil no puede crear vídeos";
+        return;
+      }
+      shareVid = v;
+      btn.disabled = false;
+      btn.textContent = "📤 Compartir vídeo";
+      SFX.play("point");
+    } catch (_) {
+      btn.disabled = false;
+      btn.textContent = "🎬 Mejor en vídeo";
+      toast("No se pudo crear el vídeo.");
+    }
+  });
+  $("shareClose").addEventListener("click", () => ($("shareSheet").hidden = true));
+  $("shareSheet").addEventListener("click", (e) => {
+    if (e.target === $("shareSheet")) $("shareSheet").hidden = true;
   });
   function renderReveal() {
     currentStepKey = null;
@@ -3274,6 +3500,54 @@
     $("bookView").hidden = false;
   }
   $("bookClose").addEventListener("click", () => ($("bookView").hidden = true));
+  // Guardar un dibujo en la galería del móvil.
+  // iPhone/iPad: una descarga va a «Archivos», no a Fotos; el menú de compartir tiene «Guardar imagen».
+  // Android y ordenador: descarga directa (en Android aparece en la galería, en «Descargas»).
+  const isApple = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  async function toJpegFile(src, name) {
+    const im = await loadImg(src);
+    const c = document.createElement("canvas");
+    c.width = im ? im.naturalWidth : 600;
+    c.height = im ? im.naturalHeight : 900;
+    const x = c.getContext("2d");
+    x.fillStyle = "#fff";
+    x.fillRect(0, 0, c.width, c.height);
+    if (im) x.drawImage(im, 0, 0);
+    return canvasFile(c, name);
+  }
+  function fileName(prompt) {
+    const base = String(prompt || "dibujo").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
+    return "dibulios-" + (base || "dibujo") + ".jpg";
+  }
+  async function saveToGallery(src, prompt, btn) {
+    try {
+      const file = await toJpegFile(src, fileName(prompt));
+      if (isApple() && navigator.canShare && navigator.canShare({ files: [file] })) {
+        if (!store.get("tg-tip-photos", "")) {
+          store.set("tg-tip-photos", "1");
+          toast("En el menú que sale, pulsa «Guardar imagen» y se guardará en Fotos.");
+          await new Promise((r) => setTimeout(r, 900));
+        }
+        try {
+          await navigator.share({ files: [file] });
+          track("dibujo_a_galeria", { via: "compartir" });
+        } catch (_) {} // cancelado
+        return;
+      }
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(file);
+      a.download = file.name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      if (btn) flashBtn(btn, "✔ Guardado en la galería", 2000);
+      track("dibujo_a_galeria", { via: "descarga" });
+    } catch (_) {
+      toast("No se pudo guardar la imagen.");
+    }
+  }
+  $("bookSave").addEventListener("click", () => viewing && saveToGallery(viewing.img, viewing.prompt, $("bookSave")));
   $("bookEdit").addEventListener("click", () => {
     $("bookView").hidden = true;
     if (viewing) startSolo(viewing);
@@ -3391,7 +3665,7 @@
     } else {
       $("endTitle").textContent = "¡Fin de la partida!";
       $("endText").textContent = "¿Otra? Las historias siguen aquí hasta que volváis a la sala.";
-      $("reviewBtn").textContent = "Volver a ver las historias";
+      $("reviewBtn").textContent = state.variant === "triptych" ? "Ver y compartir las criaturas" : "Ver y compartir las historias";
     }
     $("reviewBtn").disabled = !gallery;
     $("againBtn").hidden = !isHost();
