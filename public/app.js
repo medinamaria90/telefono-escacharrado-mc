@@ -4030,6 +4030,14 @@
     storeItem(m, img);
     return true;
   }
+  /** Cambia datos de un dibujo (p. ej. su nombre) sin tocar la imagen */
+  function updateBookMeta(id, patch) {
+    const m = bookCache.find((d) => d.id === id);
+    if (!m) return;
+    Object.assign(m, patch);
+    if (!idb) return saveBookLocal();
+    idbTx("items", "readwrite", (st) => st.items.put(metaOf(m))).catch(() => {});
+  }
   function removeFromBook(id) {
     bookCache = bookCache.filter((d) => d.id !== id);
     dropItems([id]);
@@ -4427,6 +4435,40 @@
     goSlide(n, true);
   }
   $("bookClose").addEventListener("click", closeViewer);
+  // Cambiar el nombre del dibujo: se toca el título
+  $("bookPromptBtn").addEventListener("click", () => {
+    if (!viewing) return;
+    const inp = $("bookPromptInput");
+    inp.value = viewing.prompt || "";
+    $("bookPromptBtn").hidden = true;
+    inp.hidden = false;
+    inp.focus();
+    inp.select();
+  });
+  function savePromptEdit() {
+    const inp = $("bookPromptInput");
+    if (inp.hidden) return;
+    const v = inp.value.trim().slice(0, 80);
+    inp.hidden = true;
+    $("bookPromptBtn").hidden = false;
+    if (viewing && v && v !== viewing.prompt) {
+      updateBookMeta(viewing.id, { prompt: v });
+      viewing.prompt = v;
+      const d = viewList[viewIdx];
+      if (d) d.prompt = v;
+      $("bookPrompt").textContent = v;
+      renderBook();
+      toast("✔ Nombre cambiado");
+    }
+  }
+  $("bookPromptInput").addEventListener("blur", savePromptEdit);
+  $("bookPromptInput").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") e.target.blur();
+    if (e.key === "Escape") {
+      e.target.value = viewing ? viewing.prompt : "";
+      e.target.blur();
+    }
+  });
   $("bookPrev").addEventListener("click", (e) => {
     e.stopPropagation();
     stepView(-1);
@@ -4590,7 +4632,7 @@
       if (!$("bookView").hidden) goSlide(viewIdx, false);
     });
     document.addEventListener("keydown", (e) => {
-      if ($("bookView").hidden) return;
+      if ($("bookView").hidden || e.target.tagName === "INPUT") return;
       if (e.key === "ArrowRight") stepView(1);
       else if (e.key === "ArrowLeft") stepView(-1);
       else if (e.key === "Escape") closeViewer();

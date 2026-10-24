@@ -1083,3 +1083,13 @@ body.has-tabbar .home-screen { padding-bottom: calc(110px + env(safe-area-inset-
 .face-pick-grid { grid-auto-rows: max-content; align-content: start; align-items: start; }
 .face-pick-item { display: block; height: auto; }
 .face-pick-item img { height: auto; background: #fff; }
+
+/* visor: el nombre se puede cambiar tocándolo */
+.title-edit { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; text-align: left; }
+.title-edit[hidden] { display: none; }
+.title-edit strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.title-edit .pen { opacity: .6; font-size: .85rem; flex: none; }
+.title-input { width: 100%; padding: 6px 10px; border-radius: 10px; border: 0; background: #ffffff1f; color: #fff; font: inherit; font-weight: 700; font-size: 16px; }
+.title-input[hidden] { display: none; }
+/* el dibujo siempre entero en el visor (también los muy alargados) */
+.viewer-slide img { width: 100%; height: 100%; max-width: none; max-height: none; object-fit: contain; background: transparent; box-shadow: none; border-radius: 0; }

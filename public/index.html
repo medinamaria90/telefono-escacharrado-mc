@@ -379,7 +379,7 @@
   <div class="viewer" id="bookView" role="dialog" aria-modal="true" aria-labelledby="bookPrompt" hidden>
     <div class="viewer-top">
       <button class="viewer-x" id="bookClose" type="button" aria-label="Cerrar"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-      <div class="viewer-title"><strong id="bookPrompt"></strong><span id="bookMeta"></span></div>
+      <div class="viewer-title"><button class="title-edit" id="bookPromptBtn" type="button" aria-label="Cambiar el nombre del dibujo"><strong id="bookPrompt"></strong><span class="pen" aria-hidden="true">✎</span></button><input class="title-input" id="bookPromptInput" maxlength="80" hidden aria-label="Nombre del dibujo"><span id="bookMeta"></span></div>
       <span class="viewer-count" id="bookCount"></span>
     </div>
     <div class="viewer-stage" id="bookStage">
