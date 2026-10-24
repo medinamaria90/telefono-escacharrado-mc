@@ -374,6 +374,14 @@
   // amplía toda la página (y cuesta quitarlo). Se bloquea; el lienzo y el visor tienen su propio zoom.
   const OWN_ZOOM = ".pad-stage, .zoom-wrap, .hue-bar, .shade-bar";
   document.addEventListener("gesturestart", (e) => e.preventDefault());
+  // Mantener pulsado: ni selección azul ni menú de «guardar imagen» (salvo al escribir)
+  const typing = (t) => t && t.closest && t.closest("input, textarea, [contenteditable='true']");
+  document.addEventListener("selectstart", (e) => {
+    if (!typing(e.target)) e.preventDefault();
+  });
+  document.addEventListener("contextmenu", (e) => {
+    if (!typing(e.target)) e.preventDefault();
+  });
   document.addEventListener("dblclick", (e) => {
     if (!e.target.closest(OWN_ZOOM)) e.preventDefault();
   }, { passive: false });
@@ -1072,8 +1080,7 @@
         $("drawStep").textContent = stepLabel(task) + " · " + RULE_LABEL[task.rule];
       } else if (task.kind === "pairs") {
         $("drawStep").textContent = stepLabel(task) + (task.partners && task.partners.length ? " · Con " + task.partners.map((p) => p.name).join(" y ") : "");
-        pairSeen = -1;
-        pairFresh = true;
+        pairReset();
         pairResync();
       } else if (state.mode === "vote" && task.kind === "portrait") {
         $("drawStep").textContent = stepLabel(task) + " · Retrato secreto 🤫";
@@ -1371,12 +1378,28 @@
   }, 250);
 
   // ---------- por parejas: lienzo compartido ----------
+  // Cada paquete propio lleva un número (bid) y se guarda hasta que el servidor lo confirma (nos vuelve
+  // de rebote); si no, se reenvía. Lo del equipo llega numerado (i) y se pinta en orden: si falta un
+  // trozo, se pide al servidor antes de seguir. Cada pocos segundos, además, se pregunta «¿me falta algo?».
   let opQueue = [];
   let opTimer = null;
-  let pairSeen = -1; // último trozo del equipo ya pintado
-  let pairFresh = true; // lienzo recién empezado (sin trazos propios)
+  let pairSeen = -1; // último trozo del equipo ya pintado (en orden)
+  const pairPending = new Map(); // trozos que llegaron antes de tiempo: i -> {from, ops, bid}
+  const outbox = new Map(); // bid -> {ops, key, sentAt}: enviados sin confirmar
+  const myBids = new Set(); // paquetes propios ya pintados en este lienzo
+  const BID_PREFIX = Math.random().toString(36).slice(2, 8);
+  let bidSeq = 0;
+  let lastSyncAsk = 0;
+  function pairReset() {
+    opQueue = [];
+    clearTimeout(opTimer);
+    opTimer = null;
+    pairSeen = -1;
+    pairPending.clear();
+    outbox.clear();
+    myBids.clear();
+  }
   function queueOp(op) {
-    pairFresh = false;
     const last = opQueue[opQueue.length - 1];
     // los puntos seguidos van juntos en un mismo paquete
     if (op.t === "m" && last && last.t === "m" && last.p.length < 600) last.p.push(...op.p.map((v) => Math.round(v * 10) / 10));
@@ -1388,32 +1411,65 @@
     if (!opQueue.length) return;
     const ops = opQueue;
     opQueue = [];
-    socket.emit("pairOps", { key: currentStepKey, ops });
+    const bid = BID_PREFIX + "-" + ++bidSeq;
+    myBids.add(bid);
+    outbox.set(bid, { ops, key: currentStepKey, sentAt: Date.now() });
+    socket.emit("pairOps", { key: currentStepKey, ops, bid });
   }
   const pairDrawing = () => state && state.phase === "playing" && state.task && state.task.kind === "pairs" && state.task.type === "draw" && pad;
+  /** Un trozo del registro del equipo: se pinta solo cuando le toca (en orden) */
+  function pairEntry(e) {
+    if (typeof e.i !== "number" || e.i <= pairSeen) return;
+    if (e.from === state.you && e.bid) outbox.delete(e.bid);
+    if (e.i > pairSeen + 1) {
+      pairPending.set(e.i, e);
+      pairSync(); // falta algo por medio: se pide
+      return;
+    }
+    // lo mío ya está pintado en este lienzo; solo se pinta si viene de antes (p. ej. tras recargar)
+    if (e.from !== state.you || !myBids.has(e.bid)) pad.applyRemote(e.from, e.ops || []);
+    pairSeen = e.i;
+    const next = pairPending.get(pairSeen + 1);
+    if (next) {
+      pairPending.delete(pairSeen + 1);
+      pairEntry(next);
+    }
+  }
   socket.on("pairOps", (d) => {
     if (!pairDrawing() || !d || d.key !== currentStepKey) return;
-    if (typeof d.i === "number") {
-      if (d.i <= pairSeen) return;
-      pairSeen = d.i;
-    }
-    pad.applyRemote(d.from, d.ops || []);
+    pairEntry(d);
   });
-  /** Al empezar o al volver de una desconexión: lo que el equipo lleva pintado */
-  function pairResync() {
-    if (!pairDrawing()) return;
+  socket.on("pairAck", (d) => {
+    if (d && d.bid) outbox.delete(d.bid);
+  });
+  /** «¿Me falta algo?»: el servidor manda lo que haya desde el último trozo pintado */
+  function pairSync(force) {
+    if (!pairDrawing() || !socket.connected) return;
+    if (!force && Date.now() - lastSyncAsk < 1000) return;
+    lastSyncAsk = Date.now();
     const key = currentStepKey;
-    socket.emit("pairSync", {}, (res) => {
+    socket.emit("pairSync", { since: pairSeen }, (res) => {
       if (!res || !res.ok || res.key !== key || key !== currentStepKey || !pad) return;
-      const fresh = pairFresh;
-      (res.log || []).forEach((entry, i) => {
-        if (i <= pairSeen) return;
-        // lo mío solo hace falta si este lienzo está vacío (p. ej. tras recargar la página)
-        if (entry.from !== state.you || fresh) pad.applyRemote(entry.from, entry.ops);
-      });
-      pairSeen = Math.max(pairSeen, (res.log || []).length - 1);
+      (res.entries || []).forEach((e) => pairEntry(e));
     });
   }
+  const pairResync = () => pairSync(true);
+  // Vigilancia: reenviar lo no confirmado y preguntar si falta algo
+  setInterval(() => {
+    if (!pairDrawing() || !socket.connected) return;
+    const t = Date.now();
+    for (const [bid, b] of outbox) {
+      if (b.key !== currentStepKey) {
+        outbox.delete(bid);
+        continue;
+      }
+      if (t - b.sentAt > 2500) {
+        b.sentAt = t;
+        socket.emit("pairOps", { key: b.key, ops: b.ops, bid });
+      }
+    }
+    if (t - lastSyncAsk > 3000) pairSync();
+  }, 1000);
 
   // ---------- lienzo y herramientas ----------
   const ICONS = {
@@ -1640,7 +1696,14 @@
     hueKnob.style.left = "0%";
     shadeKnob.style.left = "50%";
     // Tocar el lienzo cierra los desplegables; el cubo de pintura chapotea
-    $("pad").addEventListener("pointerdown", () => closePops(), true);
+    $("pad").addEventListener("pointerdown", () => {
+      closePops();
+      // si quedó algo seleccionado (mancha azul), se quita al tocar el lienzo
+      try {
+        const sel = window.getSelection && window.getSelection();
+        if (sel && sel.rangeCount) sel.removeAllRanges();
+      } catch (_) {}
+    }, true);
     // Pantalla en horizontal: el lienzo en blanco pasa a ser horizontal
     try {
       const mq = window.matchMedia(LANDSCAPE);
@@ -2180,7 +2243,7 @@
   function paintStory(o) {
     show("s-reveal");
     // Historia completa a la vista: se puede compartir
-    const full = o.entries.length >= o.total;
+    const full = SHARE_ENABLED && o.entries.length >= o.total;
     $("shareStoryBtn").hidden = !full;
     $("revealHead").classList.toggle("has-share", full);
     sharing = full ? { owner: o.owner, entries: o.entries.slice() } : null;
@@ -2255,6 +2318,7 @@
   // ---------- compartir una historia en redes ----------
   // Una imagen vertical (formato story, 1080x1920) por cada paso y una de cierre; luego el menú de compartir del móvil.
   let sharing = null;
+  const SHARE_ENABLED = false; // compartir historias: listo, pero aún sin activar
   const SW = 1080, SH = 1920;
   function loadImg(src) {
     return new Promise((ok) => {

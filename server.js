@@ -306,18 +306,32 @@ function cleanOps(ops) {
   return out;
 }
 /** Guarda los trazos de un equipo y se los pasa a sus compañeros */
-function relayOps(room, fromId, ops) {
+// Cada paquete de trazos lleva un número (bid) de quien lo manda: si llega repetido (reenvío), no se duplica.
+// Todo lo que entra al registro del equipo se numera (i) y se manda a TODO el equipo, también a quien lo envió
+// (le sirve de confirmación). Así cada móvil sabe si le falta algún trozo y lo pide.
+function relayOps(room, fromId, ops, bid) {
   const game = room.game;
   const ti = teamIndexOf(game, fromId);
-  if (ti < 0 || !ops.length) return;
+  if (ti < 0) return;
   const log = game.logs[ti] || (game.logs[ti] = []);
-  if (log.reduce((n, e) => n + e.ops.length, 0) > 60000) return; // tope de seguridad
-  log.push({ from: fromId, ops });
+  if (!game.logSeen) game.logSeen = [];
+  const seen = game.logSeen[ti] || (game.logSeen[ti] = new Map());
   const key = stepKeyOf(game);
+  const tag = fromId + ":" + bid;
+  if (bid != null && seen.has(tag)) {
+    // ya estaba: solo se confirma a quien lo reenvió
+    const p = room.players.get(fromId);
+    if (p && p.connected && p.socketId) io.to(p.socketId).emit("pairAck", { key, bid, i: seen.get(tag) });
+    return;
+  }
+  if (!ops.length) return;
+  if (log.reduce((n, e) => n + e.ops.length, 0) > 60000) return; // tope de seguridad
+  const i = log.length;
+  log.push({ from: fromId, ops, bid, i });
+  if (bid != null) seen.set(tag, i);
   for (const id of game.teams[game.round][ti]) {
-    if (id === fromId) continue;
     const p = room.players.get(id);
-    if (p && p.connected && p.socketId) io.to(p.socketId).emit("pairOps", { key, from: fromId, ops, i: log.length - 1 });
+    if (p && p.connected && p.socketId) io.to(p.socketId).emit("pairOps", { key, from: fromId, ops, i, bid });
   }
 }
 /** Sala de pruebas: el robot compañero también pinta (y estorba un poco) */
@@ -548,6 +562,7 @@ function beginStep(room) {
   }
   if (game.mode === "vote" && game.kind === "pairs" && game.stage === "draw") {
     game.logs = game.teams[game.round].map(() => []);
+    game.logSeen = [];
   }
   if (game.mode === "vote" && game.stage === "draw" && game.kind !== "pairs") {
     if (game.kind === "stars") game.phrases[game.round] = freshPhrase(game);
@@ -1353,14 +1368,18 @@ io.on("connection", (socket) => {
     const game = room?.game;
     if (!game || room.phase !== "playing" || game.kind !== "pairs" || game.stage !== "draw") return;
     if (data?.key !== stepKeyOf(game)) return;
-    relayOps(room, player.id, cleanOps(data.ops));
+    const bid = typeof data.bid === "string" && data.bid.length <= 40 ? data.bid : null;
+    relayOps(room, player.id, cleanOps(data.ops), bid);
   });
   socket.on("pairSync", (data, ack) => {
     if (typeof ack !== "function") return;
     const game = room?.game;
     if (!game || room.phase !== "playing" || game.kind !== "pairs" || game.stage !== "draw") return ack({ ok: false });
     const ti = teamIndexOf(game, player.id);
-    ack({ ok: true, key: stepKeyOf(game), log: ti >= 0 ? game.logs[ti] || [] : [] });
+    // Solo lo que le falta: desde el número que pide
+    const since = Number.isInteger(data?.since) ? data.since : -1;
+    const log = ti >= 0 ? game.logs[ti] || [] : [];
+    ack({ ok: true, key: stepKeyOf(game), entries: log.slice(Math.max(0, since + 1)) });
   });
 
   socket.on("unsubmit", () => {
