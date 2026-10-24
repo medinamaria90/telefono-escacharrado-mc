@@ -1093,3 +1093,6 @@ body.has-tabbar .home-screen { padding-bottom: calc(110px + env(safe-area-inset-
 .title-input[hidden] { display: none; }
 /* el dibujo siempre entero en el visor (también los muy alargados) */
 .viewer-slide img { width: 100%; height: 100%; max-width: none; max-height: none; object-fit: contain; background: transparent; box-shadow: none; border-radius: 0; }
+
+.how-quiet { align-self: center; margin: 2px 0 auto; color: var(--muted) !important; font-weight: 600; text-decoration: none; }
+.home-screen > .home-book { margin-bottom: 0; }
