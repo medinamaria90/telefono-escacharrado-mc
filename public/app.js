@@ -2446,7 +2446,7 @@
     const full = SHARE_ENABLED && o.entries.length >= o.total;
     $("shareStoryBtn").hidden = !full;
     $("revealHead").classList.toggle("has-share", full);
-    sharing = full ? { owner: o.owner, entries: o.entries.slice() } : null;
+    sharing = full ? { owner: o.owner, entries: o.entries.slice(), variant: o.variant } : null;
     $("revealCount").textContent = o.count;
     setWho($("revealTitle"), o.variant === "triptych" ? "La criatura de" : "La historia de", o.owner);
     const dots = $("revealDots");
@@ -2472,7 +2472,7 @@
   // ---------- compartir una historia en redes ----------
   // Una imagen vertical (formato story, 1080x1920) por cada paso y una de cierre; luego el menú de compartir del móvil.
   let sharing = null;
-  const SHARE_ENABLED = false; // compartir historias: listo, pero aún sin activar
+  const SHARE_ENABLED = true;
   const SW = 1080, SH = 1920;
   function loadImg(src) {
     return new Promise((ok) => {
@@ -2544,6 +2544,16 @@
     try {
       await Promise.all([document.fonts.load(`96px "Bagel Fat One"`), document.fonts.load(`700 46px "Atkinson Hyperlegible"`)]);
     } catch (_) {}
+    if (st.variant === "triptych") {
+      // Tríptico: la criatura entera en una imagen
+      const scenes = await videoScenes(st);
+      const c = document.createElement("canvas");
+      c.width = SW;
+      c.height = SH;
+      const ctx = c.getContext("2d");
+      scenes[scenes.length - 2].draw(ctx, 1);
+      return [await canvasFile(c, "dibulios.jpg")];
+    }
     const files = [];
     const n = st.entries.length;
     const ownerName = st.owner && st.owner.name ? st.owner.name : "alguien";
@@ -2646,6 +2656,237 @@
   function canvasFile(c, name) {
     return new Promise((ok) => c.toBlob((b) => ok(new File([b], name, { type: "image/jpeg" })), "image/jpeg", 0.9));
   }
+  // ---------- vídeo de la historia ----------
+  // Vertical (formato story), generado en el propio móvil: presentación, cada paso entrando con una
+  // transición (en el Tríptico, la criatura descubriéndose de arriba abajo) y cierre con la dirección.
+  const videoMime = () => {
+    try {
+      if (!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) return null;
+      return ["video/mp4;codecs=avc1.42E01E", "video/mp4;codecs=avc1", "video/mp4"].find((m) => MediaRecorder.isTypeSupported(m)) || null;
+    } catch (_) {
+      return null;
+    }
+  };
+  const ease = (p) => 1 - Math.pow(1 - Math.min(1, Math.max(0, p)), 3);
+  function drawCard(ctx, im, cx, top, maxW, maxH) {
+    let w = maxW, h = maxH;
+    if (im) {
+      const k = Math.min(maxW / im.naturalWidth, maxH / im.naturalHeight);
+      w = im.naturalWidth * k;
+      h = im.naturalHeight * k;
+    }
+    const x = cx - w / 2, y = top + (maxH - h) / 2;
+    ctx.save();
+    ctx.shadowColor = "rgba(29,39,71,.25)";
+    ctx.shadowBlur = 30;
+    ctx.shadowOffsetY = 10;
+    roundRect(ctx, x, y, w, h, 28);
+    ctx.fillStyle = "#fff";
+    ctx.fill();
+    ctx.restore();
+    ctx.save();
+    roundRect(ctx, x, y, w, h, 28);
+    ctx.clip();
+    if (im) ctx.drawImage(im, x, y, w, h);
+    else {
+      ctx.fillStyle = "#5b6687";
+      ctx.font = `700 54px ${SHARE_TEXT}`;
+      ctx.textAlign = "center";
+      ctx.fillText("🎨 Lienzo en blanco", cx, y + h / 2);
+    }
+    ctx.restore();
+    roundRect(ctx, x, y, w, h, 28);
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = "#1d2747";
+    ctx.stroke();
+  }
+  function drawBubble(ctx, text, isWrite, cy) {
+    ctx.font = `92px ${SHARE_FONT}`;
+    let size = 92;
+    let lines = wrapLines(ctx, text || "…", 820);
+    while (lines.length > 6 && size > 56) {
+      size -= 8;
+      ctx.font = `${size}px ${SHARE_FONT}`;
+      lines = wrapLines(ctx, text || "…", 820);
+    }
+    const lh = size * 1.18;
+    const bh = lines.length * lh + 120, bw = 940, bx = (SW - bw) / 2, by = cy - bh / 2;
+    ctx.save();
+    ctx.shadowColor = "rgba(29,39,71,.25)";
+    ctx.shadowBlur = 30;
+    ctx.shadowOffsetY = 10;
+    roundRect(ctx, bx, by, bw, bh, 60);
+    ctx.fillStyle = isWrite ? "#ffc53d" : "#ffffff";
+    ctx.fill();
+    ctx.restore();
+    roundRect(ctx, bx, by, bw, bh, 60);
+    ctx.lineWidth = 7;
+    ctx.strokeStyle = "#1d2747";
+    ctx.stroke();
+    ctx.fillStyle = "#1d2747";
+    ctx.textAlign = "center";
+    ctx.font = `${size}px ${SHARE_FONT}`;
+    lines.forEach((l, j) => ctx.fillText(l, SW / 2, by + 60 + lh * (j + 0.8)));
+  }
+  /** Escenas del vídeo: cada una sabe pintarse en un momento p (0..1) de su duración */
+  async function videoScenes(st) {
+    const owner = st.owner && st.owner.name ? st.owner.name : "alguien";
+    const triptych = st.variant === "triptych";
+    const title = triptych ? `La criatura de ${owner}` : `La historia de ${owner}`;
+    const n = st.entries.length;
+    const scenes = [];
+    scenes.push({
+      dur: 1800,
+      draw(ctx, p) {
+        slideBase(ctx, "", "");
+        const a = ease(p * 2.2);
+        ctx.globalAlpha = a;
+        ctx.fillStyle = "#1d2747";
+        ctx.textAlign = "center";
+        ctx.font = `100px ${SHARE_FONT}`;
+        ctx.fillText(triptych ? "¿Qué criatura" : "¿Cómo acabó", SW / 2, 860 + (1 - a) * 60);
+        ctx.fillText(triptych ? "ha salido?" : "la historia?", SW / 2, 990 + (1 - a) * 60);
+        ctx.font = `700 52px ${SHARE_TEXT}`;
+        ctx.fillStyle = "#5b6687";
+        ctx.fillText(title, SW / 2, 1130 + (1 - a) * 60);
+        ctx.globalAlpha = 1;
+      },
+    });
+    if (triptych) {
+      const urls = st.entries.map((e) => e.content || null);
+      const names = ["la cabeza", "el cuerpo", "las piernas"];
+      for (let k = 1; k <= n; k++) {
+        const im = await loadImg(await composeTriptych(urls.slice(0, k)));
+        const prevIm = k > 1 ? await loadImg(await composeTriptych(urls.slice(0, k - 1))) : null;
+        const e = st.entries[k - 1];
+        scenes.push({
+          dur: k === n ? 3400 : 2400,
+          draw(ctx, p) {
+            slideBase(ctx, title, `${k} de ${n}`);
+            ctx.fillStyle = "#1d2747";
+            ctx.textAlign = "center";
+            ctx.font = `700 52px ${SHARE_TEXT}`;
+            ctx.fillText(`${e.by && e.by.name ? e.by.name : "Alguien"} dibujó ${names[k - 1] || ""}`, SW / 2, 470);
+            // la parte nueva aparece: se pasa de la criatura anterior a la nueva con un fundido
+            const a = ease(p * 2);
+            if (prevIm && a < 1) drawCard(ctx, prevIm, SW / 2, 540, 940, 1180);
+            ctx.globalAlpha = prevIm ? a : 1;
+            drawCard(ctx, im, SW / 2, 540 + (prevIm ? 0 : (1 - a) * 40), 940, 1180);
+            ctx.globalAlpha = 1;
+          },
+        });
+      }
+    } else {
+      for (let i = 0; i < n; i++) {
+        const e = st.entries[i];
+        const im = e.type === "draw" && e.content ? await loadImg(e.content) : null;
+        const by = e.by && e.by.name ? e.by.name : "Alguien";
+        const prevDraw = i > 0 && st.entries[i - 1].type === "draw";
+        const verb = e.type === "draw" && prevDraw ? "lo copió de memoria" : VERB_SHARE[e.type] || "";
+        scenes.push({
+          dur: e.type === "draw" ? 2800 : 2300,
+          draw(ctx, p) {
+            slideBase(ctx, title, `${i + 1} de ${n}`);
+            const a = ease(p * 2.4);
+            ctx.globalAlpha = a;
+            ctx.fillStyle = "#1d2747";
+            ctx.textAlign = "center";
+            ctx.font = `700 52px ${SHARE_TEXT}`;
+            ctx.fillText(`${by} ${verb}${e.rule ? " · " + (RULE_LABEL[e.rule] || "") : ""}`, SW / 2, 470);
+            ctx.save();
+            ctx.translate((1 - a) * 220, 0); // entra desde la derecha
+            if (e.type === "draw") drawCard(ctx, im, SW / 2, 540, 940, 1180);
+            else drawBubble(ctx, e.content, e.type === "write", 1100);
+            ctx.restore();
+            ctx.globalAlpha = 1;
+          },
+        });
+      }
+    }
+    scenes.push({
+      dur: 2800,
+      draw(ctx, p) {
+        slideBase(ctx, "", "");
+        const a = ease(p * 2);
+        ctx.globalAlpha = a;
+        ctx.fillStyle = "#1d2747";
+        ctx.textAlign = "center";
+        ctx.font = `110px ${SHARE_FONT}`;
+        ["¿Y vosotros,", "qué habríais", "dibujado?"].forEach((l, j) => ctx.fillText(l, SW / 2, 760 + j * 135));
+        ctx.font = `700 54px ${SHARE_TEXT}`;
+        ctx.fillStyle = "#5b6687";
+        ["Dibuja, adivina y pásalo.", "Gratis y sin registro."].forEach((l, j) => ctx.fillText(l, SW / 2, 1240 + j * 72));
+        const pulse = 1 + 0.04 * Math.sin(p * Math.PI * 4);
+        ctx.save();
+        ctx.translate(SW / 2, 1495);
+        ctx.scale(pulse, pulse);
+        roundRect(ctx, -350, -65, 700, 130, 65);
+        ctx.fillStyle = "#ff5a3c";
+        ctx.fill();
+        ctx.fillStyle = "#fff";
+        ctx.font = `700 54px ${SHARE_TEXT}`;
+        ctx.fillText(location.host, 0, 18);
+        ctx.restore();
+        ctx.globalAlpha = 1;
+      },
+    });
+    return scenes;
+  }
+  /** Graba el vídeo en tiempo real (unos 15-20 s). Devuelve un archivo MP4 o null si el móvil no puede. */
+  async function storyVideo(st, onProgress) {
+    const mime = videoMime();
+    if (!mime) return null;
+    try {
+      await Promise.all([document.fonts.load(`96px "Bagel Fat One"`), document.fonts.load(`700 46px "Atkinson Hyperlegible"`)]);
+    } catch (_) {}
+    const scenes = await videoScenes(st);
+    const total = scenes.reduce((a, sc) => a + sc.dur, 0);
+    const VWID = 720, VHEI = 1280; // 720p: fluido en cualquier móvil
+    const c = document.createElement("canvas");
+    c.width = VWID;
+    c.height = VHEI;
+    c.style.cssText = "position:fixed;left:0;top:0;width:2px;height:2px;opacity:0.01;pointer-events:none;z-index:-1";
+    document.body.appendChild(c);
+    const ctx = c.getContext("2d");
+    const frame = (t) => {
+      let acc = 0;
+      let sc = scenes[scenes.length - 1], p = 1;
+      for (const s2 of scenes) {
+        if (t < acc + s2.dur) {
+          sc = s2;
+          p = (t - acc) / s2.dur;
+          break;
+        }
+        acc += s2.dur;
+      }
+      ctx.setTransform(VWID / SW, 0, 0, VHEI / SH, 0, 0);
+      sc.draw(ctx, p);
+    };
+    frame(0);
+    const stream = c.captureStream(30);
+    const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 3000000 });
+    const chunks = [];
+    rec.ondataavailable = (e) => e.data && e.data.size && chunks.push(e.data);
+    const done = new Promise((ok) => (rec.onstop = ok));
+    rec.start(250);
+    const t0 = performance.now();
+    await new Promise((ok) => {
+      const tick = () => {
+        const t = performance.now() - t0;
+        frame(Math.min(t, total));
+        onProgress && onProgress(Math.min(1, t / total));
+        if (t >= total + 200) return ok();
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
+    rec.stop();
+    await done;
+    stream.getTracks().forEach((tr) => tr.stop());
+    c.remove();
+    const blob = new Blob(chunks, { type: mime.split(";")[0] });
+    return new File([blob], "dibulios.mp4", { type: "video/mp4" });
+  }
   $("shareStoryBtn").addEventListener("click", async () => {
     if (!sharing) return;
     const btn = $("shareStoryBtn");
@@ -2654,12 +2895,17 @@
     const old = btn.textContent;
     btn.textContent = "Preparando…";
     try {
-      const files = await storySlides(sharing);
+      // vídeo si el móvil sabe hacerlo y compartirlo; si no, imágenes
+      let files = null;
+      const video = await storyVideo(sharing, (p) => (btn.textContent = `🎬 Creando vídeo… ${Math.round(p * 100)} %`));
+      if (video && navigator.canShare && navigator.canShare({ files: [video] })) files = [video];
+      else if (video && !navigator.canShare) files = [video];
+      if (!files) files = await storySlides(sharing);
       const data = { files, title: "Dibulíos", text: "Mirad cómo acabó nuestra historia en Dibulíos 😂 " + location.origin };
       if (navigator.canShare && navigator.canShare({ files })) {
         try {
           await navigator.share(data);
-          track("historia_compartida", { imagenes: files.length });
+          track("historia_compartida", { formato: files[0].type.indexOf("video") === 0 ? "video" : "imagenes" });
         } catch (_) {} // cancelado
       } else {
         // ordenador (o móvil sin «compartir»): se descargan las imágenes
