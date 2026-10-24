@@ -399,7 +399,7 @@ const RULES = ["circles", "squares", "oneline"];
 const VOTE_MODES = ["votacion", "retratos", "parejas"];
 const CHAIN_MODES = ["degradado", "extremo", "triptico"]; // siempre en cadena, aunque sean 2
 const MODES = ["telefono", ...VOTE_MODES, ...CHAIN_MODES];
-const minPlayersFor = (mode) => (mode === "parejas" ? 4 : mode === "triptico" ? 3 : 2);
+const minPlayersFor = (mode) => (mode === "parejas" ? 4 : 2); // Tríptico con 2: os turnáis (A-B-A y B-A-B)
 // Tríptico: cada criatura se dibuja en 3 partes, cada una de alguien distinto
 const TRIPTYCH_PARTS = ["head", "body", "legs"];
 

@@ -304,6 +304,7 @@
   }
 
   // ---------- invitación a instalar ----------
+  const IOS_SHARE = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#2f7bf6" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px"><path d="M12 15V3M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>';
   let installed = false;
   let isIOS = false;
   try {
@@ -312,14 +313,15 @@
   } catch (_) {}
   let installEvt = null;
   function showInstall(mode) {
-    if (installed || store.get("tg-install-hidden", "") === "1") return;
+    // si lo cerraron, vuelve a ofrecerse a la semana (en iPhone es la única forma de que no se borre el cuaderno)
+    const hid = Number(store.get("tg-install-hidden", "0")) || 0;
+    if (installed || (hid > 1 && Date.now() - hid < 7 * 864e5)) return;
     const card = $("installCard");
     if (mode === "prompt") {
       $("installHint").textContent = "Tenlo en tu pantalla de inicio, como una app.";
       $("installBtn").hidden = false;
     } else if (mode === "ios") {
-      $("installHint").innerHTML = "";
-      $("installHint").append("En Safari, toca Compartir ", el("strong", "", "⬆️"), " y luego «Añadir a pantalla de inicio».");
+      $("installHint").innerHTML = `Toca ${IOS_SHARE} <strong>Compartir</strong> en la barra del navegador y luego <strong>«Añadir a pantalla de inicio»</strong>. Así tu cuaderno no se borra.`;
       $("installBtn").hidden = true;
     } else {
       $("installHint").textContent = "Abre el menú ⋮ del navegador y elige «Añadir a pantalla de inicio» o «Instalar».";
@@ -347,7 +349,7 @@
     installEvt = null;
   });
   $("installClose").addEventListener("click", () => {
-    store.set("tg-install-hidden", "1");
+    store.set("tg-install-hidden", String(Date.now()));
     $("installCard").hidden = true;
   });
   if (installed) setTimeout(() => track("abierta_como_app", { sistema: isIOS ? "ios" : "android" }), 0);
@@ -469,6 +471,12 @@
     own.title = "Dibuja tu carita";
     own.addEventListener("click", () => openFace());
     g.appendChild(own);
+    const fromBook = el("button", "emoji-btn draw-own", "📒");
+    fromBook.type = "button";
+    fromBook.setAttribute("aria-label", "Elegir mi carita de un dibujo del cuaderno");
+    fromBook.title = "Desde tu cuaderno";
+    fromBook.addEventListener("click", () => openFacePick());
+    g.appendChild(fromBook);
     const saved = store.get("tg-face", "");
     const list = isFace(saved) ? [saved, ...EMOJIS] : EMOJIS;
     for (const e of list) {
@@ -619,6 +627,21 @@
     x.fillStyle = "#ffffff";
     x.fillRect(0, 0, 160, 160);
     x.drawImage(pad.canvas, FACE_BOX.x, FACE_BOX.y, FACE_BOX.s, FACE_BOX.s, 0, 0, 160, 160);
+    // y la carita, en grande, también al cuaderno (para no perderla y poder reutilizarla)
+    if (pad.dirty) {
+      const big = document.createElement("canvas");
+      big.width = big.height = 600;
+      const bx = big.getContext("2d");
+      bx.fillStyle = "#ffffff";
+      bx.fillRect(0, 0, 600, 600);
+      bx.drawImage(pad.canvas, FACE_BOX.x, FACE_BOX.y, FACE_BOX.s, FACE_BOX.s, 0, 0, 600, 600);
+      addToBook({ prompt: "Mi carita" }, big.toDataURL("image/jpeg", 0.88));
+    }
+    useFace(out, "carita_dibujada");
+    exitSolo(true);
+  }
+  /** Pone como carita lo que hay en un lienzo de 160x160 */
+  function useFace(out, ev) {
     let url = "";
     for (const q of [0.85, 0.72, 0.58, 0.45, 0.32]) {
       try {
@@ -632,12 +655,131 @@
     store.set("tg-face", url);
     me.emoji = url;
     store.set("tg-emoji", url);
-    track("carita_dibujada");
+    track(ev);
     buildEmojiGrid();
     SFX.play("point");
     if (state && state.phase === "lobby") socket.emit("profile", { name: me.name, emoji: me.emoji });
-    exitSolo(true);
   }
+
+  // ---------- carita desde un dibujo del cuaderno: elegir y encuadrar (arrastrar y pellizcar) ----------
+  function openFacePick() {
+    SFX.play("click");
+    const list = readBook();
+    if (!list.length) return toast("Tu cuaderno está vacío: dibuja algo primero o dibuja tu carita con ✏️");
+    const g = $("facePickGrid");
+    g.innerHTML = "";
+    list.forEach((d) => {
+      const b = el("button", "face-pick-item");
+      b.type = "button";
+      b.setAttribute("aria-label", d.prompt || "Dibujo");
+      const im = el("img");
+      im.src = d.thumb;
+      im.alt = "";
+      im.loading = "lazy";
+      b.appendChild(im);
+      b.addEventListener("click", () => openFaceCrop(d));
+      g.appendChild(b);
+    });
+    $("emojiSheet").hidden = true;
+    $("facePick").hidden = false;
+  }
+  $("facePickClose").addEventListener("click", () => ($("facePick").hidden = true));
+  $("facePick").addEventListener("click", (e) => {
+    if (e.target === $("facePick")) $("facePick").hidden = true;
+  });
+  const crop = { k: 1, tx: 0, ty: 0, S: 300, w: 1, h: 1, min: 0.2 };
+  function paintCrop() {
+    const im = $("cropImg");
+    im.style.width = crop.w * crop.k + "px";
+    im.style.height = crop.h * crop.k + "px";
+    im.style.transform = `translate(${crop.tx}px, ${crop.ty}px)`;
+  }
+  function openFaceCrop(d) {
+    SFX.play("page");
+    $("facePick").hidden = true;
+    $("faceCrop").hidden = false;
+    const im = $("cropImg");
+    im.removeAttribute("src");
+    getBookImg(d.id)
+      .then((src) => {
+        im.onload = () => {
+          const box = $("cropBox").getBoundingClientRect();
+          crop.S = box.width;
+          crop.w = im.naturalWidth;
+          crop.h = im.naturalHeight;
+          // al empezar, el dibujo cubre el círculo y se centra un poco arriba (donde suelen estar las caras)
+          crop.k = Math.max(crop.S / crop.w, crop.S / crop.h);
+          crop.min = crop.k * 0.35;
+          crop.tx = (crop.S - crop.w * crop.k) / 2;
+          crop.ty = Math.min(0, (crop.S - crop.h * crop.k) / 3);
+          paintCrop();
+        };
+        im.src = src;
+      })
+      .catch(() => toast("No se pudo abrir ese dibujo."));
+  }
+  (() => {
+    const stage = $("cropStage");
+    const pts = new Map();
+    let last = null;
+    const zoomAt = (f, cx, cy) => {
+      const k = Math.max(crop.min, Math.min(crop.k * f, 12));
+      const r = k / crop.k;
+      const b = $("cropBox").getBoundingClientRect();
+      const px = cx - b.left, py = cy - b.top;
+      crop.tx = px - (px - crop.tx) * r;
+      crop.ty = py - (py - crop.ty) * r;
+      crop.k = k;
+      paintCrop();
+    };
+    const snap = () => {
+      const a = [...pts.values()];
+      if (a.length === 1) return { x: a[0].x, y: a[0].y, d: 0 };
+      if (a.length >= 2) return { x: (a[0].x + a[1].x) / 2, y: (a[0].y + a[1].y) / 2, d: Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y) };
+      return null;
+    };
+    stage.addEventListener("pointerdown", (e) => {
+      stage.setPointerCapture(e.pointerId);
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      last = snap();
+    });
+    stage.addEventListener("pointermove", (e) => {
+      if (!pts.has(e.pointerId)) return;
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      const now = snap();
+      if (!now || !last) return;
+      crop.tx += now.x - last.x;
+      crop.ty += now.y - last.y;
+      if (now.d && last.d) zoomAt(now.d / last.d, now.x, now.y);
+      else paintCrop();
+      last = now;
+    });
+    const up = (e) => {
+      pts.delete(e.pointerId);
+      last = snap();
+    };
+    stage.addEventListener("pointerup", up);
+    stage.addEventListener("pointercancel", up);
+    stage.addEventListener("wheel", (e) => {
+      e.preventDefault();
+      zoomAt(e.deltaY < 0 ? 1.1 : 1 / 1.1, e.clientX, e.clientY);
+    }, { passive: false });
+  })();
+  $("faceCropClose").addEventListener("click", () => ($("faceCrop").hidden = true));
+  $("faceCropUse").addEventListener("click", () => {
+    const im = $("cropImg");
+    if (!im.naturalWidth) return;
+    const out = document.createElement("canvas");
+    out.width = out.height = 160;
+    const x = out.getContext("2d");
+    const f = 160 / crop.S;
+    x.fillStyle = "#ffffff";
+    x.fillRect(0, 0, 160, 160);
+    x.drawImage(im, crop.tx * f, crop.ty * f, crop.w * crop.k * f, crop.h * crop.k * f);
+    useFace(out, "carita_del_cuaderno");
+    $("faceCrop").hidden = true;
+    toast("¡Carita lista! 🎉");
+  });
   $("howBtn").addEventListener("click", () => {
     SFX.play("pop");
     $("howSheet").hidden = false;
@@ -884,7 +1026,7 @@
   }
   // «Atrás» del móvil (Android, también con la app instalada): primero cierra lo que haya abierto
   // (visor, ventanas), luego sale del cuaderno o del dibujo libre; en partida, pregunta antes de salir.
-  const OVERLAYS = ["bookView", "zoomSheet", "shareSheet", "modeSheet", "howSheet", "emojiSheet", "endSheet", "leaveSheet"];
+  const OVERLAYS = ["faceCrop", "facePick", "bookView", "zoomSheet", "shareSheet", "modeSheet", "howSheet", "emojiSheet", "endSheet", "leaveSheet"];
   const openOverlay = () => OVERLAYS.map((id) => $(id)).find((o) => o && !o.hidden);
   const needsGuard = () => !!state || bookOpen || soloMode || !!openOverlay();
   let consumingBack = false;
@@ -979,10 +1121,7 @@
       if (state && state.phase !== "lobby") {
         // Empieza la partida mientras dibujabas: lo que llevabas se guarda solo en el cuaderno
         if (soloMode && !faceMode && pad && pad.dirty && !editingId) {
-          const list = readBook();
-          list.unshift({ id: Date.now(), prompt: $("drawWhat").textContent || "Dibujo libre", date: new Date().toISOString(), img: pad.toDataURL("image/jpeg", 0.85) });
-          if (list.length > BOOK_MAX) list.length = BOOK_MAX;
-          if (writeBook(list)) toast("Ha empezado la partida: tu dibujo se ha guardado en el cuaderno 📒");
+          if (addToBook({ prompt: $("drawWhat").textContent || "Dibujo libre" }, pad.toDataURL("image/jpeg", 0.85))) toast("Ha empezado la partida: tu dibujo se ha guardado en el cuaderno 📒");
         }
         exitSolo(true);
       } else {
@@ -1020,12 +1159,12 @@
   // Modos de juego (el menú de la sala)
   const MODES = [
     { v: "telefono", emoji: "✏️", name: "Clásico", desc: "Frase, dibujo, adivina… ¡y mirad cómo cambia la historia!" },
-    { v: "votacion", emoji: "⭐", name: "Votación", desc: "Todos dibujáis la misma frase y os puntuáis del 1 al 5." },
-    { v: "retratos", emoji: "🖼️", name: "Retratos", desc: "Retratas en secreto a otro jugador; todos puntúan el parecido." },
-    { v: "parejas", emoji: "👯", name: "Por parejas", min: "desde 4", desc: "De dos en dos en el mismo lienzo, y luego todos puntúan." },
     { v: "degradado", emoji: "🌀", name: "Degradado", desc: "Copiad un dibujo de memoria, cada vez con menos tiempo." },
-    { v: "triptico", emoji: "🧩", name: "Tríptico", min: "desde 3", desc: "Cabeza, cuerpo y piernas, cada parte de alguien distinto." },
+    { v: "triptico", emoji: "🧩", name: "Tríptico", desc: "Cabeza, cuerpo y piernas, cada parte de alguien distinto." },
+    { v: "votacion", emoji: "⭐", name: "Votación", desc: "Todos dibujáis la misma frase y os puntuáis del 1 al 5." },
     { v: "extremo", emoji: "🔥", name: "Dibujo extremo", desc: "Como el clásico, pero con limitaciones locas al dibujar." },
+    { v: "parejas", emoji: "👯", name: "Por parejas", min: "desde 4", desc: "De dos en dos en el mismo lienzo, y luego todos puntúan." },
+    { v: "retratos", emoji: "🖼️", name: "Retratos", desc: "Retratas en secreto a otro jugador; todos puntúan el parecido." },
   ];
   const modeInfo = (v) => MODES.find((m) => m.v === v) || MODES[0];
   function buildModeList() {
@@ -1073,7 +1212,13 @@
       return [`Dibujo extremo · ${steps} pasos por historia`, txt];
     }
     if (state.settings.mode === "triptico") {
-      return ["Tríptico · cabeza, cuerpo y piernas", "Cada criatura la dibujan tres personas: cabeza, cuerpo y piernas, viendo solo la unión con la parte anterior. Al final se descubren enteras."];
+      const two = state.players.filter((p) => !p.left).length === 2;
+      return [
+        "Tríptico · cabeza, cuerpo y piernas",
+        two
+          ? "Con dos, cada uno empieza una criatura y os vais turnando: tú una cabeza, el otro el cuerpo, tú las piernas… viendo solo la unión con la parte anterior."
+          : "Cada criatura la dibujan tres personas: cabeza, cuerpo y piernas, viendo solo la unión con la parte anterior. Al final se descubren enteras.",
+      ];
     }
     if (state.settings.mode === "parejas") {
       return [`Por parejas · ${state.settings.duoRounds} rondas`, "Uno elige qué dibujar y cada pareja lo dibuja a la vez en un lienzo compartido. Todos puntuáis del 1 al 5; los puntos son de cada uno y las parejas cambian cada ronda."];
@@ -1100,7 +1245,7 @@
     $("shareLink").value = location.origin + "/?sala=" + state.code;
     $("playerCount").textContent = `${n} de ${state.maxPlayers}`;
     // Cuánta gente falta para empezar: en el cuadro de jugadores
-    const minP = state.settings.mode === "parejas" ? 4 : state.settings.mode === "triptico" ? 3 : 2;
+    const minP = state.settings.mode === "parejas" ? 4 : 2;
     const needed = minP - n;
     $("playersNeed").hidden = needed <= 0;
     if (needed > 0) $("playersNeed").textContent = (needed === 1 ? "Falta 1 jugador" : `Faltan ${needed} jugadores`) + " · comparte el enlace";
@@ -3552,17 +3697,12 @@
   let bookReturn = null; // a dónde volver al salir del cuaderno
   let editingId = null; // dibujo del cuaderno que se está editando
   const BOOK_KEY = "tg-cuaderno";
-  const BOOK_MAX = 200;
-  // El cuaderno vive en IndexedDB (cabe mucho más que en localStorage, que se llena con ~40 dibujos).
-  // Se trabaja con una copia en memoria; cada cambio se guarda en segundo plano.
-  let bookCache = (() => {
-    try {
-      return JSON.parse(localStorage.getItem(BOOK_KEY) || "[]");
-    } catch (_) {
-      return [];
-    }
-  })();
-  let bookWritten = false; // se ha guardado algo antes de terminar de cargar
+  const BOOK_MAX = 1000;
+  // El cuaderno vive en IndexedDB: cada dibujo por separado (la imagen entera en «imgs») y un índice
+  // con miniaturas en «items». En memoria solo están las miniaturas; la imagen entera se pide al verla.
+  // Se pide al navegador almacenamiento «persistente» para que no lo borre si le falta espacio.
+  let bookCache = []; // [{ id, prompt, by, date, src, thumb }], el más nuevo primero
+  const fullCache = new Map(); // id -> imagen entera (las últimas vistas)
   let bookDb = null;
   const idb = (() => {
     try {
@@ -3575,67 +3715,190 @@
     if (bookDb) return bookDb;
     bookDb = new Promise((ok, ko) => {
       if (!idb) return ko(new Error("sin IndexedDB"));
-      const rq = idb.open("dibulios", 1);
-      rq.onupgradeneeded = () => rq.result.createObjectStore("kv");
-      rq.onsuccess = () => ok(rq.result);
+      const rq = idb.open("dibulios", 2);
+      rq.onupgradeneeded = () => {
+        const db = rq.result;
+        if (!db.objectStoreNames.contains("kv")) db.createObjectStore("kv");
+        if (!db.objectStoreNames.contains("items")) db.createObjectStore("items", { keyPath: "id" });
+        if (!db.objectStoreNames.contains("imgs")) db.createObjectStore("imgs");
+      };
+      rq.onsuccess = () => {
+        const db = rq.result;
+        db.onversionchange = () => {
+          db.close();
+          bookDb = null;
+        };
+        ok(db);
+      };
       rq.onerror = () => ko(rq.error);
     });
     return bookDb;
   }
-  function idbDo(mode, fn) {
+  /** Una transacción: fn(stores) puede devolver una petición; se resuelve con su resultado al terminar */
+  function idbTx(names, mode, fn) {
     return openBookDb().then((db) => new Promise((ok, ko) => {
-      const tx = db.transaction("kv", mode);
-      const rq = fn(tx.objectStore("kv"));
-      tx.oncomplete = () => ok(rq && rq.result);
-      tx.onerror = () => ko(tx.error);
-      tx.onabort = () => ko(tx.error);
+      const t = db.transaction(names, mode);
+      const st = {};
+      for (const n of [].concat(names)) st[n] = t.objectStore(n);
+      const rq = fn(st);
+      t.oncomplete = () => ok(rq && rq.result);
+      t.onerror = () => ko(t.error);
+      t.onabort = () => ko(t.error);
     }));
   }
-  // Al abrir: se carga de IndexedDB; la primera vez, se mudan los dibujos de localStorage
-  idbDo("readonly", (st) => st.get("book"))
-    .then((saved) => {
-      if (Array.isArray(saved)) {
-        if (!bookWritten) bookCache = saved;
-        try {
-          localStorage.removeItem(BOOK_KEY);
-        } catch (_) {}
-      } else if (bookCache.length) {
-        return idbDo("readwrite", (st) => st.put(bookCache, "book")).then(() => {
-          try {
-            localStorage.removeItem(BOOK_KEY);
-          } catch (_) {}
-        });
+  function persistStorage() {
+    try {
+      if (navigator.storage && navigator.storage.persist) {
+        navigator.storage.persisted().then((p) => p || navigator.storage.persist()).catch(() => {});
       }
-    })
-    .catch(() => {});
+    } catch (_) {}
+  }
+  /** Miniatura para la cuadrícula (360 px de ancho, JPEG ligero) */
+  function makeThumb(img) {
+    return loadImg(img).then((im) => {
+      if (!im) return img;
+      const w = Math.min(360, im.naturalWidth), h = Math.round((im.naturalHeight * w) / im.naturalWidth);
+      const c = document.createElement("canvas");
+      c.width = w;
+      c.height = h;
+      const x = c.getContext("2d");
+      x.fillStyle = "#fff";
+      x.fillRect(0, 0, w, h);
+      x.drawImage(im, 0, 0, w, h);
+      return c.toDataURL("image/jpeg", 0.8);
+    });
+  }
+  const metaOf = (d) => ({ id: d.id, prompt: d.prompt || "", by: d.by || "", date: d.date, src: d.src || "", thumb: d.thumb });
+  function storeItem(meta, img) {
+    if (!idb) return saveBookLocal();
+    return makeThumb(img)
+      .then((th) => {
+        meta.thumb = th;
+        return idbTx(["items", "imgs"], "readwrite", (st) => {
+          st.imgs.put(img, meta.id);
+          st.items.put(metaOf(meta));
+        });
+      })
+      .catch(() => {});
+  }
+  function dropItems(ids) {
+    for (const id of ids) fullCache.delete(id);
+    if (!idb) return saveBookLocal();
+    idbTx(["items", "imgs"], "readwrite", (st) => {
+      for (const id of ids) {
+        st.items.delete(id);
+        st.imgs.delete(id);
+      }
+    }).catch(() => {});
+  }
+  function trimBook() {
+    if (bookCache.length <= BOOK_MAX) return;
+    const gone = bookCache.splice(BOOK_MAX).map((d) => d.id);
+    dropItems(gone);
+  }
   function readBook() {
     return bookCache.slice();
   }
-  function writeBook(list) {
-    if (list.length > BOOK_MAX) list.length = BOOK_MAX;
-    bookCache = list.slice();
-    bookWritten = true;
-    if (idb) {
-      idbDo("readwrite", (st) => st.put(bookCache, "book")).catch(() => saveBookLocal(bookCache.slice()));
-      return true;
-    }
-    return saveBookLocal(list);
+  /** Añade un dibujo al principio del cuaderno */
+  function addToBook(meta, img) {
+    let id = meta.id || Date.now();
+    while (bookCache.some((d) => d.id === id)) id++;
+    const m = { id, prompt: meta.prompt || "", by: meta.by || "", date: meta.date || new Date().toISOString(), src: meta.src || "", thumb: img };
+    if (!idb) m.img = img;
+    bookCache.unshift(m);
+    bookCache.sort((a, b) => b.id - a.id);
+    fullCache.set(id, img);
+    trimBook();
+    storeItem(m, img);
+    persistStorage();
+    return true;
   }
-  /** Sin IndexedDB: localStorage, quitando los más antiguos si no cabe */
-  function saveBookLocal(list) {
+  function updateBookImg(id, img) {
+    const m = bookCache.find((d) => d.id === id);
+    if (!m) return false;
+    m.date = new Date().toISOString();
+    m.thumb = img;
+    if (!idb) m.img = img;
+    fullCache.set(id, img);
+    storeItem(m, img);
+    return true;
+  }
+  function removeFromBook(id) {
+    bookCache = bookCache.filter((d) => d.id !== id);
+    dropItems([id]);
+  }
+  /** La imagen entera de un dibujo del cuaderno */
+  function getBookImg(id) {
+    if (fullCache.has(id)) return Promise.resolve(fullCache.get(id));
+    const m = bookCache.find((d) => d.id === id);
+    if (m && m.img) return Promise.resolve(m.img);
+    return idbTx("imgs", "readonly", (st) => st.imgs.get(id)).then((img) => {
+      if (img) {
+        fullCache.set(id, img);
+        if (fullCache.size > 12) fullCache.delete(fullCache.keys().next().value);
+      }
+      return img || (m && m.thumb) || null;
+    });
+  }
+  /** Sin IndexedDB (muy raro): localStorage, quitando los más antiguos si no cabe */
+  function saveBookLocal() {
+    const list = bookCache.map((d) => ({ id: d.id, prompt: d.prompt, by: d.by, date: d.date, src: d.src, img: d.img }));
     while (list.length) {
       try {
         localStorage.setItem(BOOK_KEY, JSON.stringify(list));
         return true;
       } catch (_) {
         list.pop();
+        bookCache.length = list.length;
       }
     }
     try {
       localStorage.setItem(BOOK_KEY, "[]");
     } catch (_) {}
-    return !list.length;
+    return false;
   }
+  // Al abrir: se carga el índice; y la primera vez se mudan los cuadernos antiguos (una lista en «kv» o en localStorage)
+  (() => {
+    let legacy = [];
+    try {
+      legacy = JSON.parse(localStorage.getItem(BOOK_KEY) || "[]") || [];
+    } catch (_) {}
+    if (!idb) {
+      bookCache = legacy.map((d) => Object.assign({}, d, { thumb: d.img }));
+      return;
+    }
+    bookCache = legacy.map((d) => ({ id: d.id, prompt: d.prompt, by: d.by, date: d.date, src: d.src, thumb: d.img })); // mientras carga
+    legacy.forEach((d) => fullCache.set(d.id, d.img));
+    idbTx(["items", "kv"], "readonly", (st) => {
+      const out = {};
+      st.items.getAll().onsuccess = (e) => (out.items = e.target.result);
+      st.kv.get("book").onsuccess = (e) => (out.old = e.target.result);
+      return { get result() { return out; } };
+    })
+      .then(async ({ items, old }) => {
+        const have = new Map((items || []).map((m) => [m.id, m]));
+        const toMove = [].concat(Array.isArray(old) ? old : [], legacy).filter((d) => d && d.img && !have.has(d.id));
+        const added = bookCache.filter((m) => !have.has(m.id) && !legacy.some((d) => d.id === m.id)); // guardados mientras cargaba
+        bookCache = [...have.values(), ...added];
+        for (const d of toMove) {
+          const m = { id: d.id, prompt: d.prompt, by: d.by, date: d.date, src: d.src, thumb: d.img };
+          bookCache.push(m);
+          have.set(d.id, m);
+          await storeItem(m, d.img);
+        }
+        bookCache.sort((a, b) => b.id - a.id);
+        trimBook();
+        if (toMove.length || old) {
+          await idbTx("kv", "readwrite", (st) => st.kv.delete("book")).catch(() => {});
+          try {
+            localStorage.removeItem(BOOK_KEY);
+          } catch (_) {}
+        }
+        if (bookCache.length) persistStorage();
+        if (bookOpen && !$("s-book").hidden) renderBook();
+      })
+      .catch(() => {});
+  })();
 
   /** Guarda en el cuaderno un dibujo que se ha visto en la partida (tuyo o de otra persona) */
   /** Los dibujos de la partida llegan como dirección; el cuaderno guarda la imagen en sí (la sala desaparece) */
@@ -3650,7 +3913,7 @@
         fr.readAsDataURL(b);
       }));
   }
-  const inBook = (src) => readBook().some((x) => x.img === src || x.src === src);
+  const inBook = (src) => bookCache.some((x) => x.src === src);
   async function saveSharedToBook(src, prompt, by, btn, doneText) {
     if (!src) return;
     if (inBook(src)) {
@@ -3661,13 +3924,10 @@
       } catch (_) {
         return toast("No se pudo guardar: la partida ya no está en el servidor.");
       }
-      const list = readBook();
       const author = by && by.name ? by.name : "";
-      list.unshift({ id: Date.now(), prompt: prompt || "Dibujo de la partida", by: author, date: new Date().toISOString(), img, src });
-      if (list.length > BOOK_MAX) list.length = BOOK_MAX;
-      if (!writeBook(list)) return toast("No queda espacio en este móvil para guardar más dibujos.");
+      addToBook({ prompt: prompt || "Dibujo de la partida", by: author, src: String(src).indexOf("data:") === 0 ? "" : src }, img);
       SFX.play("point");
-      track("dibujo_guardado_partida", { total: list.length });
+      track("dibujo_guardado_partida", { total: bookCache.length });
     }
     if (btn) {
       btn.textContent = doneText || "✔ En tu cuaderno";
@@ -3713,10 +3973,12 @@
     if (edit) {
       $("drawWhat").textContent = edit.prompt;
       $("drawStep").textContent = "Editando tu dibujo";
-      pad.loadImage(edit.img, (ok) => {
-        if (!ok) toast("No se pudo abrir ese dibujo.");
-        updateToolbar();
-      });
+      getBookImg(edit.id)
+        .then((img) => pad.loadImage(img, (ok) => {
+          if (!ok) toast("No se pudo abrir ese dibujo.");
+          updateToolbar();
+        }))
+        .catch(() => toast("No se pudo abrir ese dibujo."));
     } else {
       newIdea();
       $("drawStep").textContent = "Dibujo libre · una idea:";
@@ -3748,12 +4010,7 @@
   }
   function saveToBook() {
     if (editingId) {
-      const list = readBook();
-      const item = list.find((x) => x.id === editingId);
-      if (item && pad.dirty) {
-        item.img = pad.toDataURL("image/jpeg", 0.85);
-        item.date = new Date().toISOString();
-        if (!writeBook(list)) return toast("No queda espacio en este móvil para guardar los cambios.");
+      if (pad.dirty && updateBookImg(editingId, pad.toDataURL("image/jpeg", 0.85))) {
         SFX.play("point");
         track("dibujo_editado");
       }
@@ -3763,12 +4020,9 @@
       return openBook("solo");
     }
     if (!pad.dirty) return toast("Dibuja algo antes de guardarlo.");
-    const list = readBook();
-    list.unshift({ id: Date.now(), prompt: $("drawWhat").textContent, date: new Date().toISOString(), img: pad.toDataURL("image/jpeg", 0.85) });
-    if (list.length > BOOK_MAX) list.length = BOOK_MAX;
-    if (!writeBook(list)) return toast("No queda espacio en este móvil para guardar más dibujos.");
+    addToBook({ prompt: $("drawWhat").textContent }, pad.toDataURL("image/jpeg", 0.85));
     SFX.play("point");
-    track("dibujo_guardado", { total: list.length });
+    track("dibujo_guardado", { total: bookCache.length });
     flashBtn($("drawDone"), "✔ Guardado");
     pad.reset();
     updateToolbar();
@@ -3778,9 +4032,53 @@
     SFX.play("click");
     bookOpen = true;
     bookReturn = from;
+    setBookCols(bookCols());
     renderBook();
     show("s-book");
+    if (bookCache.length > 6 && !store.get("tg-tip-pinch", "")) {
+      store.set("tg-tip-pinch", "1");
+      setTimeout(() => toast("Pellizca con dos dedos para ver más o menos dibujos"), 600);
+    }
   }
+  // Cuántos dibujos por fila: se cambia pellizcando (o Ctrl + rueda en el ordenador)
+  const wideBook = () => window.innerWidth >= 700;
+  function bookCols() {
+    const v = Number(store.get(wideBook() ? "tg-book-cols-w" : "tg-book-cols", "")) || 0;
+    return v || (wideBook() ? 5 : 2);
+  }
+  function setBookCols(n) {
+    const max = wideBook() ? 9 : 5;
+    n = Math.max(1, Math.min(max, n));
+    $("bookGrid").style.setProperty("--book-cols", n);
+    $("bookGrid").classList.toggle("dense", n >= 4);
+    store.set(wideBook() ? "tg-book-cols-w" : "tg-book-cols", String(n));
+    return n;
+  }
+  (() => {
+    const grid = $("bookGrid");
+    let d0 = 0;
+    const dist = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+    grid.addEventListener("touchstart", (e) => {
+      if (e.touches.length === 2) d0 = dist(e.touches);
+    }, { passive: true });
+    grid.addEventListener("touchmove", (e) => {
+      if (e.touches.length !== 2 || !d0) return;
+      e.preventDefault();
+      const r = dist(e.touches) / d0;
+      if (r > 1.3 || r < 0.77) {
+        const cur = bookCols();
+        const n = setBookCols(cur + (r > 1 ? -1 : 1));
+        if (n !== cur) SFX.play("click");
+        d0 = dist(e.touches);
+      }
+    }, { passive: false });
+    grid.addEventListener("touchend", () => (d0 = 0));
+    grid.addEventListener("wheel", (e) => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      setBookCols(bookCols() + (e.deltaY > 0 ? 1 : -1));
+    }, { passive: false });
+  })();
   function renderBook() {
     const grid = $("bookGrid");
     grid.innerHTML = "";
@@ -3798,13 +4096,18 @@
       b.type = "button";
       b.setAttribute("aria-label", d.prompt || "Dibujo");
       const im = el("img");
-      im.src = d.img;
+      im.src = d.thumb;
       im.alt = "";
       im.loading = "lazy";
       b.appendChild(im);
       b.addEventListener("click", () => viewDrawing(k));
       grid.appendChild(b);
     });
+    if (isIOS && !installed) {
+      const tip = el("p", "book-tip");
+      tip.innerHTML = `📲 <strong>Para que tu cuaderno no se borre</strong>, instala Dibulíos: toca ${IOS_SHARE} Compartir y luego «Añadir a pantalla de inicio».`;
+      grid.prepend(tip);
+    }
     grid.appendChild(el("p", "book-foot", `${list.length} ${list.length === 1 ? "dibujo" : "dibujos"} · se guardan solo en este móvil · máximo ${BOOK_MAX}`));
   }
   // ---------- visor del cuaderno: a pantalla completa, deslizando para pasar ----------
@@ -3819,10 +4122,23 @@
     $("bookDel").classList.remove("armed");
   }
   // Carrusel nativo (desliza con el dedo como en la galería del móvil): una diapositiva por dibujo
+  function hydrate(k) {
+    const d = viewList[k];
+    const slide = $("bookTrack").children[k];
+    if (!d || !slide || slide.dataset.full) return;
+    slide.dataset.full = "1";
+    getBookImg(d.id)
+      .then((img) => {
+        const im = slide.firstChild;
+        if (img && im && viewList[k] === d) im.src = img;
+      })
+      .catch(() => {});
+  }
   function viewMeta() {
     const d = viewList[viewIdx];
     viewing = d;
     if (!d) return;
+    for (const k of [viewIdx, viewIdx + 1, viewIdx - 1]) hydrate(k);
     $("bookPrompt").textContent = d.prompt || "Dibujo";
     $("bookMeta").textContent = (d.by ? "de " + d.by + " · " : "") + new Date(d.date).toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" });
     $("bookCount").textContent = `${viewIdx + 1} / ${viewList.length}`;
@@ -3840,7 +4156,7 @@
       im.draggable = false;
       im.decoding = "async";
       if (Math.abs(k - viewIdx) > 2) im.loading = "lazy";
-      im.src = d.img;
+      im.src = d.thumb; // la miniatura al instante; la imagen entera llega al acercarse (hydrate)
       slide.appendChild(im);
       track.appendChild(slide);
     });
@@ -3951,11 +4267,16 @@
       toast("No se pudo guardar la imagen.");
     }
   }
-  $("bookSave").addEventListener("click", () => viewing && saveToGallery(viewing.img, viewing.prompt, null));
+  $("bookSave").addEventListener("click", async () => {
+    if (!viewing) return;
+    const img = await getBookImg(viewing.id).catch(() => null);
+    if (img) saveToGallery(img, viewing.prompt, null);
+  });
   $("bookShare").addEventListener("click", async () => {
     if (!viewing) return;
     try {
-      const file = await toJpegFile(viewing.img, fileName(viewing.prompt));
+      const img = await getBookImg(viewing.id);
+      const file = await toJpegFile(img, fileName(viewing.prompt));
       const text = "Dibujado en Dibulíos ✏️ " + location.origin;
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         try {
@@ -3964,7 +4285,7 @@
         } catch (_) {} // cancelado
         return;
       }
-      saveToGallery(viewing.img, viewing.prompt, null);
+      saveToGallery(img, viewing.prompt, null);
     } catch (_) {
       toast("No se pudo compartir el dibujo.");
     }
@@ -3982,7 +4303,7 @@
       return;
     }
     disarmDel();
-    writeBook(readBook().filter((x) => x.id !== viewing.id));
+    removeFromBook(viewing.id);
     SFX.play("crumple");
     renderBook();
     // se queda en el visor, con el siguiente dibujo (o se cierra si ya no quedan)
