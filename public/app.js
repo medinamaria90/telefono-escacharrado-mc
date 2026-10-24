@@ -653,6 +653,7 @@
   $("tabMe").addEventListener("click", () => openMe());
   if (me.name.trim()) store.set("tg-named", "1");
   renderWho();
+  setTimeout(() => !state && renderChrome(), 0);
   // Borrar la carita dibujada (pide confirmación: hay que tocar dos veces)
   let faceDelArmed = null;
   $("faceDelBtn").addEventListener("click", () => {
