@@ -1163,7 +1163,7 @@
     { v: "triptico", emoji: "🧩", name: "Tríptico", desc: "Cabeza, cuerpo y piernas, cada parte de alguien distinto." },
     { v: "votacion", emoji: "⭐", name: "Votación", desc: "Todos dibujáis la misma frase y os puntuáis del 1 al 5." },
     { v: "extremo", emoji: "🔥", name: "Dibujo extremo", desc: "Como el clásico, pero con limitaciones locas al dibujar." },
-    { v: "parejas", emoji: "👯", name: "Por parejas", min: "desde 4", desc: "De dos en dos en el mismo lienzo, y luego todos puntúan." },
+    { v: "parejas", emoji: "👯", name: "Por parejas", min: "desde 3", desc: "De dos en dos en el mismo lienzo, y luego todos puntúan." },
     { v: "retratos", emoji: "🖼️", name: "Retratos", desc: "Retratas en secreto a otro jugador; todos puntúan el parecido." },
   ];
   const modeInfo = (v) => MODES.find((m) => m.v === v) || MODES[0];
@@ -1221,7 +1221,13 @@
       ];
     }
     if (state.settings.mode === "parejas") {
-      return [`Por parejas · ${state.settings.duoRounds} rondas`, "Uno elige qué dibujar y cada pareja lo dibuja a la vez en un lienzo compartido. Todos puntuáis del 1 al 5; los puntos son de cada uno y las parejas cambian cada ronda."];
+      const three = state.players.filter((p) => !p.left).length === 3;
+      return [
+        `Por parejas · ${state.settings.duoRounds} rondas`,
+        three
+          ? "Con tres: una pareja dibuja a la vez en el mismo lienzo contra uno solo, y os puntuáis del 1 al 5. Cada ronda cambia quién va solo."
+          : "Uno elige qué dibujar y cada pareja lo dibuja a la vez en un lienzo compartido. Todos puntuáis del 1 al 5; los puntos son de cada uno y las parejas cambian cada ronda.",
+      ];
     }
     if (state.settings.mode === "retratos") {
       return [`Retratos · ${state.settings.duoRounds} rondas`, "Cada uno retrata en secreto a otro jugador y todos puntuáis el parecido del 1 al 5, sin saber quién dibujó."];
@@ -1245,7 +1251,7 @@
     $("shareLink").value = location.origin + "/?sala=" + state.code;
     $("playerCount").textContent = `${n} de ${state.maxPlayers}`;
     // Cuánta gente falta para empezar: en el cuadro de jugadores
-    const minP = state.settings.mode === "parejas" ? 4 : 2;
+    const minP = state.settings.mode === "parejas" ? 3 : 2;
     const needed = minP - n;
     $("playersNeed").hidden = needed <= 0;
     if (needed > 0) $("playersNeed").textContent = (needed === 1 ? "Falta 1 jugador" : `Faltan ${needed} jugadores`) + " · comparte el enlace";
@@ -1437,7 +1443,7 @@
       } else if (state.mode === "vote" && task.kind === "extreme") {
         $("drawStep").textContent = stepLabel(task) + " · " + RULE_LABEL[task.rule];
       } else if (task.kind === "pairs") {
-        $("drawStep").textContent = stepLabel(task) + (task.partners && task.partners.length ? " · Con " + task.partners.map((p) => p.name).join(" y ") : "");
+        $("drawStep").textContent = stepLabel(task) + (task.partners && task.partners.length ? " · Con " + task.partners.map((p) => p.name).join(" y ") : " · Tú solo contra la pareja 💪");
         pairReset();
         pairResync();
       } else if (state.mode === "vote" && task.kind === "portrait") {

@@ -399,7 +399,7 @@ const RULES = ["circles", "squares", "oneline"];
 const VOTE_MODES = ["votacion", "retratos", "parejas"];
 const CHAIN_MODES = ["degradado", "extremo", "triptico"]; // siempre en cadena, aunque sean 2
 const MODES = ["telefono", ...VOTE_MODES, ...CHAIN_MODES];
-const minPlayersFor = (mode) => (mode === "parejas" ? 4 : 2); // Tríptico con 2: os turnáis (A-B-A y B-A-B)
+const minPlayersFor = (mode) => (mode === "parejas" ? 3 : 2); // Tríptico con 2: os turnáis (A-B-A y B-A-B)
 // Tríptico: cada criatura se dibuja en 3 partes, cada una de alguien distinto
 const TRIPTYCH_PARTS = ["head", "body", "legs"];
 
@@ -525,6 +525,7 @@ function makeTeams(game) {
   const ids = game.order.slice();
   const key = (a, b) => (a < b ? a + "|" + b : b + "|" + a);
   const split = (list) => {
+    if (list.length === 3) return [[list[0], list[1]], [list[2]]]; // con tres: una pareja contra uno solo
     const teams = [];
     for (let i = 0; i + 1 < list.length; i += 2) teams.push([list[i], list[i + 1]]);
     if (list.length % 2) teams[teams.length - 1].push(list[list.length - 1]);
