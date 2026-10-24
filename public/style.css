@@ -1010,3 +1010,42 @@ input, textarea, select { font-size: max(16px, 1em) !important; }
 .face-action small { font-size: .74rem; color: var(--muted); line-height: 1.25; }
 .face-action:active { transform: scale(.98); }
 .face-or { margin: 4px 0 0; font-size: .8rem; font-weight: 700; color: var(--muted); text-align: center; }
+
+/* ---------- barra de abajo (fuera de la sala): Jugar · Cuaderno · Tú ---------- */
+.tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; display: grid; grid-template-columns: repeat(3, 1fr); padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); background: color-mix(in srgb, var(--card) 92%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-top: 1.5px solid var(--line); }
+.tabbar[hidden] { display: none; }
+.tab { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 4px; border: 0; background: none; color: var(--muted); font: inherit; font-size: .72rem; font-weight: 700; cursor: pointer; border-radius: 12px; }
+.tab.on { color: var(--accent); }
+.tab-face { width: 24px; height: 24px; display: grid; place-items: center; }
+.tab-face .avatar { width: 24px; height: 24px; font-size: 16px; }
+body.has-tabbar .screen { padding-bottom: calc(78px + env(safe-area-inset-bottom)); }
+body.has-tabbar .book-fab { bottom: calc(86px + env(safe-area-inset-bottom)); }
+/* inicio: «Hola, …» cuando ya te conocemos */
+.hello-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 8px 12px 8px 8px; border-radius: 14px; border: 2px solid var(--line); background: var(--bg); cursor: pointer; text-align: left; color: var(--ink); font: inherit; }
+.hello-row[hidden] { display: none; }
+.hello-face .avatar { width: 46px; height: 46px; }
+.hello-text { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.hello-text strong { font-size: 1.05rem; }
+.hello-text small { color: var(--muted); font-size: .78rem; }
+.who-new { display: flex; flex-direction: column; gap: 10px; }
+.who-new[hidden] { display: none; }
+/* «Tú» */
+.me-sheet { gap: 12px; }
+.me-top { display: flex; align-items: center; gap: 14px; }
+.me-face .avatar { width: 84px; height: 84px; font-size: 52px; }
+.me-name { flex: 1; font-weight: 700; }
+.face-actions { grid-template-columns: repeat(4, 1fr) !important; gap: 8px; }
+.face-actions.two { grid-template-columns: 1fr 1fr !important; }
+.face-action { flex-direction: column; gap: 4px; padding: 10px 4px !important; }
+.face-action strong { font-size: .8rem !important; }
+.face-action[hidden] { display: none; }
+.me-settings { display: flex; flex-direction: column; border-top: 1.5px solid var(--line); margin-top: 4px; }
+.me-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 2px; border: 0; border-bottom: 1px solid var(--line); background: none; color: var(--ink); font: inherit; font-weight: 700; cursor: pointer; }
+.switch { width: 46px; height: 28px; border-radius: 999px; background: var(--line); position: relative; transition: background .2s; flex: none; }
+.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px #0003; transition: transform .2s; }
+.switch.on { background: var(--accent); }
+.switch.on::after { transform: translateX(18px); }
+/* sala: tu ficha se puede tocar; y un solo enlace al cuaderno */
+.me-chip { cursor: pointer; }
+.me-edit { margin-left: 4px; color: var(--accent); font-weight: 800; }
+.lobby-book-link { align-self: center; margin-top: 4px; padding: 8px 12px; border: 0; background: none; color: var(--muted); font: inherit; font-size: .88rem; font-weight: 700; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }

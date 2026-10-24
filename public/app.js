@@ -379,6 +379,12 @@
     }
     for (const s of screens) $(s).hidden = s !== id;
     document.body.dataset.screen = id;
+    // barra de abajo (Jugar · Cuaderno · Tú): solo fuera de una sala
+    const tabs = !state && (id === "s-home" || id === "s-book");
+    $("tabbar").hidden = !tabs;
+    document.body.classList.toggle("has-tabbar", tabs);
+    $("tabPlay").classList.toggle("on", id === "s-home");
+    $("tabBook").classList.toggle("on", id === "s-book");
     trackScreen(id);
     if (id === "s-draw" && pad) requestAnimationFrame(() => pad.layout());
   }
@@ -493,6 +499,10 @@
     const c = $("emojiCurrent");
     c.innerHTML = "";
     c.appendChild(AVATARS.avatarEl(me.emoji));
+    try {
+      renderWho();
+      if (!$("emojiSheet").hidden) renderMe();
+    } catch (_) {}
   }
   // Persona con su carita, para frases como "Abuela dibujó"
   function who(p, suffix) {
@@ -509,11 +519,8 @@
     node.appendChild(who(p, suffix));
   }
   const nameOf = (p, fallback) => (p ? p.name : fallback);
-  $("emojiBtn").addEventListener("click", () => {
-    SFX.play("click");
-    $("emojiSheet").hidden = false;
-  });
-  $("emojiClose").addEventListener("click", () => ($("emojiSheet").hidden = true));
+  $("emojiBtn").addEventListener("click", () => openMe());
+  $("emojiClose").addEventListener("click", () => closeMe());
 
   // ---------- dibujar tu propia carita (en el lienzo grande, dentro de un círculo) ----------
   // El círculo ocupa el cuadrado central del lienzo (600x600 a partir de y=150)
@@ -542,10 +549,105 @@
   }
   $("faceDrawBtn").addEventListener("click", () => openFace());
   $("faceBookBtn").addEventListener("click", () => openFacePick());
-  $("lobbyFaceBtn").addEventListener("click", () => {
+  // ---------- «Tú»: nombre, carita y ajustes, en un solo sitio ----------
+  // La carita que sale de un dibujo del cuaderno recuerda de cuál y cómo se encuadró, para poder
+  // retocar el dibujo o volver a encuadrarlo desde aquí mismo.
+  function faceSource() {
+    try {
+      const src = JSON.parse(store.get("tg-face-src", "") || "null");
+      if (!src || !isFace(me.emoji) || me.emoji !== store.get("tg-face", "")) return null;
+      const m = bookCache.find((d) => d.id === src.id);
+      return m ? { meta: m, crop: src } : null;
+    } catch (_) {
+      return null;
+    }
+  }
+  function renderMe() {
+    const f = $("meFace");
+    f.innerHTML = "";
+    f.appendChild(AVATARS.avatarEl(me.emoji));
+    if (document.activeElement !== $("meName")) $("meName").value = me.name;
+    const src = faceSource();
+    $("faceRetouchBtn").hidden = !src;
+    $("faceCropBtn").hidden = !src;
+    $("faceBookTxt").textContent = src ? "Otro dibujo" : "Usar un dibujo";
+    $("faceDrawTxt").textContent = src ? "Dibujar nueva" : "Dibujar mi carita";
+    $("faceActions").classList.toggle("two", !src);
+    const dark = document.documentElement.dataset.theme === "dark";
+    $("meThemeSw").classList.toggle("on", dark);
+    $("meSoundSw").classList.toggle("on", !SFX.muted);
+  }
+  function openMe() {
     SFX.play("click");
+    renderMe();
     $("emojiSheet").hidden = false;
+  }
+  function closeMe() {
+    syncMeName();
+    $("emojiSheet").hidden = true;
+  }
+  function syncMeName() {
+    const v = $("meName").value.trim().slice(0, 16);
+    if (!v || v === me.name) return;
+    me.name = v;
+    store.set("tg-name", v);
+    $("nameInput").value = v;
+    if (state && state.phase === "lobby") socket.emit("profile", { name: me.name, emoji: me.emoji });
+    renderWho();
+  }
+  $("meName").addEventListener("change", syncMeName);
+  $("meName").addEventListener("blur", syncMeName);
+  $("meTheme").addEventListener("click", () => {
+    const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+    store.set("tg-theme", next);
+    applyTheme(next);
+    SFX.play("click");
+    renderMe();
   });
+  $("meSound").addEventListener("click", () => {
+    SFX.toggle();
+    paintMute();
+    renderMe();
+  });
+  $("faceRetouchBtn").addEventListener("click", () => {
+    const src = faceSource();
+    if (!src) return;
+    $("emojiSheet").hidden = true;
+    faceRetouch = src;
+    startSolo(src.meta);
+    $("drawStep").textContent = "Retocando tu carita";
+    $("drawDone").textContent = "Siguiente";
+    $("soloBookBtn").hidden = true;
+  });
+  $("faceCropBtn").addEventListener("click", () => {
+    const src = faceSource();
+    if (src) openFaceCrop(src.meta, src.crop);
+  });
+  let faceRetouch = null;
+  // Inicio: la primera vez se pide nombre y carita; luego, solo «Hola, …» (se cambia en «Tú»)
+  function renderWho() {
+    const known = !!me.name.trim() && store.get("tg-named", "") === "1";
+    $("whoNew").hidden = known;
+    $("whoHello").hidden = !known;
+    $("helloName").textContent = "Hola, " + me.name;
+    const hf = $("helloFace");
+    hf.innerHTML = "";
+    hf.appendChild(AVATARS.avatarEl(me.emoji));
+    const tf = $("tabFace");
+    tf.innerHTML = "";
+    tf.appendChild(AVATARS.avatarEl(me.emoji));
+  }
+  $("whoHello").addEventListener("click", () => openMe());
+  $("tabPlay").addEventListener("click", () => {
+    if (bookOpen) $("bookBack").click();
+    else show("s-home");
+  });
+  $("tabBook").addEventListener("click", () => {
+    if (!bookOpen) openBook("tab");
+  });
+  $("tabMe").addEventListener("click", () => openMe());
+  if (me.name.trim()) store.set("tg-named", "1");
+  renderWho();
   // Borrar la carita dibujada (pide confirmación: hay que tocar dos veces)
   let faceDelArmed = null;
   $("faceDelBtn").addEventListener("click", () => {
@@ -659,7 +761,9 @@
     im.style.height = crop.h * crop.k + "px";
     im.style.transform = `translate(${crop.tx}px, ${crop.ty}px)`;
   }
-  function openFaceCrop(d) {
+  let cropMeta = null;
+  function openFaceCrop(d, saved) {
+    cropMeta = d;
     SFX.play("page");
     $("facePick").hidden = true;
     $("faceCrop").hidden = false;
@@ -677,6 +781,12 @@
           crop.min = crop.k * 0.35;
           crop.tx = (crop.S - crop.w * crop.k) / 2;
           crop.ty = Math.min(0, (crop.S - crop.h * crop.k) / 3);
+          if (saved && saved.kw) {
+            // el encuadre que ya tenía
+            crop.k = (saved.kw * crop.S) / crop.w;
+            crop.tx = saved.tx * crop.S;
+            crop.ty = saved.ty * crop.S;
+          }
           paintCrop();
         };
         im.src = src;
@@ -742,7 +852,9 @@
     x.fillRect(0, 0, 256, 256);
     x.drawImage(im, crop.tx * f, crop.ty * f, crop.w * crop.k * f, crop.h * crop.k * f);
     useFace(out, "carita_del_cuaderno");
+    if (cropMeta) store.set("tg-face-src", JSON.stringify({ id: cropMeta.id, tx: crop.tx / crop.S, ty: crop.ty / crop.S, kw: (crop.k * crop.w) / crop.S }));
     $("faceCrop").hidden = true;
+    renderWho();
     toast("¡Carita lista! 🎉");
   });
   $("howBtn").addEventListener("click", () => {
@@ -793,6 +905,7 @@
       return;
     }
     session.set({ code: res.code, token: res.token });
+    store.set("tg-named", "1");
     try {
       history.replaceState(null, "", "/?sala=" + res.code);
     } catch (_) {}
@@ -1036,6 +1149,9 @@
     const inRoom = !!state;
     $("roomChip").hidden = !inRoom;
     $("leaveBtn").hidden = !inRoom;
+    // fuera de una sala, sonido y tema están en «Tú»
+    $("muteBtn").hidden = !inRoom;
+    document.querySelectorAll(".theme-btn").forEach((b) => (b.hidden = !inRoom));
     $("topbar").classList.toggle("in-room", inRoom);
     if (inRoom) $("roomChip").textContent = state.code;
   }
@@ -1110,7 +1226,18 @@
     li.appendChild(AVATARS.avatarEl(p.emoji, "p-emoji"));
     li.appendChild(el("span", "p-name", p.name));
     const tags = el("span", "p-tags");
-    if (p.id === state.you) tags.appendChild(el("span", "tag you", "tú"));
+    if (p.id === state.you) {
+      tags.appendChild(el("span", "tag you", "tú"));
+      if (state.phase === "lobby" && !opts.status) {
+        // tu propia ficha: tocarla abre «Tú» (nombre y carita)
+        li.classList.add("me-chip");
+        li.setAttribute("role", "button");
+        li.tabIndex = 0;
+        li.title = "Cambiar tu nombre o tu carita";
+        li.addEventListener("click", () => openMe());
+        tags.appendChild(el("span", "me-edit", "✎"));
+      }
+    }
     if (p.id === state.hostId) tags.appendChild(el("span", "tag host", "anfitrión"));
     if (p.bot) tags.appendChild(el("span", "tag", "robot"));
     if (p.left) tags.appendChild(el("span", "tag", "se fue"));
@@ -3923,8 +4050,10 @@
     $("drawWhat").textContent = idea("solo");
     $("drawWhat").classList.toggle("long", $("drawWhat").textContent.length > 26);
   }
+  let soloFrom = null;
   function startSolo(edit) {
     SFX.play("pop");
+    soloFrom = document.body.dataset.screen === "s-book" ? "book" : null;
     track(edit ? "dibujo_editar" : "dibujo_libre", { desde: state ? "sala" : "inicio" });
     soloMode = true;
     bookOpen = false;
@@ -3968,6 +4097,7 @@
   function exitSolo(silent) {
     if (faceMode) closeFace();
     faceDraft = false;
+    faceRetouch = null;
     soloMode = false;
     bookOpen = false;
     editingId = null;
@@ -3979,9 +4109,19 @@
     currentStepKey = null;
     if (!silent) SFX.play("click");
     if (state) render();
+    else if (soloFrom === "book" && !silent) openBook("tab");
     else showHome();
   }
   function saveToBook() {
+    if (editingId && faceRetouch) {
+      // retocando la carita: se guarda el dibujo y se vuelve al encuadre de siempre
+      const r = faceRetouch;
+      if (pad.dirty) updateBookImg(editingId, pad.toDataURL("image/jpeg", 0.88));
+      editingId = null;
+      exitSolo(true);
+      openFaceCrop(r.meta, r.crop);
+      return;
+    }
     if (editingId) {
       if (pad.dirty && updateBookImg(editingId, pad.toDataURL("image/jpeg", 0.85))) {
         SFX.play("point");
@@ -4005,6 +4145,7 @@
     SFX.play("click");
     bookOpen = true;
     bookReturn = from;
+    $("bookBack").hidden = from === "tab" && !state; // desde la barra de abajo no hace falta «Volver»
     setBookCols(bookCols());
     renderBook();
     show("s-book");
@@ -4300,11 +4441,10 @@
     requestAnimationFrame(() => goSlide(viewIdx, false));
     viewMeta();
   });
-  $("soloBtn").addEventListener("click", () => startSolo());
-  $("lobbySoloBtn").addEventListener("click", () => startSolo());
+
   $("lobbyBookBtn").addEventListener("click", () => openBook("lobby"));
   $("soloExitBtn").addEventListener("click", () => exitSolo());
-  $("bookBtn").addEventListener("click", () => openBook("home"));
+
   $("soloBookBtn").addEventListener("click", () => openBook("solo"));
   $("bookDraw").addEventListener("click", () => startSolo());
   $("bookBack").addEventListener("click", () => {
