@@ -1206,20 +1206,12 @@
   // (visor, ventanas), luego sale del cuaderno o del dibujo libre; en partida, pregunta antes de salir.
   const OVERLAYS = ["welcomeSheet", "faceCrop", "facePick", "bookView", "zoomSheet", "shareSheet", "modeSheet", "howSheet", "endSheet", "leaveSheet"];
   const openOverlay = () => OVERLAYS.map((id) => $(id)).find((o) => o && !o.hidden);
-  const needsGuard = () => !!state || bookOpen || soloMode || !!openOverlay();
+  const needsGuard = () => !!state || bookOpen || soloMode || meOpen || !!openOverlay();
   let consumingBack = false;
+  // (No se quita la entrada de más al cerrar algo con un botón: hacerlo con history.back() a veces se
+  // cruzaba con la siguiente y «atrás» sacaba de la app. Como mucho, en el inicio hay que pulsar atrás dos veces.)
   function syncBack() {
     if (needsGuard()) guardBack();
-    else if (backGuarded && !consumingBack) {
-      // ya no hay nada que cerrar: se quita la entrada de más, para que «atrás» funcione normal
-      consumingBack = true;
-      backGuarded = false;
-      try {
-        history.back();
-      } catch (_) {
-        consumingBack = false;
-      }
-    }
   }
   new MutationObserver(() => setTimeout(syncBack, 0)).observe(document.body, { attributes: true, attributeFilter: ["hidden"], subtree: true });
   window.addEventListener("popstate", () => {
@@ -1236,7 +1228,8 @@
       if (ov.id === "bookView") closeViewer();
       else if (ov.id === "leaveSheet") $("leaveNo").click();
       else ov.hidden = true;
-    } else if (bookOpen) $("bookBack").click();
+    } else if (meOpen) closeMe();
+    else if (bookOpen) $("bookBack").click();
     else if (soloMode) {
       if (pad && pad.dirty) toast("Pulsa «Guardar» para guardar tu dibujo, o «Salir» si no lo quieres.");
       else exitSolo();
