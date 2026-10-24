@@ -527,6 +527,8 @@
     pad.forcePortrait = true;
     pad.forceLandscape = false;
     pad.setGuide(null);
+    pad.setLock(null);
+    pad.setLock(null);
     pad.reset();
     pad.setRule(null);
     applyRuleToolbar(null);
@@ -1101,10 +1103,17 @@
       pad.setRule(task.rule || null);
       applyRuleToolbar(task.rule || null);
       pad.setGuide(null);
+      pad.setLock(null);
+      setPrevColors(null);
       if (task.variant === "triptych") {
+        // La franja de arriba es de la parte anterior: se ve, pero no se pinta en ella.
+        // La línea de unión de abajo hace de pared para el cubo de pintura.
+        const BAND = 90;
+        pad.setLock(task.part !== "head" ? [pad.visualRect(0, 0, 900, BAND)] : [], task.part !== "legs" ? [pad.visualRect(0, 600 - BAND - 1, 900, 2)] : []);
         const n = { head: 1, body: 2, legs: 3 }[task.part] || 1;
         $("drawStep").textContent = `Parte ${n} de 3 · ${TRIPTYCH_NAME[task.part]}`;
         const prevImg = task.prompt && task.prompt.kind === "image" ? task.prompt.value : null;
+        setPrevColors(task.part !== "head" ? prevImg : null);
         pad.setGuide({
           top: task.part !== "head" ? prevImg || null : null,
           topLabel: "↑ Sigue desde aquí",
@@ -1701,6 +1710,32 @@
       updateToolbar();
     };
     renderRecent();
+    // Tríptico: los colores que usó la parte anterior, abajo del todo, para seguir igual
+    const prevBox = el("div", "prev-colors");
+    prevBox.hidden = true;
+    renderPrev = (list) => {
+      prevBox.innerHTML = "";
+      prevBox.hidden = !list.length;
+      if (!list.length) return;
+      prevBox.appendChild(el("div", "prev-colors-label", "Colores de la parte anterior"));
+      list.forEach((c) => {
+        const b = el("button", "color-btn");
+        b.type = "button";
+        b.style.setProperty("--c", c);
+        b.dataset.color = c;
+        b.setAttribute("aria-label", "Color " + c);
+        b.addEventListener("click", () => {
+          SFX.play("color");
+          pad.color = c;
+          if (pad.tool === "eraser") pad.tool = "pen";
+          syncFree(c);
+          updateToolbar();
+          closePops();
+        });
+        prevBox.appendChild(b);
+      });
+      updateToolbar();
+    };
     // Color libre: barra de arcoíris (saturación al máximo) + barra de luz
     const free = el("div", "free-color");
     const hueBar = el("div", "hue-bar");
@@ -1715,6 +1750,7 @@
     free.appendChild(hueBar);
     free.appendChild(shadeBar);
     cs.appendChild(free);
+    cs.appendChild(prevBox); // abajo del todo
     let hue = 0;
     let light = 50;
     let sat = 100;
@@ -1818,6 +1854,55 @@
   const RECENT_MAX = 6;
   let recentColors = [];
   let renderRecent = () => {};
+  let renderPrev = () => {};
+  let prevColorsFor = null;
+  // Saca los colores principales de un dibujo (sin el blanco del papel)
+  function extractColors(url, done) {
+    const im = new Image();
+    im.onload = () => {
+      try {
+        const w = Math.min(im.naturalWidth, 600), h = Math.round((im.naturalHeight * w) / im.naturalWidth);
+        const c = document.createElement("canvas");
+        c.width = w; c.height = h;
+        const x = c.getContext("2d");
+        x.imageSmoothingEnabled = false;
+        x.fillStyle = "#fff"; x.fillRect(0, 0, w, h);
+        x.drawImage(im, 0, 0, w, h);
+        const d = x.getImageData(0, 0, w, h).data;
+        const buckets = new Map();
+        for (let i = 0; i < d.length; i += 8) {
+          const r = d[i], g = d[i + 1], b = d[i + 2];
+          if (r > 238 && g > 238 && b > 238) continue; // papel
+          const k = (r >> 4) * 256 + (g >> 4) * 16 + (b >> 4);
+          const o = buckets.get(k) || { n: 0, r: 0, g: 0, b: 0 };
+          o.n++; o.r += r; o.g += g; o.b += b;
+          buckets.set(k, o);
+        }
+        const total = [...buckets.values()].reduce((a, o) => a + o.n, 0);
+        const cand = [...buckets.values()].sort((a, b) => b.n - a.n).map((o) => [o.r / o.n, o.g / o.n, o.b / o.n, o.n]);
+        const picked = [];
+        for (const [r, g, b, n] of cand) {
+          if (n < Math.max(25, total * 0.004)) break;
+          if (picked.some((p) => Math.abs(p[0] - r) + Math.abs(p[1] - g) + Math.abs(p[2] - b) < 70)) continue;
+          picked.push([r, g, b]);
+          if (picked.length >= 10) break;
+        }
+        done(picked.map((p) => "#" + p.map((v) => Math.round(v).toString(16).padStart(2, "0")).join("")));
+      } catch (_) {
+        done([]);
+      }
+    };
+    im.onerror = () => done([]);
+    im.src = url;
+  }
+  function setPrevColors(url) {
+    prevColorsFor = url;
+    renderPrev([]);
+    if (!url) return;
+    extractColors(url, (list) => {
+      if (prevColorsFor === url) renderPrev(list);
+    });
+  }
   function addRecent(c) {
     if (!c || COLORS.includes(c) || recentColors[0] === c) return;
     recentColors = [c].concat(recentColors.filter((x) => x !== c)).slice(0, RECENT_MAX);
@@ -2406,11 +2491,11 @@
       ctx.fillRect(0, 0, c.width, c.height);
       imgs.forEach((im, i) => {
         const y = i * STEP;
-        if (im) {
-          ctx.save();
-          ctx.globalCompositeOperation = "multiply"; // las uniones se ven las dos
-          ctx.drawImage(im, 0, y, VW, VH);
-          ctx.restore();
+        if (im && i === 0) ctx.drawImage(im, 0, 0, VW, VH);
+        else if (im) {
+          // de las demás partes, solo lo suyo: sin la franja de arriba (era de la parte anterior)
+          const k = im.naturalHeight / VH, band = VH - STEP;
+          ctx.drawImage(im, 0, band * k, im.naturalWidth, im.naturalHeight - band * k, 0, y + band, VW, VH - band);
         } else {
           ctx.fillStyle = "#8a8e99";
           ctx.font = '700 40px "Atkinson Hyperlegible", system-ui, sans-serif';
@@ -3387,6 +3472,7 @@
     pad.forcePortrait = false;
     pad.forceLandscape = false;
     pad.setGuide(null);
+    pad.setLock(null);
     pad.reset();
     pad.setRule(null);
     applyRuleToolbar(null);

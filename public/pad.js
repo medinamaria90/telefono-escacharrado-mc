@@ -168,6 +168,8 @@
       this.forcePortrait = false; // p. ej. al dibujar la carita: siempre vertical
       this.forceLandscape = false; // Tríptico: siempre una franja horizontal
       this.fillClip = null; // {cx, cy, r}: el cubo no pasa de este círculo (carita)
+      this.lockRects = []; // zonas donde no se puede pintar (Tríptico: la franja de la parte anterior)
+      this.fillWalls = []; // líneas que el cubo no cruza (Tríptico: la línea de unión)
       this.rule = null; // dibujo extremo: "circles" | "squares" | "oneline"
       this.lineUsed = false;
       this.onBlocked = opts.onBlocked || (() => {});
@@ -487,6 +489,33 @@
         im.src = opts.top;
       }
       paint();
+    }
+    /** Rectángulo en coordenadas de pantalla (franja visible) -> coordenadas internas del lienzo */
+    visualRect(vx, vy, vw, vh) {
+      if (this.rotated) return { x: W - (vy + vh), y: vx, w: vh, h: vw };
+      return { x: vx, y: vy, w: vw, h: vh };
+    }
+    /**
+     * Tríptico: zonas bloqueadas (no se pinta en ellas: se recorta todo lo que se dibuje) y paredes
+     * para el cubo de pintura. Coordenadas internas.
+     */
+    setLock(locked, walls) {
+      this.lockRects = locked || [];
+      this.fillWalls = walls || [];
+      for (const c of [this.ctx, this.octx]) {
+        if (c._lockSaved) {
+          c.restore();
+          c._lockSaved = false;
+        }
+        if (this.lockRects.length) {
+          c.save();
+          c.beginPath();
+          c.rect(0, 0, W, H);
+          for (const r of this.lockRects) c.rect(r.x, r.y, r.w, r.h);
+          c.clip("evenodd");
+          c._lockSaved = true;
+        }
+      }
     }
     /** Carga una imagen guardada como punto de partida (para editar) */
     loadImage(src, done) {
@@ -1129,6 +1158,13 @@
       const TOL = 70; // suma de diferencias por canal
       const diff = (i) => Math.abs(d[i] - tr) + Math.abs(d[i + 1] - tg) + Math.abs(d[i + 2] - tb);
       const mask = new Uint8Array(W * H);
+      // Zonas bloqueadas y líneas de unión (Tríptico): cuentan como borde
+      for (const r of [...this.lockRects, ...this.fillWalls]) {
+        const xa = Math.max(0, Math.floor(r.x)), xb = Math.min(W, Math.ceil(r.x + r.w));
+        const ya = Math.max(0, Math.floor(r.y)), yb = Math.min(H, Math.ceil(r.y + r.h));
+        for (let y = ya; y < yb; y++) for (let x = xa; x < xb; x++) mask[y * W + x] = 2;
+      }
+      if (mask[y0 * W + x0]) return;
       // Fuera del círculo de la carita cuenta como borde: el relleno no lo cruza
       const clip = this.fillClip;
       if (clip) {
