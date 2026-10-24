@@ -1007,7 +1007,7 @@
     session.set({ code: res.code, token: res.token });
     store.set("tg-named", "1");
     try {
-      history.replaceState(null, "", "/?sala=" + res.code);
+      history.replaceState(history.state, "", "/?sala=" + res.code);
     } catch (_) {}
     if (res.waiting) {
       // la partida ya había empezado: se espera a la puerta
@@ -1193,34 +1193,42 @@
     show("s-home");
     renderChrome();
   });
-  // El botón «Atrás» del móvil no saca de la partida: pregunta antes
-  let backGuarded = false;
+  // «Atrás» del móvil (Android, también con la app instalada) nunca saca de la app salvo desde el inicio:
+  // primero cierra lo que haya abierto (visor, ventanas), luego sale de «Tú», del cuaderno o del dibujo;
+  // en partida, pregunta antes de salir.
+  // Chrome se salta al ir atrás las entradas del historial añadidas sin que el usuario haya tocado nada,
+  // así que no basta con volver a poner una entrada tras cada «atrás»: se guarda un colchón de varias
+  // entradas, que se rellena cada vez que el usuario toca la pantalla (ahí sí cuentan).
+  const BACK_DEPTH = 4;
+  const backDepth = () => (history.state && history.state.dibulios) || 0;
   function guardBack() {
-    if (backGuarded) return;
+    if (!needsGuard()) return;
     try {
-      history.pushState({ dibulios: 1 }, "");
-      backGuarded = true;
+      let d = backDepth();
+      while (d < BACK_DEPTH) history.pushState({ dibulios: ++d }, "");
     } catch (_) {}
   }
-  // «Atrás» del móvil (Android, también con la app instalada): primero cierra lo que haya abierto
-  // (visor, ventanas), luego sale del cuaderno o del dibujo libre; en partida, pregunta antes de salir.
   const OVERLAYS = ["transferSheet", "welcomeSheet", "faceCrop", "facePick", "bookView", "zoomSheet", "shareSheet", "modeSheet", "howSheet", "endSheet", "leaveSheet"];
   const openOverlay = () => OVERLAYS.map((id) => $(id)).find((o) => o && !o.hidden);
-  const needsGuard = () => !!state || bookOpen || soloMode || meOpen || !!soloGame || !!openOverlay();
-  let consumingBack = false;
-  // (No se quita la entrada de más al cerrar algo con un botón: hacerlo con history.back() a veces se
-  // cruzaba con la siguiente y «atrás» sacaba de la app. Como mucho, en el inicio hay que pulsar atrás dos veces.)
-  function syncBack() {
-    if (needsGuard()) guardBack();
-  }
-  new MutationObserver(() => setTimeout(syncBack, 0)).observe(document.body, { attributes: true, attributeFilter: ["hidden"], subtree: true });
+  const needsGuard = () => !!state || !!knock || bookOpen || soloMode || meOpen || !!soloGame || !!openOverlay() || (document.body.dataset.screen || "s-home") !== "s-home";
+  const topUp = () => {
+    if (backDepth() < BACK_DEPTH) guardBack();
+  };
+  ["pointerdown", "keydown"].forEach((ev) => window.addEventListener(ev, topUp, true));
+  new MutationObserver(() => setTimeout(topUp, 0)).observe(document.body, { attributes: true, attributeFilter: ["hidden"], subtree: true });
   window.addEventListener("popstate", () => {
-    backGuarded = false;
-    if (consumingBack) {
-      consumingBack = false;
-      try {
-        if (!state && location.search) history.replaceState(null, "", "/");
-      } catch (_) {}
+    try {
+      if (!state && location.search) history.replaceState(history.state, "", "/");
+    } catch (_) {}
+    if (!needsGuard()) {
+      // en el inicio sin nada abierto: se quitan las entradas que sobren; el siguiente «atrás» ya sale
+      const d = backDepth();
+      if (d > 0) {
+        toast("Vuelve a pulsar atrás para salir");
+        try {
+          history.go(-d);
+        } catch (_) {}
+      }
       return;
     }
     const ov = openOverlay();
@@ -1235,7 +1243,12 @@
       if (pad && pad.dirty) toast("Pulsa «Guardar» para guardar tu dibujo, o «Salir» si no lo quieres.");
       else exitSolo();
     } else if (state) askLeave(false);
-    if (needsGuard()) guardBack();
+    else if (knock) $("knockLeave").click();
+    else showHome();
+    // si se ha gastado el colchón, se repone como se pueda (mejor que nada)
+    setTimeout(() => {
+      if (backDepth() === 0) guardBack();
+    }, 0);
   });
 
   // ---------- render principal ----------
